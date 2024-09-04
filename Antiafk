@@ -1,0 +1,97 @@
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+-- Referência à instância de teletransporte
+local teleportInstance = game:GetService("Workspace").__THINGS.Instances.ColorsInstance.Teleports.Enter
+
+-- Função para teletransportar o personagem para a instância especificada
+local function teleportToInstance()
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if teleportInstance then
+            humanoidRootPart.CFrame = teleportInstance.CFrame
+        end
+    end
+end
+
+-- Função para teletransportar o personagem para uma posição específica
+local function teleportToPosition(position)
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        humanoidRootPart.CFrame = CFrame.new(position)
+    end
+end
+
+-- Função para ativar o AutoFarmCmds com controle de estado
+local function activateAutoFarm()
+    local Module = require(game:GetService("ReplicatedStorage").Library.Client.AutoFarmCmds)
+
+    if Module and Module.Enable then
+        local isActive = false
+        
+        -- Verifica o estado atual do AutoFarmCmds
+        local function checkIfActive()
+            -- Esta função deve ser ajustada de acordo com a lógica específica para determinar se o AutoFarm está ativo ou inativo.
+            -- Vamos presumir que exista uma função 'Module.IsEnabled()' para isso (ajuste conforme necessário).
+            if Module.IsEnabled then
+                return Module:IsEnabled()
+            else
+                warn("A função IsEnabled() não foi encontrada no módulo.")
+                return false
+            end
+        end
+        
+        -- Ativa o AutoFarmCmds apenas se estiver inativo
+        if not checkIfActive() then
+            local success, err = pcall(function()
+                isActive = Module.Enable(game:GetService("Players").LocalPlayer)
+            end)
+
+            if success and isActive then
+                print("AutoFarmCmds ativado com sucesso.")
+            else
+                warn("Não foi possível ativar o AutoFarmCmds: " .. tostring(err))
+            end
+        else
+            print("AutoFarmCmds já está ativo.")
+        end
+    else
+        warn("Módulo AutoFarmCmds ou função Enable não encontrado.")
+    end
+end
+
+-- Executa o teleporte inicial
+teleportToInstance()
+
+-- Espera 5 segundos para garantir que a instância esteja carregada e estável
+task.wait(5)
+
+-- Teleporta para a nova posição após 3 segundos
+task.wait(3)
+teleportToPosition(Vector3.new(3149.55, 16.24, -9334.91))
+
+-- Ativa o AutoFarmCmds apenas uma vez se estiver desativado, após o teleporte
+spawn(function()
+    activateAutoFarm()
+end)
+
+-- Código Anti-AFK sem Movimento (Apenas Shift)
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
+
+local function simulateInput()
+    -- Simula o pressionamento de teclas Shift que não causam movimento
+    local keys = {"LeftShift", "RightShift"}
+    local key = keys[math.random(1, #keys)]
+    VirtualInputManager:SendKeyEvent(true, key, false, game)
+    wait(0.1)
+    VirtualInputManager:SendKeyEvent(false, key, false, game)
+end
+
+-- Simula input em intervalos aleatórios
+RunService.Stepped:Connect(function()
+    simulateInput()
+    wait(math.random(30, 60)) -- Intervalo aleatório entre 30 a 60 segundos
+end)
