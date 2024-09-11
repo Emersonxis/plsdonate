@@ -1,4 +1,3 @@
-
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -77,7 +76,7 @@ spawn(function()
     activateAutoFarm()
 end)
 
--- Código Anti-AFK sem Movimento (Apenas Shift)
+-- Código Anti-AFK com Delay de 5 minutos
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 
@@ -90,8 +89,8 @@ local function simulateInput()
     VirtualInputManager:SendKeyEvent(false, key, false, game)
 end
 
--- Simula input em intervalos aleatórios
+-- Simula input a cada 5 minutos (300 segundos)
 RunService.Stepped:Connect(function()
     simulateInput()
-    wait(math.random(30, 60)) -- Intervalo aleatório entre 30 a 60 segundos
+    wait(300) -- Intervalo de 5 minutos
 end)
