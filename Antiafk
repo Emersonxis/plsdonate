@@ -6,19 +6,6 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 
--- Referência à instância de teletransporte
-local teleportInstance = game:GetService("Workspace").__THINGS.Instances.ColorsInstance.Teleports.Enter
-
--- Função para teletransportar o personagem para a instância especificada
-local function teleportToInstance()
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        if teleportInstance then
-            humanoidRootPart.CFrame = teleportInstance.CFrame
-        end
-    end
-end
-
 -- Função para teletransportar o personagem para uma posição específica
 local function teleportToPosition(position)
     if character and character:FindFirstChild("HumanoidRootPart") then
@@ -36,8 +23,6 @@ local function activateAutoFarm()
         
         -- Verifica o estado atual do AutoFarmCmds
         local function checkIfActive()
-            -- Esta função deve ser ajustada de acordo com a lógica específica para determinar se o AutoFarm está ativo ou inativo.
-            -- Vamos presumir que exista uma função 'Module.IsEnabled()' para isso (ajuste conforme necessário).
             if Module.IsEnabled then
                 return Module:IsEnabled()
             else
@@ -64,12 +49,6 @@ local function activateAutoFarm()
         warn("Módulo AutoFarmCmds ou função Enable não encontrado.")
     end
 end
-
--- Executa o teleporte inicial
-teleportToInstance()
-
--- Espera 5 segundos para garantir que a instância esteja carregada e estável
-task.wait(5)
 
 -- Teleporta para a nova posição após 3 segundos
 task.wait(3)
