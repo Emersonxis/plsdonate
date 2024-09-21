@@ -73,7 +73,7 @@ task.wait(5)
 
 -- Teleporta para a nova posição após 3 segundos
 task.wait(3)
-teleportToPosition(Vector3.new(3668.99, 16.24, -9334.99))
+teleportToPosition(Vector3.new(1428.77, 18.74, -25006.89))
 
 -- Ativa o AutoFarmCmds apenas uma vez se estiver desativado, após o teleporte
 spawn(function()
