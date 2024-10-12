@@ -1,0 +1,63 @@
+-- Variável de controle para ligar/desligar o loop
+local loopEnabled = false
+
+-- Função para o loop de compra
+local function buyEgg()
+    local args = {
+        [1] = {
+            [1] = "Cursed Egg",
+            [2] = true
+        }
+    }
+    
+    while loopEnabled do
+        workspace.__THINGS.__REMOTES:FindFirstChild("buy egg"):InvokeServer(unpack(args))
+        wait()-- mpo de espera entre cada compra
+    end
+end
+
+-- Criando uma tela GUI
+local ScreenGui = Instance.new("ScreenGui")
+local ToggleButton = Instance.new("TextButton")
+local CloseButton = Instance.new("TextButton")
+local Frame = Instance.new("Frame")
+
+ScreenGui.Parent = game.CoreGui
+
+-- Configurações do Frame para poder mover a GUI
+Frame.Size = UDim2.new(0, 150, 0, 100)
+Frame.Position = UDim2.new(0.5, -75, 0.5, -50)
+Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Cor Black Infinito
+Frame.BackgroundTransparency = 0.1 -- Levemente brilhante para o efeito "Piano"
+Frame.Active = true
+Frame.Draggable = true -- Permite mover no mobile e no PC
+Frame.Parent = ScreenGui
+
+-- Configurações do botão Toggle
+ToggleButton.Size = UDim2.new(0, 100, 0, 50)
+ToggleButton.Position = UDim2.new(0.5, -50, 0, 10)
+ToggleButton.Text = "Start"
+ToggleButton.Parent = Frame
+
+-- Configurações do botão de fechar
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 5)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.new(1, 0, 0)
+CloseButton.Parent = Frame
+
+-- Função para alternar o loop
+ToggleButton.MouseButton1Click:Connect(function()
+    loopEnabled = not loopEnabled
+    if loopEnabled then
+        ToggleButton.Text = "Stop"
+        buyEgg() -- Inicia o loop
+    else
+        ToggleButton.Text = "Start"
+    end
+end)
+
+-- Função para fechar a GUI
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy() -- Remove a interface completamente
+end)
