@@ -1,80 +1,17 @@
--- Código para desativar a animação de abertura de ovos
 local Eggs = game.Players.LocalPlayer.PlayerScripts.Scripts.Game['Egg Opening Frontend']
 getsenv(Eggs).PlayEggAnimation = function() return end
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-
--- Função para teletransportar o personagem para uma posição específica
-local function teleportToPosition(position)
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        humanoidRootPart.CFrame = CFrame.new(position)
-    end
-end
-
--- Função para ativar o AutoFarmCmds com controle de estado
-local function activateAutoFarm()
-    local Module = require(game:GetService("ReplicatedStorage").Library.Client.AutoFarmCmds)
-
-    if Module and Module.Enable then
-        local isActive = false
-        
-        -- Verifica o estado atual do AutoFarmCmds
-        local function checkIfActive()
-            if Module.IsEnabled then
-                return Module:IsEnabled()
-            else
-                warn("A função IsEnabled() não foi encontrada no módulo.")
-                return false
-            end
-        end
-        
-        -- Ativa o AutoFarmCmds apenas se estiver inativo
-        if not checkIfActive() then
-            local success, err = pcall(function()
-                isActive = Module.Enable(game:GetService("Players").LocalPlayer)
-            end)
-
-            if success and isActive then
-                print("AutoFarmCmds ativado com sucesso.")
-            else
-                warn("Não foi possível ativar o AutoFarmCmds: " .. tostring(err))
-            end
-        else
-            print("AutoFarmCmds já está ativo.")
-        end
-    else
-        warn("Módulo AutoFarmCmds ou função Enable não encontrado.")
-    end
-end
-
--- Teleporta para a nova posição após 3 segundos
-task.wait(3)
-teleportToPosition(Vector3.new(1428.77, 18.74, -25006.89))
-
--- Ativa o AutoFarmCmds apenas uma vez se estiver desativado, após o teleporte
-spawn(function()
-    activateAutoFarm()
-end)
-
--- Código Anti-AFK com Delay de 5 minutos
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local function simulateInput()
-    -- Simula o pressionamento de teclas Shift que não causam movimento
-    local keys = {"LeftShift", "RightShift"}
-    local key = keys[math.random(1, #keys)]
-    VirtualInputManager:SendKeyEvent(true, key, false, game)
+    VirtualInputManager:SendKeyEvent(true, "LeftShift", false, game)
     task.wait(0.1)
-    VirtualInputManager:SendKeyEvent(false, key, false, game)
+    VirtualInputManager:SendKeyEvent(false, "LeftShift", false, game)
 end
 
--- Loop para simular input a cada 5 minutos (300 segundos)
 spawn(function()
     while true do
         simulateInput()
-        task.wait(300) -- Intervalo de 5 minutos
+        task.wait(300)
     end
 end)
