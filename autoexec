@@ -1,16 +1,16 @@
 getgenv().kw = {
     ["Instance"] = "Backrooms", 
-    ["MinMultiplier"] = 100, -- Hop Server if Egg found is < Multiplier
-    ["Pumpkin Gifts"] = true, -- Auto Craft
-    ["MinBackroomKeys"] = 1, -- Minimum to Farm before Going to Hatch Eggs
-    ["MinBackroomCoin"] = "1k", -- Minimum to Farm before Going to Hatch Eggs
+    ["MinMultiplier"] = 100,
+    ["Pumpkin Gifts"] = true,
+    ["MinBackroomKeys"] = 1,
+    ["MinBackroomCoin"] = "1k",
     ["Optimize"] = true,
     ["Webhook"] = "https://discord.com/api/webhooks/1239362954483204266/4Aphf9YbK7SL9KW8R2s3r-5Uh8YQzO0Z7YsNAy3Ai7F4VwSlYlxJC7oPAy26uwf8RJzc",
     ["Mailing"] = false,
-    ["MinPumpkins"] = 0, -- Setting this above 0 will prevent crafting Pumpkin Gifts and mail Pumpkins to the Username if you gain > this amount
-    ["Username"] = "", -- username to mail new huge / pumpkins to
-    ["DiscordId"] = 0, -- Will @ you :slight_smile:
-    ["GuiStats"] = true, -- stats in a gui duh
-    ["FindBetterZone"] = true, -- instead of Farming Starter Zone will find a more Valuable Breakable Room
+    ["MinPumpkins"] = 0,
+    ["Username"] = "",
+    ["DiscordId"] = 0,
+    ["GuiStats"] = true,
+    ["FindBetterZone"] = true,
 }
 loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/6388637ce475eff7766aee3aff906dcd.lua"))()
