@@ -1,3 +1,4 @@
+-- Variáveis principais e GUI
 local player = game.Players.LocalPlayer
 local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 local frame = Instance.new("Frame", screenGui)
@@ -11,7 +12,7 @@ local titleLabel = Instance.new("TextLabel", frame)
 -- Variáveis de controle
 local isBuying = false
 local isFarming = false
-local SelectedArea = "Hacker Portal" -- Área padrão para farm
+local SelectedArea = "Hacker Portal"
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
 -- Configurações da GUI
@@ -26,7 +27,7 @@ frame.BackgroundTransparency = 0.1
 -- Título da GUI
 titleLabel.Size = UDim2.new(1, 0, 0.15, 0)
 titleLabel.Position = UDim2.new(0, 0, 0, -20)
-titleLabel.Text = "Auto Farm & Egg GUI"
+titleLabel.Text = "👾FrancesS👾"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Font = Enum.Font.GothamBold
@@ -83,7 +84,7 @@ closeButton.Text = "X"
 closeButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
 closeButton.TextColor3 = Color3.new(1, 1, 1)
 closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 14
+closeButton.TextSize = 13
 closeButton.BorderSizePixel = 0
 
 -- Função para obter os pets equipados
@@ -125,7 +126,7 @@ end
 local function purchaseLoop()
     while isBuying do
         buyEgg()
-        wait(0.1) -- Abertura rápida dos eggs
+        wait() -- Remover delay para abrir os eggs o mais rápido possível
     end
 end
 
@@ -155,10 +156,13 @@ local function autoFarm()
 
         for _, coin in ipairs(coinsToFarm) do
             FarmCoin(coin.Name, petsEquip)
-            repeat wait() until not workspace.__THINGS.Coins:FindFirstChild(coin.Name)
+            repeat
+                wait()
+            until not workspace.__THINGS.Coins:FindFirstChild(coin.Name) or not isFarming
         end
 
-        wait(1)
+        if not isFarming then break end
+        wait(0.5)
     end
 end
 
