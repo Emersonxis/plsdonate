@@ -8,28 +8,16 @@ local toggleFarmButton = Instance.new("TextButton", frame)
 local areaNameInput = Instance.new("TextBox", frame)
 local closeButton = Instance.new("TextButton", frame)
 local titleLabel = Instance.new("TextLabel", frame)
-local chestNameInput = Instance.new("TextBox", frame)
-local toggleChestFarmButton = Instance.new("TextButton", frame)
-local chestsLabel = Instance.new("TextLabel", frame)
 
 -- Variáveis de controle
 local isBuying = false
 local isFarming = false
-local isChestFarming = false
 local SelectedArea = "Hacker Portal"
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
--- Lista de Chests - baseada no .txt
-local chestsList = {
-    "Volcano Magma Chest", "Ancient Island Enchanted Chest", "Hell Island Hell Chest",
-    "Haunted Island Haunted Chest", "Heaven Island Angel Chest", "Heavens Gate Grand Heaven Chest",
-    "Giant Tech Chest", "Giant Steampunk Chest", "Giant Alien Chest", "Giant Ocean Chest",
-    "Giant Present", "Giant Pixel Chest"
-}
-
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 200, 0, 400)
-frame.Position = UDim2.new(0.5, -100, 0.5, -200)
+frame.Size = UDim2.new(0, 300, 0, 400)  -- Tamanho reduzido
+frame.Position = UDim2.new(0.5, -150, 0.5, -200)
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -38,7 +26,7 @@ frame.BackgroundTransparency = 0.1
 
 -- Título da GUI
 titleLabel.Size = UDim2.new(1, 0, 0.1, 0)
-titleLabel.Position = UDim2.new(0, 0, 0, -20)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)  -- Ajustado para ficar dentro do frame
 titleLabel.Text = "👾FrancesS👾"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.BackgroundTransparency = 1
@@ -59,7 +47,7 @@ eggNameInput.BorderSizePixel = 0
 
 -- Botão de compra de eggs
 toggleEggButton.Size = UDim2.new(0.9, 0, 0.1, 0)
-toggleEggButton.Position = UDim2.new(0.05, 0, 0.2, 0)
+toggleEggButton.Position = UDim2.new(0.05, 0, 0.22, 0)  -- Ajustado para melhor espaçamento
 toggleEggButton.Text = "Iniciar Compra de Eggs"
 toggleEggButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleEggButton.TextColor3 = Color3.new(1, 1, 1)
@@ -69,7 +57,7 @@ toggleEggButton.BorderSizePixel = 0
 
 -- Campo para o nome da área de farm
 areaNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
-areaNameInput.Position = UDim2.new(0.05, 0, 0.35, 0)
+areaNameInput.Position = UDim2.new(0.05, 0, 0.35, 0)  -- Ajustado para melhor espaçamento
 areaNameInput.PlaceholderText = "Nome da Área"
 areaNameInput.Text = ""
 areaNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -81,13 +69,23 @@ areaNameInput.BorderSizePixel = 0
 
 -- Botão de farm
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.1, 0)
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.45, 0)
+toggleFarmButton.Position = UDim2.new(0.05, 0, 0.48, 0)  -- Ajustado para melhor espaçamento
 toggleFarmButton.Text = "Ativar Auto Farm"
 toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
 toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 12
 toggleFarmButton.BorderSizePixel = 0
+
+-- Botão de fechar
+closeButton.Size = UDim2.new(0.1, 0, 0.1, 0)
+closeButton.Position = UDim2.new(0.85, 0, 0, 0)  -- Ajustado para ficar dentro do frame
+closeButton.Text = "X"
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 12
+closeButton.BorderSizePixel = 0
 
 -- Função para obter os pets equipados
 local function GetMyPets()
@@ -180,16 +178,6 @@ toggleFarmButton.MouseButton1Click:Connect(function()
         spawn(autoFarm)
     end
 end)
-
--- Botão de fechar
-closeButton.Size = UDim2.new(0.15, 0, 0.1, 0)
-closeButton.Position = UDim2.new(0.85, -10, -0.05, 0)
-closeButton.Text = "X"
-closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
-closeButton.TextColor3 = Color3.new(1, 1, 1)
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 12
-closeButton.BorderSizePixel = 0
 
 closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
