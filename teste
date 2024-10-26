@@ -176,4 +176,58 @@ end
 -- Evento do botão de compra de eggs
 toggleEggButton.MouseButton1Click:Connect(function()
     isBuying = not isBuying
-    toggleEggButton.Text = isBuying and "Parar Compra de Eggs"
+    toggleEggButton.Text = isBuying and "Parar Compra de Eggs" or "Iniciar Compra de Eggs"
+    if isBuying then
+        purchaseLoop()
+    end
+end)
+
+-- Função principal de farm
+local function startFarming()
+    local pets = GetMyPets()
+    while isFarming do
+        for _, coin in pairs(workspace.__ITEMS.Coins:GetChildren()) do
+            if coin:FindFirstChild("Coin") and coin.Coin:FindFirstChild("Area") and coin.Coin.Area.Value == SelectedArea then
+                FarmCoin(coin.Name, pets)
+            end
+        end
+        wait(1)
+    end
+end
+
+-- Evento do botão de farm
+toggleFarmButton.MouseButton1Click:Connect(function()
+    SelectedArea = areaNameInput.Text
+    isFarming = not isFarming
+    toggleFarmButton.Text = isFarming and "Desativar Auto Farm" or "Ativar Auto Farm"
+    if isFarming then
+        startFarming()
+    end
+end)
+
+-- Função principal de farm para chests
+local function startChestFarming()
+    local pets = GetMyPets()
+    while isChestFarming do
+        for _, coin in pairs(workspace.__ITEMS.Coins:GetChildren()) do
+            if coin:FindFirstChild("Coin") and table.find(chestsList, coin.Coin.Name) then
+                FarmCoin(coin.Name, pets)
+            end
+        end
+        wait(1)
+    end
+end
+
+-- Evento do botão de farm de chests
+toggleChestFarmButton.MouseButton1Click:Connect(function()
+    isChestFarming = not isChestFarming
+    toggleChestFarmButton.Text = isChestFarming and "Parar Auto Farm Chest" or "Ativar Auto Farm Chest"
+    if isChestFarming then
+        startChestFarming()
+    end
+end)
+
+-- Evento do botão de fechar
+closeButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
