@@ -10,6 +10,7 @@ local closeButton = Instance.new("TextButton", frame)
 local titleLabel = Instance.new("TextLabel", frame)
 local chestNameInput = Instance.new("TextBox", frame)
 local toggleChestFarmButton = Instance.new("TextButton", frame)
+local chestsLabel = Instance.new("TextLabel", frame)
 
 -- Variáveis de controle
 local isBuying = false
@@ -18,9 +19,17 @@ local isChestFarming = false
 local SelectedArea = "Hacker Portal"
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
+-- Lista de Chests - baseada no .txt
+local chestsList = {
+    "Volcano Magma Chest", "Ancient Island Enchanted Chest", "Hell Island Hell Chest",
+    "Haunted Island Haunted Chest", "Heaven Island Angel Chest", "Heavens Gate Grand Heaven Chest",
+    "Giant Tech Chest", "Giant Steampunk Chest", "Giant Alien Chest", "Giant Ocean Chest",
+    "Giant Present", "Giant Pixel Chest"
+}
+
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 200, 0, 300)
-frame.Position = UDim2.new(0.5, -100, 0.5, -150)
+frame.Size = UDim2.new(0, 200, 0, 400)
+frame.Position = UDim2.new(0.5, -100, 0.5, -200)
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -28,7 +37,7 @@ frame.Draggable = true
 frame.BackgroundTransparency = 0.1
 
 -- Título da GUI
-titleLabel.Size = UDim2.new(1, 0, 0.15, 0)
+titleLabel.Size = UDim2.new(1, 0, 0.1, 0)
 titleLabel.Position = UDim2.new(0, 0, 0, -20)
 titleLabel.Text = "👾FrancesS👾"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -37,8 +46,8 @@ titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 16
 
 -- Campo para o nome do egg
-eggNameInput.Size = UDim2.new(0.9, 0, 0.15, 0)
-eggNameInput.Position = UDim2.new(0.05, 0, 0.15, 0)
+eggNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
+eggNameInput.Position = UDim2.new(0.05, 0, 0.1, 0)
 eggNameInput.PlaceholderText = "Nome do Egg"
 eggNameInput.Text = ""
 eggNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -49,8 +58,8 @@ eggNameInput.TextSize = 12
 eggNameInput.BorderSizePixel = 0
 
 -- Botão de compra de eggs
-toggleEggButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-toggleEggButton.Position = UDim2.new(0.05, 0, 0.3, 0)
+toggleEggButton.Size = UDim2.new(0.9, 0, 0.1, 0)
+toggleEggButton.Position = UDim2.new(0.05, 0, 0.2, 0)
 toggleEggButton.Text = "Iniciar Compra de Eggs"
 toggleEggButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleEggButton.TextColor3 = Color3.new(1, 1, 1)
@@ -59,8 +68,8 @@ toggleEggButton.TextSize = 12
 toggleEggButton.BorderSizePixel = 0
 
 -- Campo para o nome da área de farm
-areaNameInput.Size = UDim2.new(0.9, 0, 0.15, 0)
-areaNameInput.Position = UDim2.new(0.05, 0, 0.5, 0)
+areaNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
+areaNameInput.Position = UDim2.new(0.05, 0, 0.35, 0)
 areaNameInput.PlaceholderText = "Nome da Área"
 areaNameInput.Text = ""
 areaNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -71,8 +80,8 @@ areaNameInput.TextSize = 12
 areaNameInput.BorderSizePixel = 0
 
 -- Botão de farm
-toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.65, 0)
+toggleFarmButton.Size = UDim2.new(0.9, 0, 0.1, 0)
+toggleFarmButton.Position = UDim2.new(0.05, 0, 0.45, 0)
 toggleFarmButton.Text = "Ativar Auto Farm"
 toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
@@ -80,9 +89,18 @@ toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 12
 toggleFarmButton.BorderSizePixel = 0
 
+-- Título da aba de chests
+chestsLabel.Size = UDim2.new(1, 0, 0.1, 0)
+chestsLabel.Position = UDim2.new(0, 0, 0.55, 0)
+chestsLabel.Text = "Auto Farm Chests"
+chestsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+chestsLabel.BackgroundTransparency = 1
+chestsLabel.Font = Enum.Font.GothamBold
+chestsLabel.TextSize = 14
+
 -- Campo para o nome do baú
-chestNameInput.Size = UDim2.new(0.9, 0, 0.15, 0)
-chestNameInput.Position = UDim2.new(0.05, 0, 0.8, 0)
+chestNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
+chestNameInput.Position = UDim2.new(0.05, 0, 0.65, 0)
 chestNameInput.PlaceholderText = "Nome do Baú"
 chestNameInput.Text = ""
 chestNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -93,8 +111,8 @@ chestNameInput.TextSize = 12
 chestNameInput.BorderSizePixel = 0
 
 -- Botão de ativar/desativar Auto Farm Chest
-toggleChestFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-toggleChestFarmButton.Position = UDim2.new(0.05, 0, 0.95, 0)
+toggleChestFarmButton.Size = UDim2.new(0.9, 0, 0.1, 0)
+toggleChestFarmButton.Position = UDim2.new(0.05, 0, 0.75, 0)
 toggleChestFarmButton.Text = "Ativar Auto Farm Chest"
 toggleChestFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleChestFarmButton.TextColor3 = Color3.new(1, 1, 1)
@@ -103,7 +121,7 @@ toggleChestFarmButton.TextSize = 12
 toggleChestFarmButton.BorderSizePixel = 0
 
 -- Botão de fechar
-closeButton.Size = UDim2.new(0.15, 0, 0.15, 0)
+closeButton.Size = UDim2.new(0.15, 0, 0.1, 0)
 closeButton.Position = UDim2.new(0.85, -10, -0.05, 0)
 closeButton.Text = "X"
 closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
@@ -182,3 +200,60 @@ local function autoFarm()
 
         for _, coin in ipairs(coinsToFarm) do
             if not isFarming then return end
+            FarmCoin(coin.Name, petsEquip)
+            repeat
+                wait()
+            until not workspace.__THINGS.Coins:FindFirstChild(coin.Name) or not isFarming
+        end
+
+        if not isFarming then break end
+        wait(0.5)
+    end
+end
+
+-- Evento do botão de farm
+toggleFarmButton.MouseButton1Click:Connect(function()
+    isFarming = not isFarming
+    toggleFarmButton.Text = isFarming and "Desativar Auto Farm" or "Ativar Auto Farm"
+    toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
+
+    if isFarming then
+        spawn(autoFarm)
+    end
+end)
+
+-- Função para farmar baús por nome
+local function autoFarmChests()
+    while isChestFarming do
+        local chestName = chestNameInput.Text
+        local equippedPets = GetMyPets()
+        local chestList = workspace.__THINGS.__REMOTES["get coins"]:InvokeServer({})[1]
+
+        for _, chest in pairs(chestList) do
+            if chest.n == chestName then
+                for _, pet in pairs(equippedPets) do
+                    FarmCoin(chest.index, pet)
+                end
+                wait(1)
+            end
+        end
+
+        wait(0.5)
+    end
+end
+
+-- Evento do botão de farm de baús
+toggleChestFarmButton.MouseButton1Click:Connect(function()
+    isChestFarming = not isChestFarming
+    toggleChestFarmButton.Text = isChestFarming and "Parar Auto Farm Chest" or "Ativar Auto Farm Chest"
+    toggleChestFarmButton.BackgroundColor3 = isChestFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
+
+    if isChestFarming then
+        spawn(autoFarmChests)
+    end
+end)
+
+-- Evento do botão de fechar
+closeButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
