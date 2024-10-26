@@ -89,47 +89,6 @@ toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 12
 toggleFarmButton.BorderSizePixel = 0
 
--- Título da aba de chests
-chestsLabel.Size = UDim2.new(1, 0, 0.1, 0)
-chestsLabel.Position = UDim2.new(0, 0, 0.55, 0)
-chestsLabel.Text = "Auto Farm Chests"
-chestsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-chestsLabel.BackgroundTransparency = 1
-chestsLabel.Font = Enum.Font.GothamBold
-chestsLabel.TextSize = 14
-
--- Campo para o nome do baú
-chestNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
-chestNameInput.Position = UDim2.new(0.05, 0, 0.65, 0)
-chestNameInput.PlaceholderText = "Nome do Baú"
-chestNameInput.Text = ""
-chestNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-chestNameInput.TextColor3 = Color3.new(1, 1, 1)
-chestNameInput.Font = Enum.Font.Gotham
-chestNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
-chestNameInput.TextSize = 12
-chestNameInput.BorderSizePixel = 0
-
--- Botão de ativar/desativar Auto Farm Chest
-toggleChestFarmButton.Size = UDim2.new(0.9, 0, 0.1, 0)
-toggleChestFarmButton.Position = UDim2.new(0.05, 0, 0.75, 0)
-toggleChestFarmButton.Text = "Ativar Auto Farm Chest"
-toggleChestFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
-toggleChestFarmButton.TextColor3 = Color3.new(1, 1, 1)
-toggleChestFarmButton.Font = Enum.Font.GothamBold
-toggleChestFarmButton.TextSize = 12
-toggleChestFarmButton.BorderSizePixel = 0
-
--- Botão de fechar
-closeButton.Size = UDim2.new(0.15, 0, 0.1, 0)
-closeButton.Position = UDim2.new(0.85, -10, -0.05, 0)
-closeButton.Text = "X"
-closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
-closeButton.TextColor3 = Color3.new(1, 1, 1)
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 12
-closeButton.BorderSizePixel = 0
-
 -- Função para obter os pets equipados
 local function GetMyPets()
     local returntable = {}
@@ -148,12 +107,12 @@ local function FarmCoin(CoinID, Pets)
     end
 end
 
--- Função para comprar o egg
+-- Função para comprar o egg com o novo Remote
 local function buyEgg()
     local args = {
         [1] = {
             [1] = {
-                [1] = eggNameInput.Text,
+                [1] = eggNameInput.Text, -- nome do Egg obtido no GUI
                 [2] = true -- Abre o egg com animação
             },
             [2] = {
@@ -162,7 +121,7 @@ local function buyEgg()
             }
         }
     }
-    workspace.__THINGS.__REMOTES:FindFirstChild("buy egg"):InvokeServer(unpack(args))
+    workspace.__ITEMS.__REMOTES:FindFirstChild("buy egg"):InvokeServer(unpack(args))
 end
 
 -- Loop de compra de eggs
@@ -177,57 +136,61 @@ end
 toggleEggButton.MouseButton1Click:Connect(function()
     isBuying = not isBuying
     toggleEggButton.Text = isBuying and "Parar Compra de Eggs" or "Iniciar Compra de Eggs"
+    toggleEggButton.BackgroundColor3 = isBuying and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
+
     if isBuying then
-        purchaseLoop()
+        spawn(purchaseLoop)
     end
 end)
 
--- Função principal de farm
-local function startFarming()
-    local pets = GetMyPets()
+-- Função de auto farm ajustada
+local function autoFarm()
     while isFarming do
-        for _, coin in pairs(workspace.__ITEMS.Coins:GetChildren()) do
-            if coin:FindFirstChild("Coin") and coin.Coin:FindFirstChild("Area") and coin.Coin.Area.Value == SelectedArea then
-                FarmCoin(coin.Name, pets)
+        SelectedArea = areaNameInput.Text ~= "" and areaNameInput.Text or "Hacker Portal"
+        local petsEquip = GetMyPets()
+        local coinsToFarm = {}
+
+        for _, g in pairs(workspace.__ITEMS.Coins:GetChildren()) do
+            if not isFarming then return end
+            if g:IsA("Folder") and g:GetAttribute("Area") == SelectedArea then
+                table.insert(coinsToFarm, g)
             end
         end
-        wait(1)
+
+        for _, coin in ipairs(coinsToFarm) do
+            if not isFarming then return end
+            FarmCoin(coin.Name, petsEquip)
+            repeat
+                wait()
+            until not workspace.__ITEMS.Coins:FindFirstChild(coin.Name) or not isFarming
+        end
+
+        if not isFarming then break end
+        wait(0.5)
     end
 end
 
 -- Evento do botão de farm
 toggleFarmButton.MouseButton1Click:Connect(function()
-    SelectedArea = areaNameInput.Text
     isFarming = not isFarming
     toggleFarmButton.Text = isFarming and "Desativar Auto Farm" or "Ativar Auto Farm"
+    toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
+
     if isFarming then
-        startFarming()
+        spawn(autoFarm)
     end
 end)
 
--- Função principal de farm para chests
-local function startChestFarming()
-    local pets = GetMyPets()
-    while isChestFarming do
-        for _, coin in pairs(workspace.__ITEMS.Coins:GetChildren()) do
-            if coin:FindFirstChild("Coin") and table.find(chestsList, coin.Coin.Name) then
-                FarmCoin(coin.Name, pets)
-            end
-        end
-        wait(1)
-    end
-end
+-- Botão de fechar
+closeButton.Size = UDim2.new(0.15, 0, 0.1, 0)
+closeButton.Position = UDim2.new(0.85, -10, -0.05, 0)
+closeButton.Text = "X"
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 12
+closeButton.BorderSizePixel = 0
 
--- Evento do botão de farm de chests
-toggleChestFarmButton.MouseButton1Click:Connect(function()
-    isChestFarming = not isChestFarming
-    toggleChestFarmButton.Text = isChestFarming and "Parar Auto Farm Chest" or "Ativar Auto Farm Chest"
-    if isChestFarming then
-        startChestFarming()
-    end
-end)
-
--- Evento do botão de fechar
 closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
