@@ -12,6 +12,7 @@ local titleLabel = Instance.new("TextLabel", frame)
 local isBuying = false
 local isFarming = false
 local SelectedArea = "Hacker Portal" -- Área padrão para farm
+local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
 -- Configurações da GUI
 frame.Size = UDim2.new(0, 200, 0, 250)
@@ -85,6 +86,24 @@ closeButton.Font = Enum.Font.GothamBold
 closeButton.TextSize = 14
 closeButton.BorderSizePixel = 0
 
+-- Função para obter os pets equipados
+local function GetMyPets()
+    local returntable = {}
+    local equippedPets = Library.PetCmds.GetEquipped()
+    for _, v in pairs(equippedPets) do
+        table.insert(returntable, v.uid)
+    end
+    return returntable
+end
+
+-- Função para farmar em um coin específico com todos os pets
+local function FarmCoin(CoinID, Pets)
+    Library.Network.Invoke("Join Coin", CoinID, Pets)
+    for _, pet in ipairs(Pets) do
+        Library.Network.Fire("Farm Coin", CoinID, pet)
+    end
+end
+
 -- Função para comprar o egg
 local function buyEgg()
     local args = {
@@ -125,7 +144,7 @@ end)
 local function autoFarm()
     while isFarming do
         SelectedArea = areaNameInput.Text ~= "" and areaNameInput.Text or "Hacker Portal"
-        local petsEquip = Library.PetCmds.GetEquipped()
+        local petsEquip = GetMyPets()
         local coinsToFarm = {}
 
         for _, g in pairs(workspace.__THINGS.Coins:GetChildren()) do
@@ -135,10 +154,7 @@ local function autoFarm()
         end
 
         for _, coin in ipairs(coinsToFarm) do
-            Library.Network.Invoke("Join Coin", coin.Name, petsEquip)
-            for _, pet in ipairs(petsEquip) do
-                Library.Network.Fire("Farm Coin", coin.Name, pet)
-            end
+            FarmCoin(coin.Name, petsEquip)
             repeat wait() until not workspace.__THINGS.Coins:FindFirstChild(coin.Name)
         end
 
