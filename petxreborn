@@ -99,10 +99,8 @@ end
 
 -- Função para farmar em um coin específico com todos os pets
 local function FarmCoin(CoinID, Pets)
-    Library.Network.Invoke("Join Coin", CoinID, Pets)
-    for _, pet in ipairs(Pets) do
-        Library.Network.Fire("Farm Coin", CoinID, pet)
-    end
+    -- Usar o novo remote para farmar
+    workspace.__ITEMS.__REMOTES:FindFirstChild("Farm Coin"):InvokeServer(CoinID, Pets)
 end
 
 -- Função para comprar o egg
@@ -151,7 +149,7 @@ local function autoFarm()
         local coinsToFarm = {}
 
         -- Coleta todos os coins da área selecionada, mas sai do loop se auto farm for desativado
-        for _, g in pairs(workspace.__THINGS.Coins:GetChildren()) do
+        for _, g in pairs(workspace.__ITEMS.Coins:GetChildren()) do
             if not isFarming then return end
             if g:IsA("Folder") and g:GetAttribute("Area") == SelectedArea then
                 table.insert(coinsToFarm, g)
@@ -164,7 +162,7 @@ local function autoFarm()
             FarmCoin(coin.Name, petsEquip)
             repeat
                 wait()
-            until not workspace.__THINGS.Coins:FindFirstChild(coin.Name) or not isFarming
+            until not workspace.__ITEMS.Coins:FindFirstChild(coin.Name) or not isFarming
         end
 
         if not isFarming then break end
