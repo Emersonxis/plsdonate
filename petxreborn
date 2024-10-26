@@ -149,20 +149,25 @@ local function autoFarm()
         local coinsToFarm = {}
 
         -- Coleta todos os coins da área selecionada, mas sai do loop se auto farm for desativado
-        for _, g in pairs(workspace.__ITEMS.Coins:GetChildren()) do
+        for _, coinFolder in pairs(workspace.__ITEMS.Coins:GetChildren()) do
             if not isFarming then return end
-            if g:IsA("Folder") and g:GetAttribute("Area") == SelectedArea then
-                table.insert(coinsToFarm, g)
+            if coinFolder:IsA("Folder") and coinFolder:GetAttribute("Area") == SelectedArea then
+                -- Para cada coin encontrado, vamos pegar o CoinID (exemplo: "2245.Coin")
+                for _, coin in pairs(coinFolder:GetChildren()) do
+                    if coin:IsA("Part") and coin.Name:match("%d+%.Coin") then
+                        table.insert(coinsToFarm, coin.Name) -- Adiciona o CoinID ao array
+                    end
+                end
             end
         end
 
         -- Farmar cada coin encontrado
-        for _, coin in ipairs(coinsToFarm) do
+        for _, coinID in ipairs(coinsToFarm) do
             if not isFarming then return end
-            FarmCoin(coin.Name, petsEquip)
+            FarmCoin(coinID, petsEquip)
             repeat
                 wait()
-            until not workspace.__ITEMS.Coins:FindFirstChild(coin.Name) or not isFarming
+            until not workspace.__ITEMS.Coins:FindFirstChild(coinID) or not isFarming
         end
 
         if not isFarming then break end
