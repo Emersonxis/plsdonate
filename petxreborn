@@ -8,28 +8,16 @@ local toggleFarmButton = Instance.new("TextButton", frame)
 local areaNameInput = Instance.new("TextBox", frame)
 local closeButton = Instance.new("TextButton", frame)
 local titleLabel = Instance.new("TextLabel", frame)
-local chestNameInput = Instance.new("TextBox", frame)
-local toggleChestFarmButton = Instance.new("TextButton", frame)
-local chestsLabel = Instance.new("TextLabel", frame)
 
 -- Variáveis de controle
 local isBuying = false
 local isFarming = false
-local isChestFarming = false
 local SelectedArea = "Hacker Portal"
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
--- Lista de Chests - baseada no .txt
-local chestsList = {
-    "Volcano Magma Chest", "Ancient Island Enchanted Chest", "Hell Island Hell Chest",
-    "Haunted Island Haunted Chest", "Heaven Island Angel Chest", "Heavens Gate Grand Heaven Chest",
-    "Giant Tech Chest", "Giant Steampunk Chest", "Giant Alien Chest", "Giant Ocean Chest",
-    "Giant Present", "Giant Pixel Chest"
-}
-
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 200, 0, 400)
-frame.Position = UDim2.new(0.5, -100, 0.5, -200)
+frame.Size = UDim2.new(0, 150, 0, 150) -- Tamanho ajustado para menor
+frame.Position = UDim2.new(0.5, -75, 0.5, -75) -- Centralizado
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -37,56 +25,56 @@ frame.Draggable = true
 frame.BackgroundTransparency = 0.1
 
 -- Título da GUI
-titleLabel.Size = UDim2.new(1, 0, 0.1, 0)
-titleLabel.Position = UDim2.new(0, 0, 0, -20)
+titleLabel.Size = UDim2.new(1, 0, 0.15, 0) -- Tamanho ajustado
+titleLabel.Position = UDim2.new(0, 0, 0, 0) -- Posição ajustada
 titleLabel.Text = "👾FrancesS👾"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 16
+titleLabel.TextSize = 14 -- Tamanho do texto ajustado
 
 -- Campo para o nome do egg
-eggNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
-eggNameInput.Position = UDim2.new(0.05, 0, 0.1, 0)
+eggNameInput.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
+eggNameInput.Position = UDim2.new(0.05, 0, 0.15, 0) -- Posição ajustada
 eggNameInput.PlaceholderText = "Nome do Egg"
 eggNameInput.Text = ""
 eggNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 eggNameInput.TextColor3 = Color3.new(1, 1, 1)
 eggNameInput.Font = Enum.Font.Gotham
 eggNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
-eggNameInput.TextSize = 12
+eggNameInput.TextSize = 10 -- Tamanho do texto ajustado
 eggNameInput.BorderSizePixel = 0
 
 -- Botão de compra de eggs
-toggleEggButton.Size = UDim2.new(0.9, 0, 0.1, 0)
-toggleEggButton.Position = UDim2.new(0.05, 0, 0.2, 0)
-toggleEggButton.Text = "Iniciar Compra de Eggs"
+toggleEggButton.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
+toggleEggButton.Position = UDim2.new(0.05, 0, 0.3, 0) -- Posição ajustada
+toggleEggButton.Text = "Iniciar Compra"
 toggleEggButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleEggButton.TextColor3 = Color3.new(1, 1, 1)
 toggleEggButton.Font = Enum.Font.GothamBold
-toggleEggButton.TextSize = 12
+toggleEggButton.TextSize = 10 -- Tamanho do texto ajustado
 toggleEggButton.BorderSizePixel = 0
 
 -- Campo para o nome da área de farm
-areaNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
-areaNameInput.Position = UDim2.new(0.05, 0, 0.35, 0)
+areaNameInput.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
+areaNameInput.Position = UDim2.new(0.05, 0, 0.45, 0) -- Posição ajustada
 areaNameInput.PlaceholderText = "Nome da Área"
 areaNameInput.Text = ""
 areaNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 areaNameInput.TextColor3 = Color3.new(1, 1, 1)
 areaNameInput.Font = Enum.Font.Gotham
 areaNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
-areaNameInput.TextSize = 12
+areaNameInput.TextSize = 10 -- Tamanho do texto ajustado
 areaNameInput.BorderSizePixel = 0
 
 -- Botão de farm
-toggleFarmButton.Size = UDim2.new(0.9, 0, 0.1, 0)
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.45, 0)
-toggleFarmButton.Text = "Ativar Auto Farm"
+toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
+toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0) -- Posição ajustada
+toggleFarmButton.Text = "Ativar Farm"
 toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
 toggleFarmButton.Font = Enum.Font.GothamBold
-toggleFarmButton.TextSize = 12
+toggleFarmButton.TextSize = 10 -- Tamanho do texto ajustado
 toggleFarmButton.BorderSizePixel = 0
 
 -- Função para obter os pets equipados
@@ -135,7 +123,7 @@ end
 -- Evento do botão de compra de eggs
 toggleEggButton.MouseButton1Click:Connect(function()
     isBuying = not isBuying
-    toggleEggButton.Text = isBuying and "Parar Compra de Eggs" or "Iniciar Compra de Eggs"
+    toggleEggButton.Text = isBuying and "Parar Compra" or "Iniciar Compra"
     toggleEggButton.BackgroundColor3 = isBuying and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
 
     if isBuying then
@@ -173,7 +161,7 @@ end
 -- Evento do botão de farm
 toggleFarmButton.MouseButton1Click:Connect(function()
     isFarming = not isFarming
-    toggleFarmButton.Text = isFarming and "Desativar Auto Farm" or "Ativar Auto Farm"
+    toggleFarmButton.Text = isFarming and "Desativar Farm" or "Ativar Farm"
     toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
 
     if isFarming then
@@ -182,13 +170,13 @@ toggleFarmButton.MouseButton1Click:Connect(function()
 end)
 
 -- Botão de fechar
-closeButton.Size = UDim2.new(0.15, 0, 0.1, 0)
-closeButton.Position = UDim2.new(0.85, -10, -0.05, 0)
+closeButton.Size = UDim2.new(0.1, 0, 0.1, 0) -- Tamanho ajustado
+closeButton.Position = UDim2.new(0.9, -10, 0, 5) -- Posição ajustada
 closeButton.Text = "X"
 closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
 closeButton.TextColor3 = Color3.new(1, 1, 1)
 closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 12
+closeButton.TextSize = 10 -- Tamanho do texto ajustado
 closeButton.BorderSizePixel = 0
 
 closeButton.MouseButton1Click:Connect(function()
