@@ -11,6 +11,6 @@ getgenv().kw = {
     ["Username"] = "", -- username to mail new huge / pumpkins to
     ["DiscordId"] = 0, -- Will @ you :slight_smile:
     ["GuiStats"] = false, -- stats in a gui duh
-    ["FindBetterZone"] = true, -- instead of Farming Starter Zone will find a more Valuable Breakable Room
+    ["FindBetterZone"] = false, -- instead of Farming Starter Zone will find a more Valuable Breakable Room
 }
 loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/6388637ce475eff7766aee3aff906dcd.lua"))()
