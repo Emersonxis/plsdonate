@@ -16,8 +16,8 @@ local SelectedArea = "Hacker Portal"
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 200, 0, 250)
-frame.Position = UDim2.new(0.5, -100, 0.5, -125)
+frame.Size = UDim2.new(0, 180, 0, 260)
+frame.Position = UDim2.new(0.5, -90, 0.5, -130)
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -25,8 +25,8 @@ frame.Draggable = true
 frame.BackgroundTransparency = 0.1
 
 -- Título da GUI
-titleLabel.Size = UDim2.new(1, 0, 0.15, 0)
-titleLabel.Position = UDim2.new(0, 0, 0, -20)
+titleLabel.Size = UDim2.new(1, 0, 0.1, 0)
+titleLabel.Position = UDim2.new(0, 0, 0, -10)
 titleLabel.Text = "👾FrancesS👾"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.BackgroundTransparency = 1
@@ -47,7 +47,7 @@ eggNameInput.BorderSizePixel = 0
 
 -- Botão de compra de eggs
 toggleEggButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-toggleEggButton.Position = UDim2.new(0.05, 0, 0.3, 0)
+toggleEggButton.Position = UDim2.new(0.05, 0, 0.35, 0)
 toggleEggButton.Text = "Iniciar Compra de Eggs"
 toggleEggButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleEggButton.TextColor3 = Color3.new(1, 1, 1)
@@ -57,7 +57,7 @@ toggleEggButton.BorderSizePixel = 0
 
 -- Campo para o nome da área de farm
 areaNameInput.Size = UDim2.new(0.9, 0, 0.15, 0)
-areaNameInput.Position = UDim2.new(0.05, 0, 0.5, 0)
+areaNameInput.Position = UDim2.new(0.05, 0, 0.55, 0)
 areaNameInput.PlaceholderText = "Nome da Área"
 areaNameInput.Text = ""
 areaNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -69,7 +69,7 @@ areaNameInput.BorderSizePixel = 0
 
 -- Botão de farm
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.65, 0)
+toggleFarmButton.Position = UDim2.new(0.05, 0, 0.75, 0)
 toggleFarmButton.Text = "Ativar Auto Farm"
 toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
@@ -78,113 +78,14 @@ toggleFarmButton.TextSize = 12
 toggleFarmButton.BorderSizePixel = 0
 
 -- Botão de fechar
-closeButton.Size = UDim2.new(0.15, 0, 0.15, 0)
-closeButton.Position = UDim2.new(0.85, -10, -0.05, 0)
+closeButton.Size = UDim2.new(0.15, 0, 0.1, 0)
+closeButton.Position = UDim2.new(0.85, -5, 0, 5)
 closeButton.Text = "X"
 closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
 closeButton.TextColor3 = Color3.new(1, 1, 1)
 closeButton.Font = Enum.Font.GothamBold
 closeButton.TextSize = 12
 closeButton.BorderSizePixel = 0
-
--- Função para obter os pets equipados
-local function GetMyPets()
-    local returntable = {}
-    local equippedPets = Library.PetCmds.GetEquipped()
-    for _, v in pairs(equippedPets) do
-        table.insert(returntable, v.uid)
-    end
-    return returntable
-end
-
--- Função para farmar em um coin específico com todos os pets
-local function FarmCoin(CoinID, Pets)
-    -- Usar o novo remote para farmar
-    workspace.__ITEMS.__REMOTES:FindFirstChild("Farm Coin"):InvokeServer(CoinID, Pets)
-end
-
--- Função para comprar o egg
-local function buyEgg()
-    local args = {
-        [1] = {
-            [1] = {
-                [1] = eggNameInput.Text,  -- Nome do egg
-                [2] = true                 -- Abre o egg com animação
-            },
-            [2] = {
-                [1] = false,
-                [2] = false
-            }
-        }
-    }
-    
-    -- Usar o novo remote para comprar o egg
-    workspace.__ITEMS.__REMOTES:FindFirstChild("buy egg"):InvokeServer(unpack(args))
-end
-
--- Loop de compra de eggs
-local function purchaseLoop()
-    while isBuying do
-        buyEgg()
-        wait() -- Remover delay para abrir os eggs o mais rápido possível
-    end
-end
-
--- Evento do botão de compra de eggs
-toggleEggButton.MouseButton1Click:Connect(function()
-    isBuying = not isBuying
-    toggleEggButton.Text = isBuying and "Parar Compra de Eggs" or "Iniciar Compra de Eggs"
-    toggleEggButton.BackgroundColor3 = isBuying and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
-
-    if isBuying then
-        spawn(purchaseLoop)
-    end
-end)
-
--- Função de auto farm
-local function autoFarm()
-    while isFarming do
-        SelectedArea = areaNameInput.Text ~= "" and areaNameInput.Text or "Hacker Portal"
-        local petsEquip = GetMyPets()
-        local coinsToFarm = {}
-
-        -- Coleta todos os coins da área selecionada, mas sai do loop se auto farm for desativado
-        for _, coinFolder in pairs(workspace.__ITEMS.Coins:GetChildren()) do
-            if not isFarming then return end
-            if coinFolder:IsA("Folder") and coinFolder:GetAttribute("Area") == SelectedArea then
-                -- Para cada coin encontrado, vamos pegar o CoinID (exemplo: "2245.Coin")
-                for _, coin in pairs(coinFolder:GetChildren()) do
-                    if coin:IsA("Part") and coin.Name:match("%d+%.Coin") then
-                        table.insert(coinsToFarm, coin.Name) -- Adiciona o CoinID ao array
-                    end
-                end
-            end
-        end
-
-        -- Farmar cada coin encontrado
-        for _, coinID in ipairs(coinsToFarm) do
-            if not isFarming then return end
-            FarmCoin(coinID, petsEquip)
-            repeat
-                wait()
-            until not workspace.__ITEMS.Coins:FindFirstChild(coinID) or not isFarming
-        end
-
-        if not isFarming then break end
-        wait(0.5)
-    end
-end
-
--- Evento do botão de farm
-toggleFarmButton.MouseButton1Click:Connect(function()
-    isFarming = not isFarming
-    toggleFarmButton.Text = isFarming and "Desativar Auto Farm" or "Ativar Auto Farm"
-    toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
-
-    if isFarming then
-        spawn(autoFarm)
-    end
-end)
 
 -- Evento do botão de fechar
 closeButton.MouseButton1Click:Connect(function()
