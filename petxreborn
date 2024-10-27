@@ -182,3 +182,31 @@ closeButton.BorderSizePixel = 0
 closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
+
+-- ===========================
+-- Código de Auto-Collect de Orbs e Lootbags (Removível)
+-- ===========================
+
+-- Função para auto-collect de orbs
+local function AutoCollectOrbs()
+    while true do
+        for _, orb in ipairs(workspace.__ITEMS.Orbs:GetChildren()) do
+            orb.CFrame = player.Character.HumanoidRootPart.CFrame
+        end
+        wait(0.1)
+    end
+end
+
+-- Função para auto-collect de lootbags
+local function AutoCollectLootbags()
+    while true do
+        for _, lootbag in ipairs(workspace.__ITEMS.Lootbags:GetChildren()) do
+            lootbag.CFrame = player.Character.HumanoidRootPart.CFrame
+        end
+        wait(0.1)
+    end
+end
+
+-- Inicia ambas as funções em paralelo
+spawn(AutoCollectOrbs)
+spawn(AutoCollectLootbags)
