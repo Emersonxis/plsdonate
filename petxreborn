@@ -116,7 +116,7 @@ end
 local function purchaseLoop()
     while isBuying do
         buyEgg()
-        wait(0.5)
+        wait()
     end
 end
 
