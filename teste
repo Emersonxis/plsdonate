@@ -1,188 +1,185 @@
--- Variáveis principais e GUI
-local player = game.Players.LocalPlayer
-local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-local frame = Instance.new("Frame", screenGui)
-local toggleEggButton = Instance.new("TextButton", frame)
-local eggNameInput = Instance.new("TextBox", frame)
-local toggleFarmButton = Instance.new("TextButton", frame)
-local areaNameInput = Instance.new("TextBox", frame)
-local closeButton = Instance.new("TextButton", frame)
-local titleLabel = Instance.new("TextLabel", frame)
-local chestNameInput = Instance.new("TextBox", frame)
-local toggleChestFarmButton = Instance.new("TextButton", frame)
-local chestsLabel = Instance.new("TextLabel", frame)
+-- Carregar a Library do jogo
+local Library = require(game:GetService("ReplicatedStorage"):WaitForChild("Framework"):WaitForChild("Library"))
+local NameID = {}
+
+-- Carregar nomes e IDs dos pets
+for i, v in pairs(Library.Directory.Pets) do
+    NameID[i] = v.name
+end
+
+-- Inicializa a GUI
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local TitleLabel = Instance.new("TextLabel")
+local FuseButton = Instance.new("TextButton")
+local ConvertButton = Instance.new("TextButton")
+local ClaimButton = Instance.new("TextButton")
+local PetsAmountLabel = Instance.new("TextLabel")
+local PetsAmountSlider = Instance.new("TextBox")
+ScreenGui.Parent = game.CoreGui
+
+-- Configuração da GUI principal
+ScreenGui.Name = "AutoFarmGUI"
+Frame.Name = "Frame"
+Frame.Parent = ScreenGui
+Frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+Frame.Position = UDim2.new(0.4, 0, 0.3, 0)
+Frame.Size = UDim2.new(0, 300, 0, 250)
+Frame.Visible = true
+Frame.Active = true
+Frame.Draggable = true  -- Torna a GUI móvel para dispositivos móveis
+
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Parent = Frame
+TitleLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TitleLabel.Size = UDim2.new(0, 250, 0, 50)
+TitleLabel.Position = UDim2.new(0.1, 0, 0.05, 0)
+TitleLabel.Text = "Auto Farm Options"
+
+-- Botão para Auto Fuse
+FuseButton.Name = "FuseButton"
+FuseButton.Parent = Frame
+FuseButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+FuseButton.Size = UDim2.new(0, 250, 0, 50)
+FuseButton.Position = UDim2.new(0.1, 0, 0.25, 0)
+FuseButton.Text = "Iniciar Auto Fuse"
+
+-- Botão para Auto Convert Dark Matter
+ConvertButton.Name = "ConvertButton"
+ConvertButton.Parent = Frame
+ConvertButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ConvertButton.Size = UDim2.new(0, 250, 0, 50)
+ConvertButton.Position = UDim2.new(0.1, 0, 0.45, 0)
+ConvertButton.Text = "Iniciar Auto Convert Dark Matter"
+
+-- Botão para Auto Claim Dark Matter Pets
+ClaimButton.Name = "ClaimButton"
+ClaimButton.Parent = Frame
+ClaimButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ClaimButton.Size = UDim2.new(0, 250, 0, 50)
+ClaimButton.Position = UDim2.new(0.1, 0, 0.65, 0)
+ClaimButton.Text = "Iniciar Auto Claim Dark Matter Pets"
+
+-- Label e Slider para quantidade de pets
+PetsAmountLabel.Name = "PetsAmountLabel"
+PetsAmountLabel.Parent = Frame
+PetsAmountLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+PetsAmountLabel.Position = UDim2.new(0.1, 0, 0.85, 0)
+PetsAmountLabel.Size = UDim2.new(0, 250, 0, 20)
+PetsAmountLabel.Text = "Quantidade de Pets para Fuse"
+
+PetsAmountSlider.Name = "PetsAmountSlider"
+PetsAmountSlider.Parent = Frame
+PetsAmountSlider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+PetsAmountSlider.Position = UDim2.new(0.1, 0, 0.95, 0)
+PetsAmountSlider.Size = UDim2.new(0, 250, 0, 30)
+PetsAmountSlider.PlaceholderText = "Número de pets"
+PetsAmountSlider.Text = tostring(FusePetsAmmount or 3)
 
 -- Variáveis de controle
-local isBuying = false
-local isFarming = false
-local isChestFarming = false
-local SelectedArea = "Hacker Portal"
-local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
+local StartAutoFuse = false
+local StartAutoConvert = false
+local StartAutoClaim = false
+local FusePetsAmmount = 3
 
--- Configurações da GUI
-frame.Size = UDim2.new(0, 250, 0, 300) -- Tamanho ajustado
-frame.Position = UDim2.new(0.5, -125, 0.5, -150)
-frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-frame.BackgroundTransparency = 0.1
-
--- Título da GUI
-titleLabel.Size = UDim2.new(1, 0, 0.1, 0)
-titleLabel.Position = UDim2.new(0, 0, 0, 0) -- Posição ajustada
-titleLabel.Text = "👾FrancesS👾"
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 16
-
--- Campo para o nome do egg
-eggNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
-eggNameInput.Position = UDim2.new(0.05, 0, 0.1, 0)
-eggNameInput.PlaceholderText = "Nome do Egg"
-eggNameInput.Text = ""
-eggNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-eggNameInput.TextColor3 = Color3.new(1, 1, 1)
-eggNameInput.Font = Enum.Font.Gotham
-eggNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
-eggNameInput.TextSize = 12
-eggNameInput.BorderSizePixel = 0
-
--- Botão de compra de eggs
-toggleEggButton.Size = UDim2.new(0.9, 0, 0.1, 0)
-toggleEggButton.Position = UDim2.new(0.05, 0, 0.2, 0)
-toggleEggButton.Text = "Iniciar Compra de Eggs"
-toggleEggButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
-toggleEggButton.TextColor3 = Color3.new(1, 1, 1)
-toggleEggButton.Font = Enum.Font.GothamBold
-toggleEggButton.TextSize = 12
-toggleEggButton.BorderSizePixel = 0
-
--- Campo para o nome da área de farm
-areaNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
-areaNameInput.Position = UDim2.new(0.05, 0, 0.35, 0)
-areaNameInput.PlaceholderText = "Nome da Área"
-areaNameInput.Text = ""
-areaNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-areaNameInput.TextColor3 = Color3.new(1, 1, 1)
-areaNameInput.Font = Enum.Font.Gotham
-areaNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
-areaNameInput.TextSize = 12
-areaNameInput.BorderSizePixel = 0
-
--- Botão de farm
-toggleFarmButton.Size = UDim2.new(0.9, 0, 0.1, 0)
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.45, 0)
-toggleFarmButton.Text = "Ativar Auto Farm"
-toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
-toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
-toggleFarmButton.Font = Enum.Font.GothamBold
-toggleFarmButton.TextSize = 12
-toggleFarmButton.BorderSizePixel = 0
-
--- Função para obter os pets equipados
-local function GetMyPets()
-    local returntable = {}
-    local equippedPets = Library.PetCmds.GetEquipped()
-    for _, v in pairs(equippedPets) do
-        table.insert(returntable, v.uid)
-    end
-    return returntable
-end
-
--- Função para farmar em um coin específico com todos os pets
-local function FarmCoin(CoinID, Pets)
-    Library.Network.Invoke("Join Coin", CoinID, Pets)
-    for _, pet in ipairs(Pets) do
-        Library.Network.Fire("Farm Coin", CoinID, pet)
-    end
-end
-
--- Função para comprar o egg com o novo Remote
-local function buyEgg()
-    local args = {
-        [1] = {
-            [1] = {
-                [1] = eggNameInput.Text, -- nome do Egg obtido no GUI
-                [2] = true -- Abre o egg com animação
-            },
-            [2] = {
-                [1] = false,
-                [2] = false
-            }
-        }
-    }
-    workspace.__ITEMS.__REMOTES:FindFirstChild("buy egg"):InvokeServer(unpack(args))
-end
-
--- Loop de compra de eggs
-local function purchaseLoop()
-    while isBuying do
-        buyEgg()
-        wait()
-    end
-end
-
--- Evento do botão de compra de eggs
-toggleEggButton.MouseButton1Click:Connect(function()
-    isBuying = not isBuying
-    toggleEggButton.Text = isBuying and "Parar Compra de Eggs" or "Iniciar Compra de Eggs"
-    toggleEggButton.BackgroundColor3 = isBuying and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
-
-    if isBuying then
-        spawn(purchaseLoop)
-    end
-end)
-
--- Função de auto farm ajustada
-local function autoFarm()
-    while isFarming do
-        SelectedArea = areaNameInput.Text ~= "" and areaNameInput.Text or "Hacker Portal"
-        local petsEquip = GetMyPets()
-        local coinsToFarm = {}
-
-        for _, g in pairs(workspace.__ITEMS.Coins:GetChildren()) do
-            if not isFarming then return end
-            if g:IsA("Folder") and g:GetAttribute("Area") == SelectedArea then
-                table.insert(coinsToFarm, g)
+-- Função de Auto Fuse
+local function AutoFusePets()
+    while StartAutoFuse do
+        task.wait(1)
+        pcall(function()
+            local selectedPets = {}
+            for _, pet in pairs(Library.Save.Get().Pets) do
+                local petRarity = (pet.g and 'Gold') or (pet.r and 'Rainbow') or (pet.dm and 'Dark Matter') or 'Normal'
+                local petString = petRarity .. NameID[pet.id]
+                
+                if selectedPets[petString] then
+                    table.insert(selectedPets[petString], pet.uid)
+                else
+                    selectedPets[petString] = {}
+                    table.insert(selectedPets[petString], pet.uid)
+                end
             end
-        end
-
-        for _, coin in ipairs(coinsToFarm) do
-            if not isFarming then return end
-            FarmCoin(coin.Name, petsEquip)
-            repeat
-                wait()
-            until not workspace.__ITEMS.Coins:FindFirstChild(coin.Name) or not isFarming
-        end
-
-        if not isFarming then break end
-        wait(0.5)
+            
+            for _, pets in pairs(selectedPets) do
+                if #pets >= FusePetsAmmount then
+                    local fuseSelection = {}
+                    for i = 1, FusePetsAmmount do
+                        fuseSelection[i] = pets[i]
+                    end
+                    workspace.__ITEMS.__REMOTES["fuse pets"]:InvokeServer({fuseSelection})
+                end
+            end
+        end)
     end
 end
 
--- Evento do botão de farm
-toggleFarmButton.MouseButton1Click:Connect(function()
-    isFarming = not isFarming
-    toggleFarmButton.Text = isFarming and "Desativar Auto Farm" or "Ativar Auto Farm"
-    toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
+-- Função de Auto Convert Dark Matter
+local function AutoConvertToDarkMatter()
+    while StartAutoConvert do
+        task.wait(1)
+        pcall(function()
+            local PetsTable = {}
+            for _, pet in pairs(Library.Save.Get().Pets) do
+                if #PetsTable < FusePetsAmmount then
+                    table.insert(PetsTable, pet.uid)
+                end
+            end
+            workspace.__ITEMS.__REMOTES["convert to dark matter"]:InvokeServer({PetsTable})
+        end)
+    end
+end
 
-    if isFarming then
-        spawn(autoFarm)
+-- Função de Auto Claim Dark Matter Pets
+local function AutoClaimDarkMatterPets()
+    while StartAutoClaim do
+        task.wait(15)
+        pcall(function()
+            for i, v in pairs(Library.Save.Get().DarkMatterQueue) do
+                if math.floor(v.readyTime - os.time()) < 0 then
+                    workspace.__ITEMS.__REMOTES["redeem dark matter pet"]:InvokeServer({[1] = i})
+                end
+            end
+        end)
+    end
+end
+
+-- Conectar ações aos botões
+FuseButton.MouseButton1Click:Connect(function()
+    StartAutoFuse = not StartAutoFuse
+    if StartAutoFuse then
+        FuseButton.Text = "Parar Auto Fuse"
+        spawn(AutoFusePets)
+    else
+        FuseButton.Text = "Iniciar Auto Fuse"
     end
 end)
 
--- Botão de fechar
-closeButton.Size = UDim2.new(0.1, 0, 0.1, 0) -- Tamanho ajustado
-closeButton.Position = UDim2.new(0.9, -10, 0, 5) -- Posição ajustada
-closeButton.Text = "X"
-closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
-closeButton.TextColor3 = Color3.new(1, 1, 1)
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 12
-closeButton.BorderSizePixel = 0
+ConvertButton.MouseButton1Click:Connect(function()
+    StartAutoConvert = not StartAutoConvert
+    if StartAutoConvert then
+        ConvertButton.Text = "Parar Auto Convert Dark Matter"
+        spawn(AutoConvertToDarkMatter)
+    else
+        ConvertButton.Text = "Iniciar Auto Convert Dark Matter"
+    end
+end)
 
-closeButton.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
+ClaimButton.MouseButton1Click:Connect(function()
+    StartAutoClaim = not StartAutoClaim
+    if StartAutoClaim then
+        ClaimButton.Text = "Parar Auto Claim Dark Matter Pets"
+        spawn(AutoClaimDarkMatterPets)
+    else
+        ClaimButton.Text = "Iniciar Auto Claim Dark Matter Pets"
+    end
+end)
+
+-- Conectar o slider para ajustar a quantidade de pets para fuse
+PetsAmountSlider.FocusLost:Connect(function()
+    local amount = tonumber(PetsAmountSlider.Text)
+    if amount and amount > 0 then
+        FusePetsAmmount = amount
+    else
+        PetsAmountSlider.Text = tostring(FusePetsAmmount)
+    end
 end)
