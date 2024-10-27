@@ -188,25 +188,46 @@ end)
 -- ===========================
 
 -- Função para auto-collect de orbs
-local function AutoCollectOrbs()
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local player = Players.LocalPlayer
+
+-- Função para auto-collect de orbs
+function AutoCollectOrbs()
     while true do
-        for _, orb in ipairs(workspace.__ITEMS.Orbs:GetChildren()) do
-            orb.CFrame = player.Character.HumanoidRootPart.CFrame
+        local orbs = Workspace.__ITEMS.Orbs:GetChildren()  -- Local correto das orbs
+        for _, g in ipairs(orbs) do
+            local args = {
+                [1] = {
+                    [1] = {
+                        [1] = {
+                            [1] = g.Name  -- Mantém o nome da orb que está sendo coletada
+                        }
+                    },
+                    [2] = {
+                        [1] = false
+                    }
+                }
+            }
+            pcall(function()
+                Workspace.__ITEMS.__REMOTES:FindFirstChild("claim orbs"):FireServer(unpack(args))
+            end)
         end
-        wait(0.1)
+        wait(0.05)  -- Intervalo mais rápido para coleta de orbs
     end
 end
 
--- Função para auto-collect de lootbags
-local function AutoCollectLootbags()
-    while true do
-        for _, lootbag in ipairs(workspace.__ITEMS.Lootbags:GetChildren()) do
-            lootbag.CFrame = player.Character.HumanoidRootPart.CFrame
+-- Função para teleporte de lootbags
+function AutoTeleportLootbags()
+    while task.wait() do
+        for _, lootbag in pairs(Workspace.__ITEMS.Lootbags:GetChildren()) do
+            -- Teleporta a lootbag para uma posição ligeiramente abaixo da cabeça do jogador
+            local headPosition = player.Character.HumanoidRootPart.CFrame * CFrame.new(0, -1, 0)
+            lootbag.CFrame = headPosition
         end
-        wait(0.1)
     end
 end
 
--- Inicia ambas as funções em paralelo
+-- Inicia as funções de auto-collect de orbs e teleporte de lootbags
 spawn(AutoCollectOrbs)
-spawn(AutoCollectLootbags)
+spawn(AutoTeleportLootbags)
