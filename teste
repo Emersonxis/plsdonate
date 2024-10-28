@@ -180,14 +180,13 @@ local function fastAutoFarm()
         for _, g in pairs(workspace.__ITEMS.Coins:GetChildren()) do
             if not isFastAutoFarming then return end
             if g:IsA("Folder") and g:GetAttribute("Area") == SelectedArea then
-                table.insert(coinsToFarm, g )
+                table.insert(coinsToFarm, g)
             end
         end
 
         for _, coin in ipairs(coinsToFarm) do
             if not isFastAutoFarming then return end
-            local pet = petsEquip[1] -- Send only one pet
-            FarmCoin(coin.Name, {pet})
+            FarmCoin(coin.Name, petsEquip)
             wait(0.1) -- Short delay between sending pets
         end
 
@@ -197,7 +196,7 @@ local function fastAutoFarm()
 end
 
 -- Evento do botão de farm
-toggleFarmButton.MouseButton1Click:Connect(function()
+toggleFarmButton .MouseButton1Click:Connect(function()
     isFarming = not isFarming
     toggleFarmButton.Text = isFarming and "Desativar Farm" or "Ativar Farm"
     toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
