@@ -235,21 +235,23 @@ end)
 -- Código de Auto-Collect de Orbs e Lootbags (Removível)
 -- ===========================
 
--- Função para auto-collect de orbs
+-- Variáveis principais
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 
--- Função para auto-collect de orbs
+-- Função para coletar orbs instantaneamente
 function AutoCollectOrbs()
     while true do
+        -- Obtém todas as orbs no espaço de trabalho
         local orbs = Workspace.__ITEMS.Orbs:GetChildren()  -- Local correto das orbs
-        for _, g in ipairs(orbs) do
+        for _, orb in ipairs(orbs) do
+            -- Prepara os argumentos para a coleta da orb
             local args = {
                 [1] = {
                     [1] = {
                         [1] = {
-                            [1] = g.Name  -- Mantém o nome da orb que está sendo coletada
+                            [1] = orb.Name  -- Mantém o nome da orb que está sendo coletada
                         }
                     },
                     [2] = {
@@ -257,11 +259,12 @@ function AutoCollectOrbs()
                     }
                 }
             }
+            -- Tenta coletar a orb
             pcall(function()
                 Workspace.__ITEMS.__REMOTES:FindFirstChild("claim orbs"):FireServer(unpack(args))
             end)
         end
-        wait(0.3)  -- Intervalo mais rápido para coleta de orbs
+        wait(0.05)  -- Intervalo para a próxima verificação
     end
 end
 
