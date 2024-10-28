@@ -73,7 +73,7 @@ areaNameInput.BorderSizePixel = 0
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
 toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0)
 toggleFarmButton.Text = "Ativar Farm"
-toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50 )
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
 toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 10
@@ -187,16 +187,16 @@ local function fastAutoFarm()
         for _, coin in ipairs(coinsToFarm) do
             if not isFastAutoFarming then return end
             FarmCoin(coin.Name, petsEquip)
-            wait(0.1) -- Short delay between sending pets
+            wait() -- Short delay between sending pets
         end
 
         if not isFastAutoFarming then break end
-        wait(0.5)
+        wait(0.2)
     end
 end
 
 -- Evento do botão de farm
-toggleFarmButton .MouseButton1Click:Connect(function()
+toggleFarmButton.MouseButton1Click:Connect(function()
     isFarming = not isFarming
     toggleFarmButton.Text = isFarming and "Desativar Farm" or "Ativar Farm"
     toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
@@ -248,18 +248,20 @@ function AutoCollectOrbs()
             local args = {
                 [1] = {
                     [1] = {
-                        [1] = g.Name  -- Mantém o nome da orb que está sendo coletada
+                        [1] = {
+                            [1] = g.Name  -- Mantém o nome da orb que está sendo coletada
+                        }
+                    },
+                    [2] = {
+                        [1] = false
                     }
-                },
-                [2] = {
-                    [1] = false
                 }
             }
             pcall(function()
                 Workspace.__ITEMS.__REMOTES:FindFirstChild("claim orbs"):FireServer(unpack(args))
             end)
         end
-        wait(0.05)  -- Intervalo mais rápido para coleta de orbs
+        wait(0.3)  -- Intervalo mais rápido para coleta de orbs
     end
 end
 
