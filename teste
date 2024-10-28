@@ -22,10 +22,10 @@ end
 
 -- Criação dos botões para abrir as GUIs
 local buttons = {
-    {Name = "Golden", Initial = "G", Position = UDim2.new(0.05, 0, 0.85, 0)}, -- Ajuste de posição
-    {Name = "Rainbow", Initial = "R", Position = UDim2.new(0.25, 0, 0.85, 0)}, -- Ajuste de posição
-    {Name = "DarkMatter", Initial = "D", Position = UDim2.new(0.45, 0, 0.85, 0)}, -- Ajuste de posição
-    {Name = "Merchant", Initial = "M", Position = UDim2.new(0.65, 0, 0.85, 0)} -- Ajuste de posição
+    {Name = "Golden", Initial = "G", Position = UDim2.new(0.1, 0, 0.9, 0)}, -- Ajuste de posição
+    {Name = "Rainbow", Initial = "R", Position = UDim2.new(0.3, 0, 0.9, 0)}, -- Ajuste de posição
+    {Name = "DarkMatter", Initial = "D", Position = UDim2.new(0.5, 0, 0.9, 0)}, -- Ajuste de posição
+    {Name = "Merchant", Initial = "M", Position = UDim2.new(0.7, 0, 0.9, 0)} -- Ajuste de posição
 }
 
 for _, buttonInfo in ipairs(buttons) do
@@ -46,7 +46,7 @@ for _, buttonInfo in ipairs(buttons) do
 end
 
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 450, 0, 200) -- Tamanho ajustado para acomodar os botões
+frame.Size = UDim2.new(0, 450, 0, 200) -- Tamanho ajustado para manter a proporção original
 frame.Position = UDim2.new(0.5, -225, 0.5, -100) -- Centralizado
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
