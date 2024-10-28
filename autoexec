@@ -9,7 +9,7 @@ getgenv().kw = {
     ["Mailing"] = false,
     ["MinPumpkins"] = 0, -- Setting this above 0 will prevent crafting Pumpkin Gifts and mail Pumpkins to the Username if you gain > this amount
     ["Username"] = "https://discord.com/api/webhooks/1239362954483204266/4Aphf9YbK7SL9KW8R2s3r-5Uh8YQzO0Z7YsNAy3Ai7F4VwSlYlxJC7oPAy26uwf8RJzc", -- username to mail new huge / pumpkins to
-    ["DiscordId"] = "@frances1102", -- Will @ you :)
+    ["DiscordId"] = "", -- Will @ you :)
     ["GuiStats"] = true, -- stats in a gui duh
     ["FindBetterZone"] = true, -- instead of Farming Starter Zone will find a more Valuable Breakable Room
 }
