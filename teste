@@ -8,12 +8,12 @@ local toggleFarmButton = Instance.new("TextButton", frame)
 local areaNameInput = Instance.new("TextBox", frame)
 local closeButton = Instance.new("TextButton", frame)
 local titleLabel = Instance.new("TextLabel", frame)
-local sendAllPetsButton = Instance.new("TextButton", frame) -- Novo botão para opção de enviar pets
+local sendAllPetsToggle = Instance.new("TextButton", frame) -- Novo botão para opção de enviar todos os pets
+local sendAllPets = true -- Variável para controle de envio de pets
 
 -- Variáveis de controle
 local isBuying = false
 local isFarming = false
-local sendAllPets = false -- Variável para controlar o envio de todos os pets
 local SelectedArea = "Hacker Portal"
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
@@ -79,15 +79,15 @@ toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 10 -- Tamanho do texto ajustado
 toggleFarmButton.BorderSizePixel = 0
 
--- Botão para enviar todos os pets ou apenas um
-sendAllPetsButton.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-sendAllPetsButton.Position = UDim2.new(0.05, 0, 0.75, 0) -- Posição ajustada
-sendAllPetsButton.Text = "Enviar Todos os Pets"
-sendAllPetsButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
-sendAllPetsButton.TextColor3 = Color3.new(1, 1, 1)
-sendAllPetsButton.Font = Enum.Font.GothamBold
-sendAllPetsButton.TextSize = 10 -- Tamanho do texto ajustado
-sendAllPetsButton.BorderSizePixel = 0
+-- Botão para enviar todos os pets ou um por vez
+sendAllPetsToggle.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
+sendAllPetsToggle.Position = UDim2.new(0.05, 0, 0.75, 0) -- Posição ajustada
+sendAllPetsToggle.Text = "Enviar Todos os Pets"
+sendAllPetsToggle.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+sendAllPetsToggle.TextColor3 = Color3.new(1, 1, 1)
+sendAllPetsToggle.Font = Enum.Font.GothamBold
+sendAllPetsToggle.TextSize = 10 -- Tamanho do texto ajustado
+sendAllPetsToggle.BorderSizePixel = 0
 
 -- Função para obter os pets equipados
 local function GetMyPets()
@@ -99,11 +99,16 @@ local function GetMyPets()
     return returntable
 end
 
--- Função para farmar em um coin específico com todos os pets
+-- Função para farmar em um coin específico com todos os pets ou apenas um
 local function FarmCoin(CoinID, Pets)
     Library.Network.Invoke("Join Coin", CoinID, Pets)
-    for _, pet in ipairs(Pets) do
-        Library.Network.Fire("Farm Coin", CoinID, pet)
+    if sendAllPets then
+        for _, pet in ipairs(Pets) do
+            Library.Network.Fire("Farm Coin", CoinID, pet)
+        end
+    else
+        -- Envia apenas um pet por vez
+        Library.Network.Fire("Farm Coin", CoinID, Pets[1]) -- Apenas o primeiro pet
     end
 end
 
@@ -159,12 +164,7 @@ local function autoFarm()
 
         for _, coin in ipairs(coinsToFarm) do
             if not isFarming then return end
-            if sendAllPets then
-                FarmCoin(coin.Name, petsEquip) -- Envia todos os pets
-            else
-                FarmCoin(coin.Name, { petsEquip[1] }) -- Envia apenas um pet
-            end
-            
+            FarmCoin(coin.Name, petsEquip)
             repeat
                 wait()
             until not workspace.__ITEMS.Coins:FindFirstChild(coin.Name) or not isFarming
@@ -186,14 +186,7 @@ toggleFarmButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Evento do botão de enviar todos os pets ou apenas um
-sendAllPetsButton.MouseButton1Click:Connect(function()
-    sendAllPets = not sendAllPets
-    sendAllPetsButton.Text = sendAllPets and "Enviar Apenas Um Pet" or "Enviar Todos os Pets"
-    sendAllPetsButton.BackgroundColor3 = sendAllPets and Color3.fromRGB(50, 205, 50) or Color3.fromRGB(220, 20, 60)
-end)
-
--- Botão de fechar a GUI
+-- Evento do botão de fechar
 closeButton.Size = UDim2.new(0.1, 0, 0.1, 0)
 closeButton.Position = UDim2.new(0.9, 0, 0, 0)
 closeButton.Text = "X"
@@ -203,7 +196,13 @@ closeButton.Font = Enum.Font.GothamBold
 closeButton.TextSize = 10 -- Tamanho do texto ajustado
 closeButton.BorderSizePixel = 0
 
--- Evento do botão de fechar a GUI
 closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
+
+-- Evento do botão para enviar todos os pets ou apenas um por vez
+sendAllPetsToggle.MouseButton1Click:Connect(function()
+    sendAllPets = not sendAllPets
+    sendAllPetsToggle.Text = sendAllPets and "Enviar Todos os Pets" or "Enviar 1 Pet"
+end)
+
