@@ -6,27 +6,27 @@ local toggleEggButton = Instance.new("TextButton", frame)
 local eggNameInput = Instance.new("TextBox", frame)
 local toggleFarmButton = Instance.new("TextButton", frame)
 local areaNameInput = Instance.new("TextBox", frame)
-local fastAutoFarmButton = Instance.new("TextButton", frame) -- Botão de fast auto farm
+local fastAutoFarmButton = Instance.new("TextButton", frame) -- New button for fast auto farm
 local closeButton = Instance.new("TextButton", frame)
 local titleLabel = Instance.new("TextLabel", frame)
 
 -- Variáveis de controle
 local isBuying = false
 local isFarming = false
-local isFastAutoFarming = false
+local isFastAutoFarming = false -- New variable for fast auto farm mode
 local SelectedArea = "Hacker Portal"
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 150, 0, 200)
-frame.Position = UDim2.new(0.5, -75, 0.5, -100)
+frame.Size = UDim2.new(0, 150, 0, 200) -- Increased size for new button
+frame.Position = UDim2.new(0.5, -75, 0.5, -100) -- Adjusted position
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
 frame.BackgroundTransparency = 0.1
 
--- Configurações do título
+-- Título da GUI
 titleLabel.Size = UDim2.new(1, 0, 0.15, 0)
 titleLabel.Position = UDim2.new(0, 0, 0, 0)
 titleLabel.Text = "👾FrancesS👾"
@@ -73,7 +73,7 @@ areaNameInput.BorderSizePixel = 0
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
 toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0)
 toggleFarmButton.Text = "Ativar Farm"
-toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50 )
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
 toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 10
@@ -112,8 +112,8 @@ local function buyEgg()
     local args = {
         [1] = {
             [1] = {
-                [1] = eggNameInput.Text,
-                [2] = true
+                [1] = eggNameInput.Text, -- nome do Egg obtido no GUI
+                [2] = true -- Abre o egg com animação
             },
             [2] = {
                 [1] = false,
@@ -128,7 +128,7 @@ end
 local function purchaseLoop()
     while isBuying do
         buyEgg()
-        wait(0.1) -- Ajuste de delay para reduzir lag
+        wait(0.2)
     end
 end
 
@@ -161,7 +161,7 @@ local function autoFarm()
             if not isFarming then return end
             FarmCoin(coin.Name, petsEquip)
             repeat
-                wait(0.1) -- Redução de espera para melhorar o desempenho
+                wait(0.1)
             until not workspace.__ITEMS.Coins:FindFirstChild(coin.Name) or not isFarming
         end
 
@@ -187,17 +187,18 @@ local function fastAutoFarm()
         for _, coin in ipairs(coinsToFarm) do
             if not isFastAutoFarming then return end
             FarmCoin(coin.Name, petsEquip)
-            wait(0.05) -- Delay curto para evitar sobrecarga
+            wait(0.1) -- Short delay between sending pets
         end
 
         if not isFastAutoFarming then break end
+        wait(0.2)
     end
 end
 
--- Evento do botão de auto farm
+-- Evento do botão de farm
 toggleFarmButton.MouseButton1Click:Connect(function()
     isFarming = not isFarming
-    toggleFarmButton.Text = isFarming and "Parar Farm" or "Ativar Farm"
+    toggleFarmButton.Text = isFarming and "Desativar Farm" or "Ativar Farm"
     toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
 
     if isFarming then
@@ -208,7 +209,7 @@ end)
 -- Evento do botão de fast auto farm
 fastAutoFarmButton.MouseButton1Click:Connect(function()
     isFastAutoFarming = not isFastAutoFarming
-    fastAutoFarmButton.Text = isFastAutoFarming and "Parar Fast Farm" or "Fast Auto Farm"
+    fastAutoFarmButton.Text = isFastAutoFarming and "Desativar Fast Auto Farm" or "Ativar Fast Auto Farm"
     fastAutoFarmButton.BackgroundColor3 = isFastAutoFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
 
     if isFastAutoFarming then
@@ -216,6 +217,25 @@ fastAutoFarmButton.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Botão de fechar
+closeButton.Size = UDim2.new(0.1, 0, 0.1, 0)
+closeButton.Position = UDim2.new(0.9, -10, 0, 5)
+closeButton.Text = "X"
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 10
+closeButton.BorderSizePixel = 0
+
+closeButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
+
+-- ===========================
+-- Código de Auto-Collect de Orbs e Lootbags (Removível)
+-- ===========================
+
+-- Variáveis principais
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
@@ -244,7 +264,7 @@ function AutoCollectOrbs()
                 Workspace.__ITEMS.__REMOTES:FindFirstChild("claim orbs"):FireServer(unpack(args))
             end)
         end
-        wait(0.4)  -- Intervalo para a próxima verificação
+        wait(0.1)  -- Intervalo para a próxima verificação
     end
 end
 
