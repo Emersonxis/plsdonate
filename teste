@@ -9,45 +9,21 @@ local areaNameInput = Instance.new("TextBox", frame)
 local closeButton = Instance.new("TextButton", frame)
 local titleLabel = Instance.new("TextLabel", frame)
 
+-- Novos botões para abrir as GUIs
+local goldenButton = Instance.new("TextButton", frame)
+local rainbowButton = Instance.new("TextButton", frame)
+local darkMatterButton = Instance.new("TextButton", frame)
+local merchantButton = Instance.new("TextButton", frame)
+
 -- Variáveis de controle
 local isBuying = false
 local isFarming = false
 local SelectedArea = "Hacker Portal"
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
--- Função para abrir as GUIs
-local function openGUI(guiName)
-    player.PlayerGui[guiName].Enabled = true
-end
-
--- Criação dos botões para abrir as GUIs
-local buttons = {
-    {Name = "Golden", Initial = "G", Position = UDim2.new(0.1, 0, 0.9, 0)}, -- Ajuste de posição
-    {Name = "Rainbow", Initial = "R", Position = UDim2.new(0.3, 0, 0.9, 0)}, -- Ajuste de posição
-    {Name = "DarkMatter", Initial = "D", Position = UDim2.new(0.5, 0, 0.9, 0)}, -- Ajuste de posição
-    {Name = "Merchant", Initial = "M", Position = UDim2.new(0.7, 0, 0.9, 0)} -- Ajuste de posição
-}
-
-for _, buttonInfo in ipairs(buttons) do
-    local button = Instance.new("TextButton", frame)
-    button.Size = UDim2.new(0.1, 0, 0.1, 0) -- Tamanho do botão ajustado
-    button.Position = buttonInfo.Position -- Posição do botão
-    button.Text = buttonInfo.Initial -- Exibe apenas a inicial
-    button.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.Font = Enum.Font.GothamBold
-    button.TextSize = 14
-    button.BorderSizePixel = 0
-
-    -- Conexão do evento para abrir a GUI correspondente ao botão
-    button.MouseButton1Click:Connect(function()
-        openGUI(buttonInfo.Name)
-    end)
-end
-
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 450, 0, 200) -- Tamanho ajustado para manter a proporção original
-frame.Position = UDim2.new(0.5, -225, 0.5, -100) -- Centralizado
+frame.Size = UDim2.new(0, 150, 0, 150) -- Tamanho ajustado para menor
+frame.Position = UDim2.new(0.5, -75, 0.5, -75) -- Centralizado
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -55,17 +31,17 @@ frame.Draggable = true
 frame.BackgroundTransparency = 0.1
 
 -- Título da GUI
-titleLabel.Size = UDim2.new(1, 0, 0.3, 0) -- Tamanho ajustado
+titleLabel.Size = UDim2.new(1, 0, 0.15, 0) -- Tamanho ajustado
 titleLabel.Position = UDim2.new(0, 0, 0, 0) -- Posição ajustada
 titleLabel.Text = "👾FrancesS👾"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 20 -- Tamanho do texto ajustado
+titleLabel.TextSize = 14 -- Tamanho do texto ajustado
 
 -- Campo para o nome do egg
 eggNameInput.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-eggNameInput.Position = UDim2.new(0.05, 0, 0.45, 0) -- Posição ajustada
+eggNameInput.Position = UDim2.new(0.05, 0, 0.15, 0) -- Posição ajustada
 eggNameInput.PlaceholderText = "Nome do Egg"
 eggNameInput.Text = ""
 eggNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -77,7 +53,7 @@ eggNameInput.BorderSizePixel = 0
 
 -- Botão de compra de eggs
 toggleEggButton.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-toggleEggButton.Position = UDim2.new(0.05, 0, 0.15, 0) -- Posição ajustada
+toggleEggButton.Position = UDim2.new(0.05, 0, 0.3, 0) -- Posição ajustada
 toggleEggButton.Text = "Iniciar Compra"
 toggleEggButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleEggButton.TextColor3 = Color3.new(1, 1, 1)
@@ -87,7 +63,7 @@ toggleEggButton.BorderSizePixel = 0
 
 -- Campo para o nome da área de farm
 areaNameInput.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-areaNameInput.Position = UDim2.new(0.05, 0, 0.6, 0) -- Posição ajustada
+areaNameInput.Position = UDim2.new(0.05, 0, 0.45, 0) -- Posição ajustada
 areaNameInput.PlaceholderText = "Nome da Área"
 areaNameInput.Text = ""
 areaNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -99,13 +75,50 @@ areaNameInput.BorderSizePixel = 0
 
 -- Botão de farm
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.75, 0) -- Posição ajustada
+toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0) -- Posição ajustada
 toggleFarmButton.Text = "Ativar Farm"
 toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
 toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 10 -- Tamanho do texto ajustado
 toggleFarmButton.BorderSizePixel = 0
+
+-- Novos botões para abrir as GUIs
+goldenButton.Size = UDim2.new(0.2, 0, 0.1, 0)
+goldenButton.Position = UDim2.new(0.05, 0, 0.75, 0)
+goldenButton.Text = "G"
+goldenButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+goldenButton.TextColor3 = Color3.new(1, 1, 1)
+goldenButton.Font = Enum.Font.GothamBold
+goldenButton.TextSize = 14
+goldenButton.BorderSizePixel = 0
+
+rainbowButton.Size = UDim2.new(0.2, 0, 0.1, 0)
+rainbowButton.Position = UDim2.new(0.3, 0, 0.75, 0)
+rainbowButton.Text = "R"
+rainbowButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+rainbowButton.TextColor3 = Color3.new(1, 1, 1)
+rainbowButton.Font = Enum.Font.GothamBold
+rainbowButton.TextSize = 14
+rainbowButton.BorderSizePixel = 0
+
+darkMatterButton.Size = UDim2.new(0.2, 0, 0.1, 0)
+darkMatterButton.Position = UDim2.new(0.55, 0, 0.75, 0)
+darkMatterButton.Text = "D"
+darkMatterButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+darkMatterButton.TextColor3 = Color3.new(1, 1, 1)
+darkMatterButton.Font = Enum.Font.GothamBold
+darkMatterButton.TextSize = 14
+darkMatterButton.BorderSizePixel = 0
+
+merchantButton.Size = UDim2.new(0.2, 0, 0.1, 0)
+merchantButton.Position = UDim2.new(0.8, 0, 0.75, 0)
+merchantButton.Text = "M"
+merchantButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+merchantButton.TextColor3 = Color3.new(1, 1, 1)
+merchantButton.Font = Enum.Font.GothamBold
+merchantButton.TextSize = 14
+merchantButton.BorderSizePixel = 0
 
 -- Função para obter os pets equipados
 local function GetMyPets()
@@ -154,56 +167,44 @@ end
 toggleEggButton.MouseButton1Click:Connect(function()
     isBuying = not isBuying
     toggleEggButton.Text = isBuying and "Parar Compra" or "Iniciar Compra"
-    toggleEggButton.BackgroundColor3 = isBuying and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
-
+    toggleEggButton.BackgroundColor3 = isBuying and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(50, 205, 50)
     if isBuying then
-        spawn(purchaseLoop)
+        purchaseLoop()
     end
 end)
 
--- Função de auto farm ajustada
-local function autoFarm()
-    while isFarming do
-        SelectedArea = areaNameInput.Text ~= "" and areaNameInput.Text or "Hacker Portal"
-        local petsEquip = GetMyPets()
-        local coinsToFarm = {}
-
-        for _, g in pairs(workspace.__ITEMS.Coins:GetChildren()) do
-            if not isFarming then return end
-            if g:IsA("Folder") and g:GetAttribute("Area") == SelectedArea then
-                table.insert(coinsToFarm, g)
-            end
-        end
-
-        for _, coin in ipairs(coinsToFarm) do
-            if not isFarming then return end
-            FarmCoin(coin.Name, petsEquip)
-            wait(0.5)
-        end
-    end
-end
-
--- Evento do botão de ativação do farm
+-- Evento do botão de farm
 toggleFarmButton.MouseButton1Click:Connect(function()
     isFarming = not isFarming
     toggleFarmButton.Text = isFarming and "Parar Farm" or "Ativar Farm"
-    toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
-
+    toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(50, 205, 50)
     if isFarming then
-        spawn(autoFarm)
+        while isFarming do
+            local pets = GetMyPets()
+            FarmCoin(SelectedArea, pets)
+            wait(0.5) -- Espera um pouco antes de reiniciar
+        end
     end
 end)
 
--- Botão de fechar
-closeButton.Size = UDim2.new(0.1, 0, 0.1, 0) -- Tamanho ajustado
-closeButton.Position = UDim2.new(0.9, -10, 0, 5) -- Posição ajustada
-closeButton.Text = "X"
-closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
-closeButton.TextColor3 = Color3.new(1, 1, 1)
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 14 -- Tamanho do texto ajustado
-closeButton.BorderSizePixel = 0
-
+-- Evento do botão de fechar
 closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
+end)
+
+-- Funções para abrir as GUIs com os Remotes corretos
+goldenButton.MouseButton1Click:Connect(function()
+    game:GetService("Players").LocalPlayer.PlayerGui.Golden.Enabled = true -- Abre a GUI Golden
+end)
+
+rainbowButton.MouseButton1Click:Connect(function()
+    game:GetService("Players").LocalPlayer.PlayerGui.Rainbow.Enabled = true -- Abre a GUI Rainbow
+end)
+
+darkMatterButton.MouseButton1Click:Connect(function()
+    game:GetService("Players").LocalPlayer.PlayerGui.DarkMatter.Enabled = true -- Abre a GUI Dark Matter
+end)
+
+merchantButton.MouseButton1Click:Connect(function()
+    game:GetService("Players").LocalPlayer.PlayerGui.Merchant.Enabled = true -- Abre a GUI Merchant
 end)
