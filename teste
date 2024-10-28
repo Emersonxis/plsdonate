@@ -143,7 +143,7 @@ toggleEggButton.MouseButton1Click:Connect(function()
             while isBuying do
                 local eggName = eggNameInput.Text
                 Library.Network.Invoke("Buy Egg", eggName, false)
-                wait(1) -- Delay entre cada compra
+                wait() -- Delay entre cada compra
             end
         end)
     else
@@ -167,7 +167,7 @@ toggleFarmButton.MouseButton1Click:Connect(function()
                         wait(0.5) -- Delay entre o envio para cada coin
                     end
                 end
-                wait(1) -- Delay antes de verificar novamente
+                wait(0.5) -- Delay antes de verificar novamente
             end
         end)
     else
