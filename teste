@@ -8,18 +8,46 @@ local toggleFarmButton = Instance.new("TextButton", frame)
 local areaNameInput = Instance.new("TextBox", frame)
 local closeButton = Instance.new("TextButton", frame)
 local titleLabel = Instance.new("TextLabel", frame)
-local sendAllPetsButton = Instance.new("TextButton", frame) -- Novo botão para escolher a opção de envio
 
 -- Variáveis de controle
 local isBuying = false
 local isFarming = false
 local SelectedArea = "Hacker Portal"
-local sendAllPets = true -- Nova variável para controle do envio
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
+-- Função para abrir as GUIs
+local function openGUI(guiName)
+    player.PlayerGui[guiName].Enabled = true
+end
+
+-- Criação dos botões para abrir as GUIs
+local buttons = {
+    {Name = "Golden", Initial = "G", Position = UDim2.new(0, 10, 0, 30)},
+    {Name = "Rainbow", Initial = "R", Position = UDim2.new(0, 110, 0, 30)},
+    {Name = "DarkMatter", Initial = "D", Position = UDim2.new(0, 210, 0, 30)},
+    {Name = "Merchant", Initial = "M", Position = UDim2.new(0, 310, 0, 30)}
+}
+
+for _, buttonInfo in ipairs(buttons) do
+    local button = Instance.new("TextButton", frame)
+    button.Size = UDim2.new(0, 50, 0, 50) -- Tamanho do botão
+    button.Position = buttonInfo.Position -- Posição do botão
+    button.Text = buttonInfo.Initial -- Exibe apenas a inicial
+    button.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 14
+    button.BorderSizePixel = 0
+
+    -- Conexão do evento para abrir a GUI correspondente ao botão
+    button.MouseButton1Click:Connect(function()
+        openGUI(buttonInfo.Name)
+    end)
+end
+
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 150, 0, 150) -- Tamanho ajustado para menor
-frame.Position = UDim2.new(0.5, -75, 0.5, -75) -- Centralizado
+frame.Size = UDim2.new(0, 450, 0, 100) -- Tamanho ajustado para acomodar os botões
+frame.Position = UDim2.new(0.5, -225, 0.5, -50) -- Centralizado
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -27,17 +55,17 @@ frame.Draggable = true
 frame.BackgroundTransparency = 0.1
 
 -- Título da GUI
-titleLabel.Size = UDim2.new(1, 0, 0.15, 0) -- Tamanho ajustado
+titleLabel.Size = UDim2.new(1, 0, 0.3, 0) -- Tamanho ajustado
 titleLabel.Position = UDim2.new(0, 0, 0, 0) -- Posição ajustada
 titleLabel.Text = "👾FrancesS👾"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 14 -- Tamanho do texto ajustado
+titleLabel.TextSize = 20 -- Tamanho do texto ajustado
 
 -- Campo para o nome do egg
 eggNameInput.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-eggNameInput.Position = UDim2.new(0.05, 0, 0.15, 0) -- Posição ajustada
+eggNameInput.Position = UDim2.new(0.05, 0, 0.45, 0) -- Posição ajustada
 eggNameInput.PlaceholderText = "Nome do Egg"
 eggNameInput.Text = ""
 eggNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -49,7 +77,7 @@ eggNameInput.BorderSizePixel = 0
 
 -- Botão de compra de eggs
 toggleEggButton.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-toggleEggButton.Position = UDim2.new(0.05, 0, 0.3, 0) -- Posição ajustada
+toggleEggButton.Position = UDim2.new(0.05, 0, 0.15, 0) -- Posição ajustada
 toggleEggButton.Text = "Iniciar Compra"
 toggleEggButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleEggButton.TextColor3 = Color3.new(1, 1, 1)
@@ -59,7 +87,7 @@ toggleEggButton.BorderSizePixel = 0
 
 -- Campo para o nome da área de farm
 areaNameInput.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-areaNameInput.Position = UDim2.new(0.05, 0, 0.45, 0) -- Posição ajustada
+areaNameInput.Position = UDim2.new(0.05, 0, 0.6, 0) -- Posição ajustada
 areaNameInput.PlaceholderText = "Nome da Área"
 areaNameInput.Text = ""
 areaNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -71,23 +99,13 @@ areaNameInput.BorderSizePixel = 0
 
 -- Botão de farm
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0) -- Posição ajustada
+toggleFarmButton.Position = UDim2.new(0.05, 0, 0.75, 0) -- Posição ajustada
 toggleFarmButton.Text = "Ativar Farm"
 toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
 toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 10 -- Tamanho do texto ajustado
 toggleFarmButton.BorderSizePixel = 0
-
--- Botão para enviar todos os pets ou apenas um por breakable
-sendAllPetsButton.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho do botão
-sendAllPetsButton.Position = UDim2.new(0.05, 0, 0.75, 0) -- Posição ajustada
-sendAllPetsButton.Text = "Enviar Todos os Pets"
-sendAllPetsButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
-sendAllPetsButton.TextColor3 = Color3.new(1, 1, 1)
-sendAllPetsButton.Font = Enum.Font.GothamBold
-sendAllPetsButton.TextSize = 10 -- Tamanho do texto ajustado
-sendAllPetsButton.BorderSizePixel = 0
 
 -- Função para obter os pets equipados
 local function GetMyPets()
@@ -99,7 +117,7 @@ local function GetMyPets()
     return returntable
 end
 
--- Função para farmar em um coin específico
+-- Função para farmar em um coin específico com todos os pets
 local function FarmCoin(CoinID, Pets)
     Library.Network.Invoke("Join Coin", CoinID, Pets)
     for _, pet in ipairs(Pets) do
@@ -159,16 +177,7 @@ local function autoFarm()
 
         for _, coin in ipairs(coinsToFarm) do
             if not isFarming then return end
-            
-            if sendAllPets then
-                FarmCoin(coin.Name, petsEquip) -- Envia todos os pets
-            else
-                for _, pet in ipairs(petsEquip) do
-                    FarmCoin(coin.Name, {pet}) -- Envia um pet por vez
-                    wait(0.1) -- Pequeno delay para garantir que o pet foi enviado
-                end
-            end
-            
+            FarmCoin(coin.Name, petsEquip)
             repeat
                 wait()
             until not workspace.__ITEMS.Coins:FindFirstChild(coin.Name) or not isFarming
@@ -179,7 +188,7 @@ local function autoFarm()
     end
 end
 
--- Evento do botão de farm
+-- Evento do botão de ativação do farm
 toggleFarmButton.MouseButton1Click:Connect(function()
     isFarming = not isFarming
     toggleFarmButton.Text = isFarming and "Parar Farm" or "Ativar Farm"
@@ -190,21 +199,14 @@ toggleFarmButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Evento do botão de envio de pets
-sendAllPetsButton.MouseButton1Click:Connect(function()
-    sendAllPets = not sendAllPets
-    sendAllPetsButton.Text = sendAllPets and "Enviar Todos os Pets" or "Enviar Um Pet por Breakable"
-    sendAllPetsButton.BackgroundColor3 = sendAllPets and Color3.fromRGB(50, 205, 50) or Color3.fromRGB(220, 20, 60)
-end)
-
--- Botão de fechar a GUI
+-- Botão de fechar
 closeButton.Size = UDim2.new(0.1, 0, 0.1, 0) -- Tamanho ajustado
-closeButton.Position = UDim2.new(0.9, 0, 0, 0) -- Posição ajustada
+closeButton.Position = UDim2.new(0.9, -10, 0, 5) -- Posição ajustada
 closeButton.Text = "X"
-closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
 closeButton.TextColor3 = Color3.new(1, 1, 1)
 closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 14
+closeButton.TextSize = 14 -- Tamanho do texto ajustado
 closeButton.BorderSizePixel = 0
 
 closeButton.MouseButton1Click:Connect(function()
