@@ -6,18 +6,20 @@ local toggleEggButton = Instance.new("TextButton", frame)
 local eggNameInput = Instance.new("TextBox", frame)
 local toggleFarmButton = Instance.new("TextButton", frame)
 local areaNameInput = Instance.new("TextBox", frame)
+local fastAutoFarmButton = Instance.new("TextButton", frame) -- New button for fast auto farm
 local closeButton = Instance.new("TextButton", frame)
 local titleLabel = Instance.new("TextLabel", frame)
 
 -- Variáveis de controle
 local isBuying = false
 local isFarming = false
+local isFastAutoFarming = false -- New variable for fast auto farm mode
 local SelectedArea = "Hacker Portal"
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 150, 0, 150) -- Tamanho ajustado para menor
-frame.Position = UDim2.new(0.5, -75, 0.5, -75) -- Centralizado
+frame.Size = UDim2.new(0, 150, 0, 200) -- Increased size for new button
+frame.Position = UDim2.new(0.5, -75, 0.5, -100) -- Adjusted position
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -25,57 +27,67 @@ frame.Draggable = true
 frame.BackgroundTransparency = 0.1
 
 -- Título da GUI
-titleLabel.Size = UDim2.new(1, 0, 0.15, 0) -- Tamanho ajustado
-titleLabel.Position = UDim2.new(0, 0, 0, 0) -- Posição ajustada
+titleLabel.Size = UDim2.new(1, 0, 0.15, 0)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)
 titleLabel.Text = "👾FrancesS👾"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 14 -- Tamanho do texto ajustado
+titleLabel.TextSize = 14
 
 -- Campo para o nome do egg
-eggNameInput.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-eggNameInput.Position = UDim2.new(0.05, 0, 0.15, 0) -- Posição ajustada
+eggNameInput.Size = UDim2.new(0.9, 0, 0.15, 0)
+eggNameInput.Position = UDim2.new(0.05, 0, 0.15, 0)
 eggNameInput.PlaceholderText = "Nome do Egg"
 eggNameInput.Text = ""
 eggNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 eggNameInput.TextColor3 = Color3.new(1, 1, 1)
 eggNameInput.Font = Enum.Font.Gotham
 eggNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
-eggNameInput.TextSize = 10 -- Tamanho do texto ajustado
+eggNameInput.TextSize = 10
 eggNameInput.BorderSizePixel = 0
 
 -- Botão de compra de eggs
-toggleEggButton.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-toggleEggButton.Position = UDim2.new(0.05, 0, 0.3, 0) -- Posição ajustada
+toggleEggButton.Size = UDim2.new(0.9, 0, 0.15, 0)
+toggleEggButton.Position = UDim2.new(0.05, 0, 0.3, 0)
 toggleEggButton.Text = "Iniciar Compra"
 toggleEggButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleEggButton.TextColor3 = Color3.new(1, 1, 1)
 toggleEggButton.Font = Enum.Font.GothamBold
-toggleEggButton.TextSize = 10 -- Tamanho do texto ajustado
+toggleEggButton.TextSize = 10
 toggleEggButton.BorderSizePixel = 0
 
 -- Campo para o nome da área de farm
-areaNameInput.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-areaNameInput.Position = UDim2.new(0.05, 0, 0.45, 0) -- Posição ajustada
+areaNameInput.Size = UDim2.new(0.9, 0, 0.15, 0)
+areaNameInput.Position = UDim2.new(0.05, 0, 0.45, 0)
 areaNameInput.PlaceholderText = "Nome da Área"
 areaNameInput.Text = ""
 areaNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 areaNameInput.TextColor3 = Color3.new(1, 1, 1)
 areaNameInput.Font = Enum.Font.Gotham
 areaNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
-areaNameInput.TextSize = 10 -- Tamanho do texto ajustado
+areaNameInput.TextSize = 10
 areaNameInput.BorderSizePixel = 0
 
 -- Botão de farm
-toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0) -- Tamanho ajustado
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0) -- Posição ajustada
+toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
+toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0)
 toggleFarmButton.Text = "Ativar Farm"
-toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50 )
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
 toggleFarmButton.Font = Enum.Font.GothamBold
-toggleFarmButton.TextSize = 10 -- Tamanho do texto ajustado
+toggleFarmButton.TextSize = 10
 toggleFarmButton.BorderSizePixel = 0
+
+-- Botão de fast auto farm
+fastAutoFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
+fastAutoFarmButton.Position = UDim2.new(0.05, 0, 0.75, 0)
+fastAutoFarmButton.Text = "Fast Auto Farm"
+fastAutoFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+fastAutoFarmButton.TextColor3 = Color3.new(1, 1, 1)
+fastAutoFarmButton.Font = Enum.Font.GothamBold
+fastAutoFarmButton.TextSize = 10
+fastAutoFarmButton.BorderSizePixel = 0
 
 -- Função para obter os pets equipados
 local function GetMyPets()
@@ -158,6 +170,31 @@ local function autoFarm()
     end
 end
 
+-- Função de fast auto farm
+local function fastAutoFarm()
+    while isFastAutoFarming do
+        SelectedArea = areaNameInput.Text ~= "" and areaNameInput.Text or "Hacker Portal"
+        local petsEquip = GetMyPets()
+        local coinsToFarm = {}
+
+        for _, g in pairs(workspace.__ITEMS.Coins:GetChildren()) do
+            if not isFastAutoFarming then return end
+            if g:IsA("Folder") and g:GetAttribute("Area") == SelectedArea then
+                table.insert(coinsToFarm, g)
+            end
+        end
+
+        for _, coin in ipairs(coinsToFarm) do
+            if not isFastAutoFarming then return end
+            FarmCoin(coin.Name, petsEquip)
+            wait() -- Short delay between sending pets
+        end
+
+        if not isFastAutoFarming then break end
+        wait(0.2)
+    end
+end
+
 -- Evento do botão de farm
 toggleFarmButton.MouseButton1Click:Connect(function()
     isFarming = not isFarming
@@ -169,14 +206,25 @@ toggleFarmButton.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Evento do botão de fast auto farm
+fastAutoFarmButton.MouseButton1Click:Connect(function()
+    isFastAutoFarming = not isFastAutoFarming
+    fastAutoFarmButton.Text = isFastAutoFarming and "Desativar Fast Auto Farm" or "Ativar Fast Auto Farm"
+    fastAutoFarmButton.BackgroundColor3 = isFastAutoFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
+
+    if isFastAutoFarming then
+        spawn(fastAutoFarm)
+    end
+end)
+
 -- Botão de fechar
-closeButton.Size = UDim2.new(0.1, 0, 0.1, 0) -- Tamanho ajustado
-closeButton.Position = UDim2.new(0.9, -10, 0, 5) -- Posição ajustada
+closeButton.Size = UDim2.new(0.1, 0, 0.1, 0)
+closeButton.Position = UDim2.new(0.9, -10, 0, 5)
 closeButton.Text = "X"
 closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
 closeButton.TextColor3 = Color3.new(1, 1, 1)
 closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 10 -- Tamanho do texto ajustado
+closeButton.TextSize = 10
 closeButton.BorderSizePixel = 0
 
 closeButton.MouseButton1Click:Connect(function()
@@ -187,21 +235,23 @@ end)
 -- Código de Auto-Collect de Orbs e Lootbags (Removível)
 -- ===========================
 
--- Função para auto-collect de orbs
+-- Variáveis principais
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 
--- Função para auto-collect de orbs
+-- Função para coletar orbs instantaneamente
 function AutoCollectOrbs()
     while true do
+        -- Obtém todas as orbs no espaço de trabalho
         local orbs = Workspace.__ITEMS.Orbs:GetChildren()  -- Local correto das orbs
-        for _, g in ipairs(orbs) do
+        for _, orb in ipairs(orbs) do
+            -- Prepara os argumentos para a coleta da orb
             local args = {
                 [1] = {
                     [1] = {
                         [1] = {
-                            [1] = g.Name  -- Mantém o nome da orb que está sendo coletada
+                            [1] = orb.Name  -- Mantém o nome da orb que está sendo coletada
                         }
                     },
                     [2] = {
@@ -209,11 +259,12 @@ function AutoCollectOrbs()
                     }
                 }
             }
+            -- Tenta coletar a orb
             pcall(function()
                 Workspace.__ITEMS.__REMOTES:FindFirstChild("claim orbs"):FireServer(unpack(args))
             end)
         end
-        wait(0.05)  -- Intervalo mais rápido para coleta de orbs
+        wait(0.05)  -- Intervalo para a próxima verificação
     end
 end
 
