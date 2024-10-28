@@ -73,7 +73,7 @@ areaNameInput.BorderSizePixel = 0
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
 toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0)
 toggleFarmButton.Text = "Ativar Farm"
-toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50 )
+toggleFarmButton.BackgroundColor3 = Color3 .fromRGB(50, 205, 50 )
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
 toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 10
@@ -128,7 +128,7 @@ end
 local function purchaseLoop()
     while isBuying do
         buyEgg()
-        wait()
+        task.wait(1) -- Aumente o intervalo
     end
 end
 
@@ -161,12 +161,12 @@ local function autoFarm()
             if not isFarming then return end
             FarmCoin(coin.Name, petsEquip)
             repeat
-                wait()
+                task.wait(0.5) -- Aumente o intervalo
             until not workspace.__ITEMS.Coins:FindFirstChild(coin.Name) or not isFarming
         end
 
         if not isFarming then break end
-        wait(0.5)
+        task.wait(0.5) -- Aumente o intervalo
     end
 end
 
@@ -187,11 +187,11 @@ local function fastAutoFarm()
         for _, coin in ipairs(coinsToFarm) do
             if not isFastAutoFarming then return end
             FarmCoin(coin.Name, petsEquip)
-            wait() -- Short delay between sending pets
+            task.wait(0.2) -- Ajuste o intervalo
         end
 
-        if not isFastAutoFarming then break end
-        wait(0.2)
+        if not is FastAutoFarming then break end
+        task.wait(0.2) -- Ajuste o intervalo
     end
 end
 
@@ -264,7 +264,7 @@ function AutoCollectOrbs()
                 Workspace.__ITEMS.__REMOTES:FindFirstChild("claim orbs"):FireServer(unpack(args))
             end)
         end
-        wait(0.05)  -- Intervalo para a próxima verificação
+        task.wait(0.2) -- Aumente o intervalo
     end
 end
 
