@@ -1,17 +1,14 @@
-local Eggs = game.Players.LocalPlayer.PlayerScripts.Scripts.Game['Egg Opening Frontend']
-getsenv(Eggs).PlayEggAnimation = function() return end
-
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local function simulateInput()
-    VirtualInputManager:SendKeyEvent(true, "LeftShift", false, game)
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
     task.wait(0.1)
-    VirtualInputManager:SendKeyEvent(false, "LeftShift", false, game)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
 end
 
 spawn(function()
     while true do
         simulateInput()
-        task.wait(300)
+        task.wait(600)
     end
 end)
