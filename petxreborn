@@ -71,9 +71,9 @@ areaNameInput.BorderSizePixel = 0
 
 -- Botão de farm
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0)
+toggleFarmButton.Position = UDim2.new(0.05, 0,  0.6, 0)
 toggleFarmButton.Text = "Ativar Farm"
-toggleFarmButton.BackgroundColor3 = Color3 .fromRGB(50, 205, 50 )
+toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
 toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 10
@@ -186,11 +186,11 @@ local function fastAutoFarm()
 
         for _, coin in ipairs(coinsToFarm) do
             if not isFastAutoFarming then return end
-            FarmCoin(coin.Name, petsEquip)
+            FarmCoin(coin.Name, pets Equip)
             task.wait(0.2) -- Ajuste o intervalo
         end
 
-        if not is FastAutoFarming then break end
+        if not isFastAutoFarming then break end
         task.wait(0.2) -- Ajuste o intervalo
     end
 end
@@ -250,13 +250,11 @@ function AutoCollectOrbs()
             local args = {
                 [1] = {
                     [1] = {
-                        [1] = {
-                            [1] = orb.Name  -- Mantém o nome da orb que está sendo coletada
-                        }
-                    },
-                    [2] = {
-                        [1] = false
+                        [1] = orb.Name  -- Mantém o nome da orb que está sendo coletada
                     }
+                },
+                [2] = {
+                    [1] = false
                 }
             }
             -- Tenta coletar a orb
