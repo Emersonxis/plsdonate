@@ -22,15 +22,15 @@ end
 
 -- Criação dos botões para abrir as GUIs
 local buttons = {
-    {Name = "Golden", Initial = "G", Position = UDim2.new(0, 10, 0, 30)},
-    {Name = "Rainbow", Initial = "R", Position = UDim2.new(0, 110, 0, 30)},
-    {Name = "DarkMatter", Initial = "D", Position = UDim2.new(0, 210, 0, 30)},
-    {Name = "Merchant", Initial = "M", Position = UDim2.new(0, 310, 0, 30)}
+    {Name = "Golden", Initial = "G", Position = UDim2.new(0.05, 0, 0.85, 0)}, -- Ajuste de posição
+    {Name = "Rainbow", Initial = "R", Position = UDim2.new(0.25, 0, 0.85, 0)}, -- Ajuste de posição
+    {Name = "DarkMatter", Initial = "D", Position = UDim2.new(0.45, 0, 0.85, 0)}, -- Ajuste de posição
+    {Name = "Merchant", Initial = "M", Position = UDim2.new(0.65, 0, 0.85, 0)} -- Ajuste de posição
 }
 
 for _, buttonInfo in ipairs(buttons) do
     local button = Instance.new("TextButton", frame)
-    button.Size = UDim2.new(0, 50, 0, 50) -- Tamanho do botão
+    button.Size = UDim2.new(0.1, 0, 0.1, 0) -- Tamanho do botão ajustado
     button.Position = buttonInfo.Position -- Posição do botão
     button.Text = buttonInfo.Initial -- Exibe apenas a inicial
     button.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
@@ -46,8 +46,8 @@ for _, buttonInfo in ipairs(buttons) do
 end
 
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 450, 0, 100) -- Tamanho ajustado para acomodar os botões
-frame.Position = UDim2.new(0.5, -225, 0.5, -50) -- Centralizado
+frame.Size = UDim2.new(0, 450, 0, 200) -- Tamanho ajustado para acomodar os botões
+frame.Position = UDim2.new(0.5, -225, 0.5, -100) -- Centralizado
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -178,13 +178,8 @@ local function autoFarm()
         for _, coin in ipairs(coinsToFarm) do
             if not isFarming then return end
             FarmCoin(coin.Name, petsEquip)
-            repeat
-                wait()
-            until not workspace.__ITEMS.Coins:FindFirstChild(coin.Name) or not isFarming
+            wait(0.5)
         end
-
-        if not isFarming then break end
-        wait(0.5)
     end
 end
 
