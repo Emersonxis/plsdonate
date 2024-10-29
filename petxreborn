@@ -6,20 +6,22 @@ local toggleEggButton = Instance.new("TextButton", frame)
 local eggNameInput = Instance.new("TextBox", frame)
 local toggleFarmButton = Instance.new("TextButton", frame)
 local areaNameInput = Instance.new("TextBox", frame)
-local fastAutoFarmButton = Instance.new("TextButton", frame) -- New button for fast auto farm
+local chestNameInput = Instance.new("TextBox", frame) -- Novo campo para o nome do baú
+local fastAutoFarmButton = Instance.new("TextButton", frame)
 local closeButton = Instance.new("TextButton", frame)
 local titleLabel = Instance.new("TextLabel", frame)
 
 -- Variáveis de controle
 local isBuying = false
 local isFarming = false
-local isFastAutoFarming = false -- New variable for fast auto farm mode
+local isFastAutoFarming = false
+local isChestFarming = false -- Novo controle para farmar baús
 local SelectedArea = "Hacker Portal"
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 150, 0, 200) -- Increased size for new button
-frame.Position = UDim2.new(0.5, -75, 0.5, -100) -- Adjusted position
+frame.Size = UDim2.new(0, 200, 0, 250) -- Aumentado para novo botão
+frame.Position = UDim2.new(0.5, -100, 0.5, -125) -- Ajustado para nova posição
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -69,11 +71,23 @@ areaNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
 areaNameInput.TextSize = 10
 areaNameInput.BorderSizePixel = 0
 
+-- Novo campo para o nome do chest
+chestNameInput.Size = UDim2.new(0.9, 0, 0.15, 0)
+chestNameInput.Position = UDim2.new(0.05, 0, 0.6, 0)
+chestNameInput.PlaceholderText = "Nome do Chest"
+chestNameInput.Text = ""
+chestNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+chestNameInput.TextColor3 = Color3.new(1, 1, 1)
+chestNameInput.Font = Enum.Font.Gotham
+chestNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
+chestNameInput.TextSize = 10
+chestNameInput.BorderSizePixel = 0
+
 -- Botão de farm
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0)
+toggleFarmButton.Position = UDim2.new(0.05, 0, 0.75, 0)
 toggleFarmButton.Text = "Ativar Farm"
-toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50 )
+toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
 toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 10
@@ -81,7 +95,7 @@ toggleFarmButton.BorderSizePixel = 0
 
 -- Botão de fast auto farm
 fastAutoFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-fastAutoFarmButton.Position = UDim2.new(0.05, 0, 0.75, 0)
+fastAutoFarmButton.Position = UDim2.new(0.05, 0, 0.9, 0)
 fastAutoFarmButton.Text = "Fast Auto Farm"
 fastAutoFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 fastAutoFarmButton.TextColor3 = Color3.new(1, 1, 1)
@@ -99,38 +113,53 @@ local function GetMyPets()
     return returntable
 end
 
--- Função para farmar em um coin específico com todos os pets
-local function FarmCoin(CoinID, Pets)
-    Library.Network.Invoke("Join Coin", CoinID, Pets)
-    for _, pet in ipairs(Pets) do
-        Library.Network.Fire("Farm Coin", CoinID, pet)
+-- Função para farmar em um chest específico com todos os pets
+local function FarmChest(chestID, pets)
+    pcall(function()
+        for _, petID in pairs(pets) do
+            workspace['__ITEMS']['__REMOTES']["join coin"]:InvokeServer({[1] = chestID, [2] = {[1] = petID}})
+            workspace['__ITEMS']['__REMOTES']["farm coin"]:FireServer({[1] = chestID, [2] = petID})
+        end
+    end)
+end
+
+-- Função para pegar chests com o nome especificado
+local function GetChestsByName(chestName)
+    local chests = {}
+    local ListCoins = workspace.__ITEMS.__REMOTES["get coins"]:InvokeServer({})[1]
+    for i, v in pairs(ListCoins) do
+        if v.n == chestName then
+            table.insert(chests, {index = i, name = v.n})
+        end
+    end
+    return chests
+end
+
+-- Loop de farm para chests
+local function chestFarmLoop()
+    local pets = GetMyPets()
+    while isChestFarming do
+        local chestName = chestNameInput.Text ~= "" and chestNameInput.Text or "Giant Pixel Chest"
+        local chests = GetChestsByName(chestName)
+        if #chests > 0 then
+            for _, chest in pairs(chests) do
+                FarmChest(chest.index, pets) -- Envia todos os pets para o baú
+            end
+        end
+        wait(0.5)
     end
 end
 
--- Função para comprar o egg com o novo Remote
-local function buyEgg()
-    local args = {
-        [1] = {
-            [1] = {
-                [1] = eggNameInput.Text, -- nome do Egg obtido no GUI
-                [2] = true -- Abre o egg com animação
-            },
-            [2] = {
-                [1] = false,
-                [2] = false
-            }
-        }
-    }
-    workspace.__ITEMS.__REMOTES:FindFirstChild("buy egg"):InvokeServer(unpack(args))
-end
+-- Evento do botão de farm de chests
+toggleFarmButton.MouseButton1Click:Connect(function()
+    isChestFarming = not isChestFarming
+    toggleFarmButton.Text = isChestFarming and "Desativar Chest Farm" or "Ativar Chest Farm"
+    toggleFarmButton.BackgroundColor3 = isChestFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
 
--- Loop de compra de eggs
-local function purchaseLoop()
-    while isBuying do
-        buyEgg()
-        wait(0.2)
+    if isChestFarming then
+        spawn(chestFarmLoop)
     end
-end
+end)
 
 -- Evento do botão de compra de eggs
 toggleEggButton.MouseButton1Click:Connect(function()
@@ -139,70 +168,14 @@ toggleEggButton.MouseButton1Click:Connect(function()
     toggleEggButton.BackgroundColor3 = isBuying and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
 
     if isBuying then
-        spawn(purchaseLoop)
-    end
-end)
-
--- Função de auto farm ajustada
-local function autoFarm()
-    while isFarming do
-        SelectedArea = areaNameInput.Text ~= "" and areaNameInput.Text or "Hacker Portal"
-        local petsEquip = GetMyPets()
-        local coinsToFarm = {}
-
-        for _, g in pairs(workspace.__ITEMS.Coins:GetChildren()) do
-            if not isFarming then return end
-            if g:IsA("Folder") and g:GetAttribute("Area") == SelectedArea then
-                table.insert(coinsToFarm, g)
-            end
-        end
-
-        for _, coin in ipairs(coinsToFarm) do
-            if not isFarming then return end
-            FarmCoin(coin.Name, petsEquip)
-            repeat
-                wait(0.1)
-            until not workspace.__ITEMS.Coins:FindFirstChild(coin.Name) or not isFarming
-        end
-
-        if not isFarming then break end
-        wait(0.5)
-    end
-end
-
--- Função de fast auto farm
-local function fastAutoFarm()
-    while isFastAutoFarming do
-        SelectedArea = areaNameInput.Text ~= "" and areaNameInput.Text or "Hacker Portal"
-        local petsEquip = GetMyPets()
-        local coinsToFarm = {}
-
-        for _, g in pairs(workspace.__ITEMS.Coins:GetChildren()) do
-            if not isFastAutoFarming then return end
-            if g:IsA("Folder") and g:GetAttribute("Area") == SelectedArea then
-                table.insert(coinsToFarm, g)
-            end
-        end
-
-        for _, coin in ipairs(coinsToFarm) do
-            if not isFastAutoFarming then return end
-            FarmCoin(coin.Name, petsEquip)
-            wait(0.1) -- Short delay between sending pets
-        end
-
-        if not isFastAutoFarming then break end
-        wait(0.2)
-    end
-end
-
--- Evento do botão de farm
-toggleFarmButton.MouseButton1Click:Connect(function()
-    isFarming = not isFarming
-    toggleFarmButton.Text = isFarming and "Desativar Farm" or "Ativar Farm"
-    toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
-
-    if isFarming then
-        spawn(autoFarm)
+        local eggName = eggNameInput.Text
+        local args = {
+            [1] = {
+                [1] = eggName,
+                [2] = true
+            }
+        }
+        workspace.__ITEMS.__REMOTES:FindFirstChild("buy egg"):InvokeServer(unpack(args))
     end
 end)
 
@@ -213,7 +186,7 @@ fastAutoFarmButton.MouseButton1Click:Connect(function()
     fastAutoFarmButton.BackgroundColor3 = isFastAutoFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
 
     if isFastAutoFarming then
-        spawn(fastAutoFarm)
+        -- Adicione a lógica do fast auto farm aqui
     end
 end)
 
@@ -231,75 +204,24 @@ closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
--- ===========================
--- Código de Auto-Collect de Orbs e Lootbags (Removível)
--- ===========================
-
--- Variáveis principais
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local player = Players.LocalPlayer
-
--- Função para coletar orbs instantaneamente
+-- Início do Auto-Collect de Orbs (manter como está)
 function AutoCollectOrbs()
     while true do
-        -- Obtém todas as orbs no espaço de trabalho
-        local orbs = Workspace.__ITEMS.Orbs:GetChildren()  -- Local correto das orbs
+        local orbs = Workspace.__ITEMS.Orbs:GetChildren()
         for _, orb in ipairs(orbs) do
-            -- Prepara os argumentos para a coleta da orb
             local args = {
                 [1] = {
                     [1] = {
-                        [1] = {
-                            [1] = orb.Name  -- Mantém o nome da orb que está sendo coletada
-                        }
-                    },
-                    [2] = {
-                        [1] = false
+                        [1] = orb.Name
                     }
                 }
             }
-            -- Tenta coletar a orb
             pcall(function()
-                Workspace.__ITEMS.__REMOTES:FindFirstChild("claim orbs"):FireServer(unpack(args))
+                workspace.__ITEMS.__REMOTES:FindFirstChild("claim orbs"):FireServer(unpack(args))
             end)
         end
-        wait(0.1)  -- Intervalo para a próxima verificação
+        wait(0.1)
     end
 end
 
--- Função para teleporte de lootbags
-function AutoTeleportLootbags()
-    while task.wait() do
-        for _, lootbag in pairs(Workspace.__ITEMS.Lootbags:GetChildren()) do
-            -- Teleporta a lootbag para uma posição ligeiramente abaixo da cabeça do jogador
-            local headPosition = player.Character.HumanoidRootPart.CFrame * CFrame.new(0, -1, 0)
-            lootbag.CFrame = headPosition
-        end
-    end
-end
-
-local function redeemGifts()
-    while true do
-        for i = 1, 12 do
-            local args = {
-                [1] = {
-                    [1] = {
-                        [1] = i  -- usa o valor atual do loop
-                    },
-                    [2] = {
-                        [1] = false
-                    }
-                }
-            }
-            
-            workspace.__ITEMS.__REMOTES:FindFirstChild("redeem free gift"):InvokeServer(unpack(args))
-            wait(2)  -- espera 2 segundos entre as execuções
-        end
-        
-        wait(20)  -- espera 20 segundos antes de reiniciar o loop
-    end
-end
-spawn(AutoCollectOrbs)
-spawn(AutoTeleportLootbags)
-spawn(redeemGifts)
+spawn(AutoCollectOrbs) -- Iniciar a coleta de orbs
