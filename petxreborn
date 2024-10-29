@@ -67,7 +67,7 @@ areaNameInput.TextColor3 = Color3.new(1, 1, 1)
 areaNameInput.Font = Enum.Font.Gotham
 areaNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
 areaNameInput.TextSize = 10
-areaNameInput.BorderSizePixel =  0
+areaNameInput.BorderSizePixel = 0
 
 -- Botão de farm
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
@@ -181,10 +181,10 @@ local function autoFarmChests()
 end
 
 -- Evento do botão de farm
-toggleFarmButton.MouseButton1Click:Connect(function ()
+toggleFarmButton.MouseButton1Click:Connect(function()
     isFarming = not isFarming
     toggleFarmButton.Text = isFarming and "Desativar Farm" or "Ativar Farm"
-    toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
+    toggleFarmButton.BackgroundColor3 = is Farming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
 
     if isFarming then
         spawn(autoFarm)
