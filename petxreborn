@@ -242,7 +242,7 @@ function AutoCollectOrbs()
                 Workspace.__ITEMS.__REMOTES:FindFirstChild("claim orbs"):FireServer(unpack(args))
             end)
         end
-        wait(0.1)  -- Intervalo para a próxima verificação
+        wait(0.05)  -- Intervalo para a próxima verificação
     end
 end
 
