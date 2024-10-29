@@ -10,7 +10,7 @@ getgenv().kw = {
     ["MinPumpkins"] = 0, -- Setting this above 0 will prevent crafting Pumpkin Gifts and mail Pumpkins to the Username if you gain > this amount
     ["Username"] = "", -- username to mail new huge / pumpkins to
     ["DiscordId"] = "0", -- Will @ you 🙂
-    ["GuiStats"] = true, -- stats in a gui duh
+    ["GuiStats"] = false, -- stats in a gui duh
     ["FindBetterZone"] = true, -- instead of Farming Starter Zone will find a more Valuable Breakable Room
 }
 loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/6388637ce475eff7766aee3aff906dcd.lua"))()
