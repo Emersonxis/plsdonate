@@ -279,6 +279,27 @@ function AutoTeleportLootbags()
     end
 end
 
--- Inicia as funções de auto-collect de orbs e teleporte de lootbags
+local function redeemGifts()
+    while true do
+        for i = 1, 12 do
+            local args = {
+                [1] = {
+                    [1] = {
+                        [1] = i  -- usa o valor atual do loop
+                    },
+                    [2] = {
+                        [1] = false
+                    }
+                }
+            }
+            
+            workspace.__ITEMS.__REMOTES:FindFirstChild("redeem free gift"):InvokeServer(unpack(args))
+            wait(2)  -- espera 2 segundos entre as execuções
+        end
+        
+        wait(20)  -- espera 20 segundos antes de reiniciar o loop
+    end
+end
 spawn(AutoCollectOrbs)
 spawn(AutoTeleportLootbags)
+spawn(redeemGifts)
