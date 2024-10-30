@@ -183,7 +183,7 @@ local function fastAutoFarm()
         end
 
         if not isFastAutoFarming then break end
-        wait(0.2)
+        wait(0.5)
     end
 end
 
