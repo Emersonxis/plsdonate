@@ -182,7 +182,7 @@ local function fastAutoFarm()
             wait(0.1) -- Short delay between sending pets
         end
 
-        if not isFastAuto Farming then break end
+        if not isFastAutoFarming then break end
         wait(0.5)
     end
 end
@@ -232,7 +232,9 @@ function AutoCollectOrbs()
             -- Prepara os argumentos para a coleta da orb
             local args = {
                 [1] = {
-                    [1] = orb.Name  -- Mantém o nome da orb que está sendo coletada
+                    [1] = {
+                        [1] = orb.Name  -- Mantém o nome da orb que está sendo coletada
+                    }
                 }
             }
             -- Tenta coletar a orb
