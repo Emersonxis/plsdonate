@@ -68,7 +68,7 @@ areaNameInput.TextSize = 10
 areaNameInput.BorderSizePixel = 0
 
 -- Botão de farm
-toggleFarmButton.Size = UDim2.new(0. 9, 0, 0.15, 0)
+toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
 toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0)
 toggleFarmButton.Text = "Ativar Farm"
 toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
