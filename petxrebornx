@@ -184,7 +184,7 @@ local function autoEgg()
             }
         }
 
-        workspace.__THINGS.__REMOTES:FindFirstChild("buy egg"):InvokeServer(unpack(args))
+        workspace.__THINGS.Remotes:FindFirstChild("buy egg"):InvokeServer(unpack(args))
         wait(0.5) -- Delay entre cada compra de egg
     end
 end
