@@ -3,7 +3,9 @@ local player = game.Players.LocalPlayer
 local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 local frame = Instance.new("Frame", screenGui)
 local areaNameInput = Instance.new("TextBox", frame)
+local eggNameInput = Instance.new("TextBox", frame) -- Campo para o nome do egg
 local toggleFarmButton = Instance.new("TextButton", frame)
+local toggleEggButton = Instance.new("TextButton", frame) -- Botão para ativar/desativar auto egg
 local fastAutoFarmButton = Instance.new("TextButton", frame) -- Botão para fast auto farm
 local closeButton = Instance.new("TextButton", frame)
 local titleLabel = Instance.new("TextLabel", frame)
@@ -11,12 +13,13 @@ local titleLabel = Instance.new("TextLabel", frame)
 -- Variáveis de controle
 local isFarming = false
 local isFastAutoFarming = false -- Variável para fast auto farm
+local isAutoEgging = false -- Variável para auto egg
 local SelectedArea = "Hacker Portal"
 local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
 
 -- Configurações da GUI
-frame.Size = UDim2.new(0, 150, 0, 200) -- Tamanho da GUI
-frame.Position = UDim2.new(0.5, -75, 0.5, -100) -- Posição da GUI
+frame.Size = UDim2.new(0, 150, 0, 250) -- Tamanho da GUI
+frame.Position = UDim2.new(0.5, -75, 0.5, -125) -- Posição da GUI
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -43,9 +46,20 @@ areaNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
 areaNameInput.TextSize = 10
 areaNameInput.BorderSizePixel = 0
 
+-- Campo para o nome do egg
+eggNameInput.Size = UDim2.new(0.9, 0, 0.15, 0)
+eggNameInput.Position = UDim2.new(0.05, 0, 0.35, 0)
+eggNameInput.PlaceholderText = "Nome do Egg"
+eggNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+eggNameInput.TextColor3 = Color3.new(1, 1, 1)
+eggNameInput.Font = Enum.Font.Gotham
+eggNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
+eggNameInput.TextSize = 10
+eggNameInput.BorderSizePixel = 0
+
 -- Botão de farm
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.3, 0)
+toggleFarmButton.Position = UDim2.new(0.05, 0, 0.55, 0)
 toggleFarmButton.Text = "Ativar Farm"
 toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
@@ -53,9 +67,19 @@ toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 10
 toggleFarmButton.BorderSizePixel = 0
 
+-- Botão de auto egg
+toggleEggButton.Size = UDim2.new(0.9, 0, 0.15, 0)
+toggleEggButton.Position = UDim2.new(0.05, 0, 0.7, 0)
+toggleEggButton.Text = "Ativar Auto Egg"
+toggleEggButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+toggleEggButton.TextColor3 = Color3.new(1, 1, 1)
+toggleEggButton.Font = Enum.Font.GothamBold
+toggleEggButton.TextSize = 10
+toggleEggButton.BorderSizePixel = 0
+
 -- Botão de fast auto farm
 fastAutoFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-fastAutoFarmButton.Position = UDim2.new(0.05, 0, 0.45, 0)
+fastAutoFarmButton.Position = UDim2.new(0.05, 0, 0.85, 0)
 fastAutoFarmButton.Text = "Fast Auto Farm"
 fastAutoFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 fastAutoFarmButton.TextColor3 = Color3.new(1, 1, 1)
@@ -133,10 +157,31 @@ local function fastAutoFarm()
     end
 end
 
+-- Função de auto egg
+local function autoEgg()
+    while isAutoEgging do
+        local eggName = eggNameInput.Text ~= "" and eggNameInput.Text or "Empyrean Egg" -- Nome padrão do egg
+        local args = {
+            [1] = {
+                [1] = {
+                    [1] = eggName,
+                    [2] = true
+                },
+                [2] = {
+                    [1] = false,
+                    [2] = false
+                }
+            }
+        }
+        workspace.__ITEMS.Remotes:FindFirstChild("buy egg"):InvokeServer(unpack(args))
+        wait(0.2) -- Delay entre cada compra de egg
+    end
+end
+
 -- Evento do botão de farm
 toggleFarmButton.MouseButton1Click:Connect(function()
     isFarming = not isFarming
-    toggleFarmButton.Text = isFarming and "Desativar Farm" or "Ativar Farm "
+    toggleFarmButton.Text = isFarming and "Desativar Farm" or "Ativar Farm"
     toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
 
     if isFarming then
@@ -155,11 +200,22 @@ fastAutoFarmButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Botão de fechar
-closeButton.Size = UDim2.new(0.1, 0, 0.1, 0)
-closeButton.Position = UDim2.new(0.9, -10, 0, 5)
-closeButton.Text = "X"
-closeButton.BackgroundColor3 = Color3.fromRGB(255, 69, 58)
+-- Evento do botão de auto egg
+toggleEggButton.MouseButton1Click:Connect(function()
+    isAutoEgging = not isAutoEgging
+    toggleEggButton.Text = isAutoEgging and "Desativar Auto Egg" or "Ativar Auto Egg"
+    toggleEggButton.BackgroundColor3 = isAutoEgging and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
+
+    if isAutoEgging then
+        spawn(autoEgg)
+    end
+end)
+
+-- Evento do botão de fechar
+closeButton.Size = UDim2.new(0.9, 0, 0.1, 0)
+closeButton.Position = UDim2.new(0.05, 0, 0.95, 0)
+closeButton.Text = "Fechar"
+closeButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
 closeButton.TextColor3 = Color3.new(1, 1, 1)
 closeButton.Font = Enum.Font.GothamBold
 closeButton.TextSize = 10
@@ -169,40 +225,4 @@ closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
--- Função para coletar orbs instantaneamente
-function AutoCollectOrbs()
-    while true do
-        -- Obtém todas as orbs no espaço de trabalho
-        local orbs = workspace.__ITEMS.Orbs:GetChildren()  -- Local correto das orbs
-        for _, orb in ipairs(orbs) do
-            -- Prepara os argumentos para a coleta da orb
-            local args = {
-                [1] = {
-                    [1] = {
-                        [1] = orb.Name  -- Mantém o nome da orb que está sendo coletada
-                    }
-                }
-            }
-            -- Tenta coletar a orb
-            pcall(function()
-                workspace.__ITEMS.Remotes:FindFirstChild("claim orbs"):FireServer(unpack(args))
-            end)
-        end
-        wait(0.05)  -- Intervalo para a próxima verificação
-    end
-end
-
--- Função para teleporte de lootbags
-function AutoTeleportLootbags()
-    while task.wait() do
-        for _, lootbag in pairs(workspace.__ITEMS.Lootbags:GetChildren()) do
-            -- Teleporta a lootbag para uma posição ligeiramente abaixo da cabeça do jogador
-            local headPosition = player.Character.HumanoidRootPart.Position
-            lootbag.Position = Vector3.new(headPosition.X, headPosition.Y - 10, headPosition.Z)
-        end
-    end
-end
-
--- Inicia as funções de coleta de orbs e teleporte de lootbags
-spawn(AutoCollectOrbs)
-spawn(AutoTeleportLootbags)
+-- Fim da GUI
