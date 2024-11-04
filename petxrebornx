@@ -2,16 +2,13 @@
 local player = game.Players.LocalPlayer
 local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 local frame = Instance.new("Frame", screenGui)
-local toggleEggButton = Instance.new("TextButton", frame)
-local eggNameInput = Instance.new("TextBox", frame)
-local toggleFarmButton = Instance.new("TextButton", frame)
 local areaNameInput = Instance.new("TextBox", frame)
+local toggleFarmButton = Instance.new("TextButton", frame)
 local fastAutoFarmButton = Instance.new("TextButton", frame) -- Botão para fast auto farm
 local closeButton = Instance.new("TextButton", frame)
 local titleLabel = Instance.new("TextLabel", frame)
 
 -- Variáveis de controle
-local isBuying = false
 local isFarming = false
 local isFastAutoFarming = false -- Variável para fast auto farm
 local SelectedArea = "Hacker Portal"
@@ -35,30 +32,9 @@ titleLabel.BackgroundTransparency = 1
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 14
 
--- Campo para o nome do egg
-eggNameInput.Size = UDim2.new(0.9, 0, 0.15, 0)
-eggNameInput.Position = UDim2.new(0.05, 0, 0.15, 0)
-eggNameInput.PlaceholderText = "Nome do Egg"
-eggNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-eggNameInput.TextColor3 = Color3.new(1, 1, 1)
-eggNameInput.Font = Enum.Font.Gotham
-eggNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
-eggNameInput.TextSize = 10
-eggNameInput.BorderSizePixel = 0
-
--- Botão de compra de eggs
-toggleEggButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-toggleEggButton.Position = UDim2.new(0.05, 0, 0.3, 0)
-toggleEggButton.Text = "Iniciar Compra"
-toggleEggButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
-toggleEggButton.TextColor3 = Color3.new(1, 1, 1)
-toggleEggButton.Font = Enum.Font.GothamBold
-toggleEggButton.TextSize = 10
-toggleEggButton.BorderSizePixel = 0
-
 -- Campo para o nome da área de farm
 areaNameInput.Size = UDim2.new(0.9, 0, 0.15, 0)
-areaNameInput.Position = UDim2.new(0.05, 0, 0.45, 0)
+areaNameInput.Position = UDim2.new(0.05, 0, 0.15, 0)
 areaNameInput.PlaceholderText = "Nome da Área"
 areaNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 areaNameInput.TextColor3 = Color3.new(1, 1, 1)
@@ -69,17 +45,17 @@ areaNameInput.BorderSizePixel = 0
 
 -- Botão de farm
 toggleFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.6, 0)
+toggleFarmButton.Position = UDim2.new(0.05, 0, 0.3, 0)
 toggleFarmButton.Text = "Ativar Farm"
 toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
-toggleFarmButton .TextColor3 = Color3.new(1, 1, 1)
+toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
 toggleFarmButton.Font = Enum.Font.GothamBold
 toggleFarmButton.TextSize = 10
 toggleFarmButton.BorderSizePixel = 0
 
 -- Botão de fast auto farm
 fastAutoFarmButton.Size = UDim2.new(0.9, 0, 0.15, 0)
-fastAutoFarmButton.Position = UDim2.new(0.05, 0, 0.75, 0)
+fastAutoFarmButton.Position = UDim2.new(0.05, 0, 0.45, 0)
 fastAutoFarmButton.Text = "Fast Auto Farm"
 fastAutoFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 fastAutoFarmButton.TextColor3 = Color3.new(1, 1, 1)
@@ -104,36 +80,6 @@ local function FarmCoin(CoinID, Pets)
         Library.Network.Fire("Farm Coin", CoinID, pet)
     end
 end
-
--- Função para comprar o egg com o novo Remote
-local function buyEgg()
-    local args = {
-        [1] = {
-            [1] = eggNameInput.Text, -- nome do Egg obtido no GUI
-            [2] = true -- Abre o egg com animação
-        }
-    }
-    workspace.__ITEMS.__REMOTES:FindFirstChild("buy egg"):InvokeServer(unpack(args))
-end
-
--- Loop de compra de eggs
-local function purchaseLoop()
-    while isBuying do
-        buyEgg()
-        wait(0.2)
-    end
-end
-
--- Evento do botão de compra de eggs
-toggleEggButton.MouseButton1Click:Connect(function()
-    isBuying = not isBuying
-    toggleEggButton.Text = isBuying and "Parar Compra" or "Iniciar Compra"
-    toggleEggButton.BackgroundColor3 = isBuying and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
-
-    if isBuying then
-        spawn(purchaseLoop)
-    end
-end)
 
 -- Função de auto farm ajustada
 local function autoFarm()
@@ -227,7 +173,7 @@ end)
 function AutoCollectOrbs()
     while true do
         -- Obtém todas as orbs no espaço de trabalho
-        local orbs = Workspace.__ITEMS.Orbs:GetChildren()  -- Local correto das orbs
+        local orbs = workspace.__ITEMS.Orbs:GetChildren()  -- Local correto das orbs
         for _, orb in ipairs(orbs) do
             -- Prepara os argumentos para a coleta da orb
             local args = {
@@ -239,7 +185,7 @@ function AutoCollectOrbs()
             }
             -- Tenta coletar a orb
             pcall(function()
-                Workspace.__ITEMS.__REMOTES:FindFirstChild("claim orbs"):FireServer(unpack(args))
+                workspace.__ITEMS.Remotes:FindFirstChild("claim orbs"):FireServer(unpack(args))
             end)
         end
         wait(0.05)  -- Intervalo para a próxima verificação
@@ -249,31 +195,14 @@ end
 -- Função para teleporte de lootbags
 function AutoTeleportLootbags()
     while task.wait() do
-        for _, lootbag in pairs(Workspace.__ITEMS.Lootbags:GetChildren()) do
+        for _, lootbag in pairs(workspace.__ITEMS.Lootbags:GetChildren()) do
             -- Teleporta a lootbag para uma posição ligeiramente abaixo da cabeça do jogador
-            local headPosition = player.Character.HumanoidRootPart.CFrame * CFrame.new(0, -1, 0)
-            lootbag.CFrame = headPosition
+            local headPosition = player.Character.HumanoidRootPart.Position
+            lootbag.Position = Vector3.new(headPosition.X, headPosition.Y - 10, headPosition.Z)
         end
     end
 end
 
-local function redeemGifts()
-    while true do
-        for i = 1, 12 do
-            local args = {
-                [1] = {
-                    [1] = i  -- usa o valor atual do loop
-                }
-            }
-            
-            Workspace.__ITEMS.__REMOTES:FindFirstChild("redeem free gift"):InvokeServer(unpack(args))
-            wait(2)  -- espera 2 segundos entre as execuções
-        end
-        
-        wait(20)  -- espera 20 segundos antes de reiniciar o loop
-    end
-end
-
+-- Inicia as funções de coleta de orbs e teleporte de lootbags
 spawn(AutoCollectOrbs)
 spawn(AutoTeleportLootbags)
-spawn(redeemGifts)
