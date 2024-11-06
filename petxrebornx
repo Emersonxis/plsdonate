@@ -128,12 +128,12 @@ local function autoFarm()
             if not isFarming then return end
             FarmCoin(coin.Name, petsEquip)
             repeat
-                wait(0.1)
+                wait(0.01)
             until not workspace.__ITEMS.Coins:FindFirstChild(coin.Name) or not isFarming
         end
 
         if not isFarming then break end
-        wait(0.5)
+        wait(0.1)
     end
 end
 
