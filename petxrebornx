@@ -220,3 +220,61 @@ end)
 closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
+
+-- Função para coletar uma única orb
+local function collectSingleOrb(orbId)
+    local remoteOrbs = workspace.__ITEMS.Remotes:FindFirstChild("claim orbs")
+    if remoteOrbs then
+        local argsOrbs = {
+            [1] = {
+                [1] = { { [1] = orbId } },
+                [2] = {
+                    [1] = false
+                }
+            }
+        }
+        remoteOrbs:FireServer(unpack(argsOrbs))
+    end
+end
+
+-- Função para coletar e destruir uma única lootbag
+local function collectSingleLootbag(lootbagId)
+    local remoteLootbag = workspace.__ITEMS.Remotes:FindFirstChild("collect lootbag")
+    local lootbag = game:GetService("Workspace").__ITEMS.Lootbags:FindFirstChild(lootbagId)
+    
+    if remoteLootbag and lootbag then
+        local argsLootbag = {
+            [1] = {
+                [1] = {
+                    [1] = lootbag.Name,
+                    [2] = lootbag.Position
+                },
+                [2] = {
+                    [1] = false,
+                    [2] = false
+                }
+            }
+        }
+        remoteLootbag:FireServer(unpack(argsLootbag))
+        
+        -- Destruir a lootbag da workspace após a coleta
+        lootbag:Destroy()
+    end
+end
+
+-- Loop principal para auto collect de orbs e lootbags
+while task.wait() do
+    -- Coletar todas as orbs
+    for _, orb in pairs(game:GetService("Workspace")["__ITEMS"].Orbs:GetChildren()) do
+        task.spawn(function()
+            collectSingleOrb(orb.Name)
+        end)
+    end
+    
+    -- Coletar todas as lootbags e destruí-las
+    for _, lootbag in pairs(game:GetService("Workspace")["__ITEMS"].Lootbags:GetChildren()) do
+        task.spawn(function()
+            collectSingleLootbag(lootbag.Name)
+        end)
+    end
+end
