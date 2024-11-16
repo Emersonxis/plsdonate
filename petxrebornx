@@ -162,19 +162,21 @@ local function fastAutoFarm()
     end
 end
 
--- Função de auto egg
+-- Função de auto egg atualizada
 local function autoEgg()
     while isAutoEgging do
-        local eggName = eggNameInput.Text ~= "" and eggNameInput.Text or "Empyrean Egg" -- Nome padrão do egg
+        local eggName = eggNameInput.Text ~= "" and eggNameInput.Text or "Cat Egg" -- Nome padrão do egg
         local args = {
             [1] = {
                 [1] = {
                     [1] = eggName,
-                    [2] = true
+                    [2] = false,
+                    [3] = true
                 },
                 [2] = {
                     [1] = false,
-                    [2] = false
+                    [2] = false,
+                    [3] = false
                 }
             }
         }
