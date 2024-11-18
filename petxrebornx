@@ -181,7 +181,7 @@ local function autoEgg()
             }
         }
         workspace.__ITEMS.Remotes:FindFirstChild("buy egg"):InvokeServer(unpack(args))
-        wait(0.2) -- Delay entre cada compra de egg
+        wait(0.02) -- Delay entre cada compra de egg
     end
 end
 
