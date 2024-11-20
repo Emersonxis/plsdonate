@@ -165,23 +165,21 @@ end
 -- Função de auto egg atualizada
 local function autoEgg()
     while isAutoEgging do
-        local eggName = eggNameInput.Text ~= "" and eggNameInput.Text or "Cat Egg" -- Nome padrão do egg
+        -- Obtém o nome do Egg a partir da entrada do usuário ou usa o padrão
+        local eggName = eggNameInput.Text ~= "" and eggNameInput.Text or "Golden Cat Egg" 
+        
+        -- Argumentos para o novo Remote
         local args = {
-            [1] = {
-                [1] = {
-                    [1] = eggName,
-                    [2] = false,
-                    [3] = true
-                },
-                [2] = {
-                    [1] = false,
-                    [2] = false,
-                    [3] = false
-                }
-            }
+            [1] = eggName;   -- Nome do Egg
+            [2] = false;     -- Abertura única (false) ou tripla (true)
+            [3] = true;      -- Auto hatch
         }
-        workspace.__ITEMS.Remotes:FindFirstChild("buy egg"):InvokeServer(unpack(args))
-        wait(0.02) -- Delay entre cada compra de egg
+
+        -- Invoca o Remote para abrir o Egg
+        game:GetService("ReplicatedStorage"):GetChildren()[14]:InvokeServer(unpack(args))
+        
+        -- Delay entre cada compra de Egg
+        wait(0.02)
     end
 end
 
