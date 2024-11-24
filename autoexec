@@ -23,6 +23,12 @@ end
 while _G.AutoOpen and task.wait() do
 game:GetService("ReplicatedStorage"):WaitForChild("Network"):WaitForChild("CustomEggs_Hatch"):InvokeServer(find_nearest_egg(),EggAmount)
 end
+wait(5)
+getgenv().AuthKey = "HUGE_dqOVIUIXUOFp"
+getgenv().LoadSettings = {
+    Example_Setting = Example_Value
+}
+loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
 
 wait(5)
 script_key="DcifsemZVPMXofuEHcZCVTOGkwCUwiet";
