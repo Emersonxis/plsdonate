@@ -238,6 +238,24 @@ local function collectSingleOrb(orbId)
     end
 end
 
+-- Função para coletar todas as orbs disponíveis no workspace.__ITEMS.Orbs
+local function collectAllOrbs()
+    local orbsFolder = workspace.__ITEMS.Orbs
+    if orbsFolder then
+        for _, orb in pairs(orbsFolder:GetChildren()) do
+            if orb:IsA("BasePart") or orb:FindFirstChild("OrbId") then
+                local orbId = orb.Name
+                collectSingleOrb(orbId)
+            end
+        end
+    end
+end
+
+-- Loop para coletar continuamente as orbs
+while task.wait(1) do
+    collectAllOrbs()
+end
+
 -- Função para coletar e destruir uma única lootbag
 local function collectSingleLootbag(lootbagId)
     local remoteLootbag = workspace.__ITEMS.Remotes:FindFirstChild("collect lootbag")
