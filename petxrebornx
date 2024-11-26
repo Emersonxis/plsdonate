@@ -166,10 +166,20 @@ end
 local function autoEgg()
     while isAutoEgging do
         -- Obtém o nome do Egg a partir da entrada do usuário ou usa o padrão
-        local eggName = eggNameInput.Text ~= "" and eggNameInput.Text or "Pixel Egg"
+        local eggName = eggNameInput.Text ~= "" and eggNameInput.Text or "Golden Acorn Egg"
 
-        -- Invoca o Remote para abrir o Egg com os argumentos necessários
-        game:GetService("ReplicatedStorage").RemoteFunction:InvokeServer(eggName, false, true)
+        -- Argumentos para o novo Remote
+        local args = {
+            [1] = eggName,   -- Nome do Egg
+            [2] = false,     -- Abertura única (false) ou tripla (true)
+            [3] = true       -- Auto hatch
+        }
+
+        -- Invoca o novo Remote para abrir o Egg
+        local remoteEgg = game:GetService("ReplicatedStorage"):GetChildren()[24]
+        if remoteEgg and typeof(remoteEgg.InvokeServer) == "function" then
+            remoteEgg:InvokeServer(unpack(args))
+        end
         
         -- Delay entre cada compra de Egg
         wait(0.1)
