@@ -47,7 +47,8 @@ local function sendWebhook()
     end
 end
 
-while true do
+while true
+do
     sendWebhook()
 
     wait(600)
