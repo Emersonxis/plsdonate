@@ -1,5 +1,52 @@
+-- Executando o script fornecido antes do webhook
 getgenv().AuthKey = "HUGE_yr9lEktNGFjD"
 getgenv().LoadSettings = {
     disable_globalhatch = false,
 }
 loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
+
+-- Função de requisição HTTP compatível com Codex Executor
+local http_request = request or http_request or (syn and syn.request) or (http and http.request)
+if not http_request then return end
+
+-- Serviços do Roblox
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+
+-- Informações do jogador
+local player = Players.LocalPlayer
+local username = player and player.Name or "Desconhecido"
+local loginTime = tick()
+
+-- URL do webhook do Discord
+local webhook_url = "https://discord.com/api/webhooks/1334657598607196170/WWnjoha5jDcBeaMSQZv-ehP_zMxE8qSrFjbio4QdYCOQdYpbbWR"
+
+-- Função para enviar a mensagem ao webhook
+local function sendWebhook()
+    local timeElapsed = tick() - loginTime
+    local hours = math.floor(timeElapsed / 3600)
+    local minutes = math.floor((timeElapsed % 3600) / 60)
+    local timeFormatted = string.format("%02dh %02dm", hours, minutes)
+
+    local payload = {
+        content = "",
+        embeds = {{
+            title = "📡 Ping Automático",
+            description = string.format("👤 **Nickname:** `%s`\n⏳ **Tempo Logado:** `%s`", username, timeFormatted),
+            color = 3447003
+        }}
+    }
+
+    http_request({
+        Url = webhook_url,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = HttpService:JSONEncode(payload)
+    })
+end
+
+-- Loop para enviar a mensagem a cada 10 minutos
+while true do
+    sendWebhook()
+    wait(600) -- Aguarda 600 segundos (10 minutos)
+end
