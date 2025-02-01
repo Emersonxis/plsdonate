@@ -1,283 +1,59 @@
--- Variáveis principais e GUI
-local player = game.Players.LocalPlayer
-local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-local frame = Instance.new("Frame", screenGui)
-local areaNameInput = Instance.new("TextBox", frame)
-local eggNameInput = Instance.new("TextBox", frame) -- Campo para o nome do egg
-local toggleFarmButton = Instance.new("TextButton", frame)
-local toggleEggButton = Instance.new("TextButton", frame) -- Botão para ativar/desativar auto egg
-local fastAutoFarmButton = Instance.new("TextButton", frame) -- Botão para fast auto farm
-local closeButton = Instance.new("TextButton", frame)
-local titleLabel = Instance.new("TextLabel", frame)
 
--- Variáveis de controle
-local isFarming = false
-local isFastAutoFarming = false -- Variável para fast auto farm
-local isAutoEgging = false -- Variável para auto egg
-local SelectedArea = "Hacker Portal"
-local Library = require(game:GetService("ReplicatedStorage").Framework.Library)
+local http_request = request or http_request or (syn and syn.request) or (http and http.request)
 
--- Configurações da GUI
-frame.Size = UDim2.new(0, 150, 0, 200) -- Tamanho ajustado para melhor proporção
-frame.Position = UDim2.new(0.5, -120, 0.5, -150) -- Posição da GUI
-frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-frame.BackgroundTransparency = 0.2
-
--- Título da GUI
-titleLabel.Size = UDim2.new(1, 0, 0.1, 0)
-titleLabel.Position = UDim2.new(0, 0, 0, 0)
-titleLabel.Text = "👾FrancesS👾"
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 12
-
--- Campo para o nome da área de farm
-areaNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
-areaNameInput.Position = UDim2.new(0.05, 0, 0.1, 0)
-areaNameInput.PlaceholderText = "Nome da Área"
-areaNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-areaNameInput.TextColor3 = Color3.new(1, 1, 1)
-areaNameInput.Font = Enum.Font.Gotham
-areaNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
-areaNameInput.TextSize = 9
-areaNameInput.BorderSizePixel = 0
-
--- Botão de iniciar auto farm
-toggleFarmButton.Size = UDim2.new(0.9, 0, 0.1, 0)
-toggleFarmButton.Position = UDim2.new(0.05, 0, 0.2, 0)
-toggleFarmButton.Text = "Iniciar Auto Farm"
-toggleFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
-toggleFarmButton.TextColor3 = Color3.new(1, 1, 1)
-toggleFarmButton.Font = Enum.Font.GothamBold
-toggleFarmButton.TextSize = 9
-
--- Botão de iniciar fast auto farm
-fastAutoFarmButton.Size = UDim2.new(0.9, 0, 0.1, 0)
-fastAutoFarmButton.Position = UDim2.new(0.05, 0, 0.3, 0)
-fastAutoFarmButton.Text = "Iniciar Fast Auto Farm"
-fastAutoFarmButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
-fastAutoFarmButton.TextColor3 = Color3.new(1, 1, 1)
-fastAutoFarmButton.Font = Enum.Font.GothamBold
-fastAutoFarmButton.TextSize = 9
-
--- Campo para o nome do egg
-eggNameInput.Size = UDim2.new(0.9, 0, 0.1, 0)
-eggNameInput.Position = UDim2.new(0.05, 0, 0.4, 0)
-eggNameInput.PlaceholderText = "Nome do Egg"
-eggNameInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-eggNameInput.TextColor3 = Color3.new(1, 1, 1) -- Corrigido aqui
-eggNameInput.Font = Enum.Font.Gotham
-eggNameInput.PlaceholderColor3 = Color3.fromRGB(200, 200, 200)
-eggNameInput.TextSize = 9
-
--- Botão de iniciar auto egg
-toggleEggButton.Size = UDim2.new(0.9, 0, 0.1, 0)
-toggleEggButton.Position = UDim2.new(0.05, 0, 0.5, 0)
-toggleEggButton.Text = "Iniciar Auto Egg"
-toggleEggButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
-toggleEggButton.TextColor3 = Color3.new(1, 1, 1)
-toggleEggButton.Font = Enum.Font.GothamBold
-toggleEggButton.TextSize = 9
-
--- Botão de fechar
-closeButton.Size = UDim2.new(0.1, 0, 0.1, 0)
-closeButton.Position = UDim2.new(0.9, 0, 0, 0)
-closeButton.Text = "X"
-closeButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
-closeButton.TextColor3 = Color3.new(1, 1, 1)
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 9
-
--- Função para obter os pets equipados
-local function GetMyPets()
-    local returntable = {}
-    local equippedPets = Library.PetCmds.GetEquipped()
-    for _, v in pairs(equippedPets) do
-        table.insert(returntable, v.uid)
-    end
-    return returntable
+if not http_request then
+    return
 end
 
--- Função para farmar em um coin específico com todos os pets
-local function FarmCoin(CoinID, Pets)
-    Library.Network.Invoke("Join Coin", CoinID, Pets)
-    for _, pet in ipairs(Pets) do
-        Library.Network.Fire("Farm Coin", CoinID, pet)
-    end
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+
+-- Aguarde até que o LocalPlayer esteja disponível
+while not player do
+    wait()
+    player = Players.LocalPlayer
 end
 
--- Função de auto farm ajustada
-local function autoFarm()
-    while isFarming do
-        SelectedArea = areaNameInput.Text ~= "" and areaNameInput.Text or "Hacker Portal"
-        local petsEquip = GetMyPets()
-        local coinsToFarm = {}
+local username = player.Name or "Desconhecido"
+local loginTime = tick()
 
-        for _, g in pairs(workspace.__THINGS.Coins:GetChildren()) do
-            if not isFarming then return end
-            if g:IsA("Folder") and g:GetAttribute("Area") == SelectedArea then
-                table.insert(coinsToFarm, g)
-            end
-        end
+local webhook_url = "https://discord.com/api/webhooks/1334657598607196170/WWnjoha5jDcBeaMSQZv-ehP_zMxE8qSrFjbio4vFDHcQxCBxbWTo_c4QdYCOQdYpbbWR"
 
-        for _, coin in ipairs(coinsToFarm) do
-            if not isFarming then return end
-            FarmCoin(coin.Name, petsEquip)
-            repeat
-                wait(0.01)
-            until not workspace.__THINGS.Coins:FindFirstChild(coin.Name) or not isFarming
-        end
-
-        if not isFarming then break end
-        wait(0.1)
-    end
-end
-
--- Função de fast auto farm
-local function fastAutoFarm()
-    while isFastAutoFarming do
-        SelectedArea = areaNameInput.Text ~= "" and areaNameInput.Text or "Hacker Portal"
-        local petsEquip = GetMyPets()
-        local coinsToFarm = {}
-
-        for _, g in pairs(workspace.__THINGS.Coins:GetChildren()) do
-            if not isFastAutoFarming then return end
-            if g:IsA("Folder") and g:GetAttribute("Area") == SelectedArea then
-                table.insert(coinsToFarm, g)
-            end
-        end
-
-        for _, coin in ipairs(coinsToFarm) do
-            if not isFastAutoFarming then return end
-            FarmCoin(coin.Name, petsEquip)
-            wait(0.1) -- Short delay between sending pets
-        end
-
-        if not isFastAutoFarming then break end
-        wait(0.5)
-    end
-end
-
--- Função de auto egg
-local function autoEgg()
-    while isAutoEgging do
-        local eggName = eggNameInput.Text ~= "" and eggNameInput.Text or "Empyrean Egg" -- Nome padrão do egg
-        local args = {
-            [1] = {
-                [1] = {
-                    [1] = eggName,  -- Nome do egg
-                    [2] = false,    -- Parâmetro 2 (pode ser ajustado conforme necessário)
-                    [3] = true      -- Parâmetro 3 (pode ser ajustado conforme necessário)
-                },
-                [2] = {
-                    [1] = false,    -- Parâmetro 1 do segundo conjunto
-                    [2] = false,    -- Parâmetro 2 do segundo conjunto
-                    [3] = false     -- Parâmetro 3 do segundo conjunto
-                }
-            }
-        }
-        
-        -- Chama o remote para comprar o egg
-        workspace.__THINGS.__REMOTES:FindFirstChild("buy egg"):InvokeServer(unpack(args))
-        wait(0.2) -- Delay entre cada compra de egg
-    end
-end
--- Evento do botão de auto farm
-toggleFarmButton.MouseButton1Click:Connect(function()
-    isFarming = not isFarming
-    toggleFarmButton.Text = isFarming and "Desativar Auto Farm" or "Ativar Auto Farm"
-    toggleFarmButton.BackgroundColor3 = isFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
-
-    if isFarming then
-        spawn(autoFarm)
-    end
-end)
-
--- Evento do botão de fast auto farm
-fastAutoFarmButton.MouseButton1Click:Connect(function()
-    isFastAutoFarming = not isFastAutoFarming
-    fastAutoFarmButton.Text = isFastAutoFarming and "Desativar Fast Auto Farm" or "Ativar Fast Auto Farm"
-    fastAutoFarmButton.BackgroundColor3 = isFastAutoFarming and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
-
-    if isFastAutoFarming then
-        spawn(fastAutoFarm)
-    end
-end)
-
--- Evento do botão de auto egg
-toggleEggButton.MouseButton1Click:Connect(function()
-    isAutoEgging = not isAutoEgging
-    toggleEggButton.Text = isAutoEgging and "Desativar Auto Egg" or "Ativar Auto Egg"
-    toggleEggButton.BackgroundColor3 = isAutoEgging and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
-
-    if isAutoEgging then
-        spawn(autoEgg)
-    end
-end)
-
--- Evento do botão de fechar
-closeButton.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
-end)
-
--- Função para coletar uma única orb
-local function collectSingleOrb(orbId)
-    local remoteOrbs = workspace.__THINGS.__REMOTES:FindFirstChild("claim orbs")
-    if remoteOrbs then
-        local argsOrbs = {
-            [1] = {
-                [1] = { { [1] = orbId } },
-                [2] = {
-                    [1] = false
-                }
-            }
-        }
-        remoteOrbs:FireServer(unpack(argsOrbs))
-    end
-end
-
--- Função para coletar e destruir uma única lootbag
-local function collectSingleLootbag(lootbagId)
-    local remoteLootbag = workspace.__THINGS.__REMOTES:FindFirstChild("collect lootbag")
-    local lootbag = game:GetService("Workspace").__THINGS.Lootbags:FindFirstChild(lootbagId)
+local function sendWebhook()
+    local timeElapsed = tick() - loginTime
+    local days = math.floor(timeElapsed / 86400) -- 86400 segundos em um dia
+    local hours = math.floor((timeElapsed % 86400) / 3600)
+    local minutes = math.floor((timeElapsed % 3600) / 60)
     
-    if remoteLootbag and lootbag then
-        local argsLootbag = {
-            [1] = {
-                [1] = {
-                    [1] = lootbag.Name,
-                    [2] = lootbag.Position
-                },
-                [2] = {
-                    [1] = false,
-                    [2] = false
-                }
-            }
-        }
-        remoteLootbag:FireServer(unpack(argsLootbag))
-        
-        -- Destruir a lootbag da workspace após a coleta
-        lootbag:Destroy()
-    end
+    -- Formatação sem segundos
+    local timeFormatted = string.format("%02d dias, %02d horas, %02d minutos", days, hours, minutes)
+
+    local payload = {
+        content = "",
+        embeds = {{
+            title = "🔔 Ping Automático",
+            description = string.format("**Nickname:** `%s`\n**Tempo Logado:** `%s`", username, timeFormatted),
+            color = 16776960
+        }}
+    }
+
+    local response = http_request({
+        Url = webhook_url,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = HttpService:JSONEncode(payload)
+    })
+
+    -- Removido o aviso de erro
+    -- if response.StatusCode ~= 200 then
+    --     warn("Erro ao enviar webhook: " .. response.StatusCode)
+    -- end
 end
 
--- Loop principal para auto collect de orbs e lootbags
-while task.wait() do
-    -- Coletar todas as orbs
-    for _, orb in pairs(game:GetService("Workspace")["__THINGS"].Orbs:GetChildren()) do
-        task.spawn(function()
-            collectSingleOrb(orb.Name)
-        end)
-    end
-    
-    -- Coletar todas as lootbags e destruí-las
-    for _, lootbag in pairs(game:GetService("Workspace")["__THINGS"].Lootbags:GetChildren()) do
-        task.spawn(function()
-            collectSingleLootbag(lootbag.Name)
-        end)
-    end
+-- Envie o webhook a cada 60 segundos (para testes)
+while true do
+    sendWebhook()
+    wait(3600) -- Ajuste o tempo de espera conforme necessário
 end
