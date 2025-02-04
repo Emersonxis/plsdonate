@@ -1,6 +1,2 @@
--- Executando o script fornecido antes do webhook
-getgenv().AuthKey = "HUGE_yr9lEktNGFjD"
-getgenv().LoadSettings = {
-    disable_globalhatch = false,
-}
-loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
+script_key="DcifsemZVPMXofuEHcZCVTOGkwCUwiet";
+loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/a2369ce34d44187610ac9bf5039c37ab.lua"))()
