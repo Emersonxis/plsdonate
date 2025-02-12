@@ -19,7 +19,7 @@ getgenv().KiTTYWARE = {
     },
 
     ["Webhook"] = {
-        ["WebhookURL"] = "https://discord.com/api/webhooks/1334657598607196170/WWnjoha5jDcBeaMSQZv-ehP_zMxE8qSrFjbio4vFDHcQxCBxbWTo_c4QdYCOQdYpbbWR", -- webhook url
+        ["WebhookURL"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW", -- webhook url
         ["DiscordId"] = "" -- will @ you
     }
 }
