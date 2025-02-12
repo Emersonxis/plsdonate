@@ -1,7 +1,3 @@
-script_key="DcifsemZVPMXofuEHcZCVTOGkwCUwiet";
-loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/a2369ce34d44187610ac9bf5039c37ab.lua"))()
-
-wait(10)
 getgenv().KiTTYWARE = {
     ["Optimize"] = true, -- optimize game
     ["GuiStats"] = true, -- "stats in a gui duh" - Nazov 2024
@@ -29,3 +25,7 @@ getgenv().KiTTYWARE = {
 }
 script_key="DcifsemZVPMXofuEHcZCVTOGkwCUwiet";
 loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/27ec6b1cff94c4a33d30c81cbc3e11ec.lua"))()
+
+wait(10)
+script_key="DcifsemZVPMXofuEHcZCVTOGkwCUwiet";
+loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/a2369ce34d44187610ac9bf5039c37ab.lua"))()
