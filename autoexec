@@ -2,7 +2,7 @@ getgenv().KiTTYWARE = {
     ["Optimize"] = true, -- optimize game
     ["GuiStats"] = true, -- "stats in a gui duh" - Nazov 2024
 
-    ["UseTowerBoosts"] = false, -- uses tower boosts
+    ["UseTowerBoosts"] = true, -- uses tower boosts
     ["OpenLoveGifts"] = true, -- auto opens love gifts
     ["CraftLoveGifts"] = true, -- auto crafts love gifts
     ["HatchBestEgg"] = true, -- teleports to and hatches best egg available
