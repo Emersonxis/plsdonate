@@ -1,1 +1,34 @@
-print(hi)
+getgenv().KiTTYWARE = {
+    ["Optimize"] = true,
+    ["GuiStats"] = true, -- "stats in a gui duh" - Nazov 2024
+
+    ["AutoRebirth"] = true, -- rebirths when available
+    ["MaxRebirth"] = 30, -- wont rebirth past this number
+
+    ["UseTowerBoosts"] = true, -- uses tower boosts
+    ["OpenLoveGifts"] = true, -- opens love gifts
+    ["CraftLoveGifts"] = true, -- crafts love gifts
+
+    ["HatchBestEgg"] = false, -- teleports to and hatches best egg available
+    ["UseRebirthToken"] = false, -- uses rebirth tokens
+
+    ["AutoRaffleAmount"] = 2000, -- automatically enters raffles (set to 0 to disable)
+
+    ["Timeouts"] = {
+        ["TycoonLoadingTimeout"] = 30, -- time to wait for tycoon to load before server hopping
+        ["EggHatchTimeout"] = 60, -- time to wait to find egg before server hopping
+    },
+
+    ["Mail"] = {
+        ["Mailing"] = false,
+        ["LoveGiftAmount"] = 0, -- amount of love gifts needed before mailing (0 to disable mailing of gifts)
+        ["Username"] = "", -- username to mail new huges to
+    },
+
+    ["Webhook"] = {
+        ["WebhookURL"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW", -- webhook url
+        ["DiscordId"] = "" -- will @ you
+    }
+}
+script_key="DcifsemZVPMXofuEHcZCVTOGkwCUwiet";
+loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/27ec6b1cff94c4a33d30c81cbc3e11ec.lua"))()
