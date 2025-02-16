@@ -1,34 +1,46 @@
-getgenv().KiTTYWARE = {
-    ["Optimize"] = true,
-    ["GuiStats"] = true, -- "stats in a gui duh" - Nazov 2024
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local CloseButton = Instance.new("TextButton")
+local Button1 = Instance.new("TextButton")
+local Button2 = Instance.new("TextButton")
 
-    ["AutoRebirth"] = true, -- rebirths when available
-    ["MaxRebirth"] = 30, -- wont rebirth past this number
+ScreenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
-    ["UseTowerBoosts"] = true, -- uses tower boosts
-    ["OpenLoveGifts"] = true, -- opens love gifts
-    ["CraftLoveGifts"] = true, -- crafts love gifts
+Frame.Parent = ScreenGui
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.Size = UDim2.new(0, 150, 0, 100)
+Frame.Position = UDim2.new(0.5, -75, 0.5, -50)
+Frame.BorderSizePixel = 2
 
-    ["HatchBestEgg"] = false, -- teleports to and hatches best egg available
-    ["UseRebirthToken"] = false, -- uses rebirth tokens
+CloseButton.Parent = Frame
+CloseButton.Size = UDim2.new(0, 20, 0, 20)
+CloseButton.Position = UDim2.new(1, -22, 0, 2)
+CloseButton.Text = "X"
+CloseButton.TextScaled = true
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
 
-    ["AutoRaffleAmount"] = 2000, -- automatically enters raffles (set to 0 to disable)
+Button1.Parent = Frame
+Button1.Size = UDim2.new(1, -10, 0, 30)
+Button1.Position = UDim2.new(0, 5, 0, 25)
+Button1.Text = "Huge"
+Button1.TextScaled = true
+Button1.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+Button1.MouseButton1Click:Connect(function()
+    getgenv().AuthKey = "HUGE_yr9lEktNGFjD"
+    getgenv().LoadSettings = { disable_globalhatch = false }
+    loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
+end)
 
-    ["Timeouts"] = {
-        ["TycoonLoadingTimeout"] = 30, -- time to wait for tycoon to load before server hopping
-        ["EggHatchTimeout"] = 60, -- time to wait to find egg before server hopping
-    },
-
-    ["Mail"] = {
-        ["Mailing"] = false,
-        ["LoveGiftAmount"] = 0, -- amount of love gifts needed before mailing (0 to disable mailing of gifts)
-        ["Username"] = "", -- username to mail new huges to
-    },
-
-    ["Webhook"] = {
-        ["WebhookURL"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW", -- webhook url
-        ["DiscordId"] = "" -- will @ you
-    }
-}
-script_key="DcifsemZVPMXofuEHcZCVTOGkwCUwiet";
-loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/27ec6b1cff94c4a33d30c81cbc3e11ec.lua"))()
+Button2.Parent = Frame
+Button2.Size = UDim2.new(1, -10, 0, 30)
+Button2.Position = UDim2.new(0, 5, 0, 60)
+Button2.Text = "Kitten"
+Button2.TextScaled = true
+Button2.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+Button2.MouseButton1Click:Connect(function()
+    script_key = "DcifsemZVPMXofuEHcZCVTOGkwCUwiet"
+    loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/a2369ce34d44187610ac9bf5039c37ab.lua"))()
+end)
