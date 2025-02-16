@@ -1,5 +1,5 @@
 getgenv().KiTTYWARE = {
-    ["Optimize"] = true,
+    ["Optimize"] = false,
     ["GuiStats"] = false, -- "stats in a gui duh" - Nazov 2024
 
     ["AutoRebirth"] = true, -- rebirths when available
