@@ -1,2 +1,47 @@
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local CloseButton = Instance.new("TextButton")
+local Button1 = Instance.new("TextButton")
+local Button2 = Instance.new("TextButton")
+
+ScreenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+
+Frame.Parent = ScreenGui
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.Size = UDim2.new(0, 150, 0, 100)
+Frame.Position = UDim2.new(0.5, -75, 0.5, -50)
+Frame.BorderSizePixel = 2
+
+CloseButton.Parent = Frame
+CloseButton.Size = UDim2.new(0, 20, 0, 20)
+CloseButton.Position = UDim2.new(1, -22, 0, 2)
+CloseButton.Text = "X"
+CloseButton.TextScaled = true
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+Button1.Parent = Frame
+Button1.Size = UDim2.new(1, -10, 0, 30)
+Button1.Position = UDim2.new(0, 5, 0, 25)
+Button1.Text = "Huge"
+Button1.TextScaled = true
+Button1.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+Button1.MouseButton1Click:Connect(function()
+    getgenv().AuthKey = "HUGE_yr9lEktNGFjD"
+    getgenv().LoadSettings = { disable_globalhatch = false }
+    loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
+end)
+
+Button2.Parent = Frame
+Button2.Size = UDim2.new(1, -10, 0, 30)
+Button2.Position = UDim2.new(0, 5, 0, 60)
+Button2.Text = "Kitten"
+Button2.TextScaled = true
+Button2.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+Button2.MouseButton1Click:Connect(function()
+getgenv().LoadSettings = {["ExclusiveDaycare"] = {["UseMachine"] = false, ["Equips"] = false, ["DayTier"] = 3}, ["Charms"] = {["Start"] = false, ["Mode"] = "Add", ["Charm"] = "", ["Amount"] = 1}, ["Lootboxes"] = {["OpenGiftbags"] = false, ["Lootboxes"] = {}, ["DisableConfetti"] = true, ["OpenLootboxes"] = false, ["Giftbags"] = {}}, ["UIScale"] = 0.75, ["Potions"] = {["PotionsToUse"] = {}, ["MaxTier"] = 3, ["UsePotions"] = false, ["UpgradePotions"] = false}, ["Golden"] = {["UseMachine"] = false}, ["Optimization"] = {["Map"] = false, ["JoinInstance"] = false, ["Instance"] = "None", ["Breakables"] = false, ["Orbs"] = true, ["Pets"] = false, ["Ultimate"] = false}, ["Rainbow"] = {["UseMachine"] = false}, ["LoadSettings"] = true, ["Machines"] = {["Golden"] = {["PetsToGolden"] = {}, ["UseMachine"] = true}, ["UseBestEgg"] = false, ["Rainbow"] = {["UseMachine"] = true, ["PetsToRainbow"] = {}}, ["Fuse"] = {["UseMachine"] = false, ["PetsToFuse"] = {}}, ["UseVouchers"] = false, ["VouchersToUse"] = {}}, ["Hatching"] = {["Start"] = false, ["Mailbox"] = {["Send"] = false, ["Player"] = ""}, ["Egg"] = {["id"] = "0 - Best Unlocked Egg", ["type"] = "Normal"}, ["HatchAmount"] = 104}, ["Worlds"] = {["Treehouse"] = false, ["Woodcutting"] = {["Start"] = false, ["BuyAxes"] = false, ["Quests"] = false}, ["Digging"] = {["Start"] = false, ["BuyShovels"] = false}, ["Fishing"] = {["Start"] = false, ["BuyRods"] = false}, ["Garden"] = {["Start"] = false, ["Seed"] = "None"}}, ["Webhooks"] = {["Statistics"] = {["Send"] = false, ["Minutes"] = 10, ["Webhook"] = "", ["ShowUsername"] = false}, ["DiscordUserId"] = "426889632488095754", ["Daycare"] = {["Send"] = true, ["PingUser"] = false, ["Webhook"] = "https://discord.com/api/webhooks/1313874138594541681/SDreSwtbEND4y6b9s5ueVp8IRBPfSsw4Q2cJxCOl4Jk1WDqEJdRDv4nhIpXfpO6TzIYx", ["ShowUsername"] = true}, ["Hatching"] = {["Rarities"] = {"Exclusive"}, ["Webhook"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW", ["Send"] = true, ["PingUser"] = false, ["ShowUsername"] = true}}, ["Events"] = {["TowerTycoon"] = {["CraftLoveGifts"] = false, ["AutoFarm"] = true, ["HatchBestEgg"] = false}}, ["Farming"] = {["AreaEvents"] = {["Event"] = "", ["Spawn"] = false}, ["IgnoreElementalChest"] = false, ["Zone"] = "0 - Current Zone", ["Progress"] = false, ["UseUltimate"] = false, ["MaxEggSlots"] = 4, ["PetsPerBreakable"] = 3, ["Flags"] = {["Flag"] = "Fortune Flag", ["Place"] = false, ["Amount"] = 1}, ["BuyEggSlots"] = false, ["Fruits"] = {["Fruits"] = {"Shiny Watermelon", "Shiny Apple", "Shiny Pineapple", "Shiny Orange", "Shiny Banana", "Rainbow"}, ["Use"] = true}, ["Sprinklers"] = {["Place"] = false, ["Amount"] = 1}, ["Start"] = false, ["Buffs"] = {["Buffs"] = {}, ["Use"] = false}, ["MaxPetSlots"] = 4, ["BuyPetSlots"] = false}, ["ForceVIP"] = false, ["disable_globalhatch"] = false, ["Daycare"] = {["UseMachine"] = true}, ["KeysVouchers"] = {["UseTickets"] = false, ["CombineKeys"] = false, ["UseSecretKeys"] = false, ["SkipSpinAnimation"] = true, ["KeysToUse"] = {}, ["UseKeys"] = false, ["KeysToCombine"] = {}, ["UsePrisonKeys"] = false, ["TicketsToUse"] = {}}}
 script_key="DcifsemZVPMXofuEHcZCVTOGkwCUwiet";
-loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/a2369ce34d44187610ac9bf5039c37ab.lua"))()
+loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/a2369ce34d44187610ac9bf5039c37ab.lua"))()    
+end)
