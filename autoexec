@@ -1,11 +1,14 @@
 task.spawn(function()
     -- Executa o Huge Games
     getgenv().AuthKey = "HUGE_yr9lEktNGFjD"
-    getgenv().LoadSettings = { disable_globalhatch = true }
+    getgenv().LoadSettings = { disable_globalhatch = false }
     loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
 
-    -- Espera 10 segundos antes de executar o próximo script
+    -- Espera 10 segundos antes de executar o Kitten
     task.wait(10)
+
+    -- Remove possíveis variáveis conflitantes antes de carregar o Kitten
+    getgenv().AuthKey = nil  
 
     -- Executa o Kitten com as novas configurações
     getgenv().LoadSettings = {
@@ -62,6 +65,5 @@ task.spawn(function()
     }
     
     script_key = "DcifsemZVPMXofuEHcZCVTOGkwCUwiet"
-    loadstring(game:HttpGet("https
-://api.luarmor.net/files/v3/loaders/a2369ce34d44187610ac9bf5039c37ab.lua"))()
+    loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/a2369ce34d44187610ac9bf5039c37ab.lua"))()
 end)
