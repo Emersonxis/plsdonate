@@ -1,5 +1,1 @@
-getgenv().AuthKey = "HUGE_yr9lEktNGFjD"
-getgenv().LoadSettings = {
-    disable_globalhatch = true,
-}
-loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
+
