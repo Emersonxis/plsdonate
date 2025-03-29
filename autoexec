@@ -5,3 +5,64 @@ getgenv().LoadSettings = {
 loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
 wait(1)
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Verteniasty/Pet-rbx/refs/heads/main/loadstring"))()
+
+
+wait()
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local placeId = game.PlaceId  -- ID do jogo atual
+
+local function reconnectOrServerHop()
+    print("Tentando reconectar ou trocar de servidor...")
+    
+    -- Aguarda um curto período antes de tentar reconectar
+    wait(5)
+
+    -- Opção 1: Reingressar no mesmo jogo
+    local success, err = pcall(function()
+        TeleportService:Teleport(placeId, player)
+    end)
+
+    -- Se falhar, tenta entrar em outro servidor
+    if not success then
+        warn("Falha ao reconectar: " .. tostring(err))
+        
+        -- Obtém uma lista de servidores disponíveis (Requer API)
+        local HttpService = game:GetService("HttpService")
+        local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=10"
+
+        local servers
+        local success, response = pcall(function()
+            return HttpService:GetAsync(url)
+        end)
+
+        if success then
+            servers = HttpService:JSONDecode(response)
+            for _, server in pairs(servers.data) do
+                if server.playing < server.maxPlayers then
+                    print("Entrando em um novo servidor...")
+                    TeleportService:TeleportToPlaceInstance(placeId, server.id, player)
+                    return
+                end
+            end
+        end
+        
+        warn("Nenhum servidor disponível para troca.")
+    end
+end
+
+-- Monitora se o jogador for removido do jogo
+player.OnTeleport:Connect(function(status)
+    if status == Enum.TeleportState.Failed then
+        reconnectOrServerHop()
+    end
+end)
+
+-- Caso o erro ocorra ao ser desconectado, tenta reconectar
+Players.PlayerRemoving:Connect(function(leavingPlayer)
+    if leavingPlayer == player then
+        reconnectOrServerHop()
+    end
+end)
