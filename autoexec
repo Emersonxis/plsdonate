@@ -3,3 +3,24 @@ getgenv().LoadSettings = {
     Example_Setting = Example_Value
 }
 loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
+
+
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local merchantRequestPurchase = replicatedStorage:WaitForChild("Network"):WaitForChild("Merchant_RequestPurchase")
+
+local function autoMerchant()
+    while true do
+        for i = 1, 8 do
+            local args = {
+                [1] = "MiningMerchant",
+                [2] = i
+            }
+            
+            merchantRequestPurchase:InvokeServer(unpack(args))
+            wait(10) -- Espera 10 segundos antes de comprar o próximo item
+        end
+    end
+end
+
+-- Inicia o auto-merchant em uma nova coroutine
+coroutine.wrap(autoMerchant)()
