@@ -4,7 +4,6 @@ getgenv().LoadSettings = {
 }
 loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
 
-
 local replicatedStorage = game:GetService("ReplicatedStorage")
 local merchantRequestPurchase = replicatedStorage:WaitForChild("Network"):WaitForChild("Merchant_RequestPurchase")
 
@@ -17,8 +16,9 @@ local function autoMerchant()
             }
             
             merchantRequestPurchase:InvokeServer(unpack(args))
-            wait(10) -- Espera 10 segundos antes de comprar o próximo item
+            wait(1) -- Espera 1 segundo entre as compras para evitar sobrecarga
         end
+        wait(10) -- Espera 10 segundos antes de reiniciar o loop
     end
 end
 
