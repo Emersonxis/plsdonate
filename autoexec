@@ -39,8 +39,8 @@ local initialPosition = Pl.Character and Pl.Character.PrimaryPart.Position or Ve
 local stationaryTime = 0
 local AmountTNT = 10 -- quantidade de TNT
 local AmountTimer = 15 -- quantidade de tempo pra proxima verificação
-local proximityThreshold = 3 -- quantidade de studs (maximo 5)
-local CooldownTNT = 0.7 -- delay pra jogar 1 tnt atras da outra
+local proximityThreshold = 2 -- quantidade de studs (maximo 5)
+local CooldownTNT = 0.8 -- delay pra jogar 1 tnt atras da outra
 
 local G = getgenv()
 G.AutoTNT = true
