@@ -77,3 +77,102 @@ while G.AutoTNT do
         stationaryTime = 0
     end
 end
+
+
+wait(5)
+local save = require(game.ReplicatedStorage.Library.Client.Save)
+local remote = game:GetService("ReplicatedStorage")
+for _, v in ipairs({"Network", "PetCraftingMachine_Craft"}) do
+    remote = remote:WaitForChild(v)
+end
+
+local config = {
+    machineName = "MiningCraftMachine",
+    extraArgs = { shiny = false, pt = 0 },
+    delayBetweenCrafts = 1,
+    delayBetweenCycles = 3,
+    hugeInterval = 600,
+    tiers = {
+        { name = "Amethyst Gem", qtyField = "_am" },
+        { name = "Rainbow Gem",  qtyField = "_am" },
+        { name = "Quartz Gem",   qtyField = "_am" },
+        { name = "Topaz Gem",    qtyField = "_am" },
+        { name = "Onyx Gem",     qtyField = "_am" },
+    },
+    craftNumbers = {
+        [1] = 4,
+        [2] = 5,
+        [3] = 6,
+        [4] = 7,
+    }
+}
+
+local function getInventory()
+    local saveInstance = require(game.ReplicatedStorage.Library.Client.Save).Get()
+    return saveInstance and saveInstance.Inventory and saveInstance.Inventory.Misc or {}
+end
+
+local function findGemItem(inventoryMisc, gemName)
+    for _, item in pairs(inventoryMisc) do
+        if item.id == gemName then
+            return item
+        end
+    end
+    return nil
+end
+
+local lastHugeTime = os.clock()
+
+while true do
+    local currentTime = os.clock()
+    local inventory = getInventory()
+
+    if currentTime - lastHugeTime >= config.hugeInterval then
+        local onyxTier = config.tiers[#config.tiers]
+        while true do
+            inventory = getInventory()
+            local onyxItem = findGemItem(inventory, onyxTier.name)
+            local stock = (onyxItem and onyxItem[onyxTier.qtyField] or 0)
+            local totalCraftable = math.floor(stock / 10)
+            if totalCraftable < 1 then
+                break
+            end
+            local craftAmount = math.min(totalCraftable * 10, 1000)
+            local args = {
+                [1] = config.machineName,
+                [2] = 8,
+                [3] = craftAmount,
+                [4] = config.extraArgs
+            }
+            remote:InvokeServer(unpack(args))
+            wait(config.delayBetweenCrafts)
+        end
+        lastHugeTime = os.clock()
+    else
+        for i = 1, #config.tiers - 1 do
+            local currentTier = config.tiers[i]
+            local nextCraft = config.craftNumbers[i]
+            local item = findGemItem(inventory, currentTier.name)
+            if item then
+                local stock = item[currentTier.qtyField] or 0
+                local totalCraftable = math.floor(stock / 10)
+                while totalCraftable > 0 do
+                    local craftAmount = math.min(totalCraftable * 10, 1000)
+                    local args = {
+                        [1] = config.machineName,
+                        [2] = nextCraft,
+                        [3] = craftAmount,
+                        [4] = config.extraArgs
+                    }
+                    remote:InvokeServer(unpack(args))
+                    wait(config.delayBetweenCrafts)
+                    inventory = getInventory()
+                    item = findGemItem(inventory, currentTier.name)
+                    stock = (item and item[currentTier.qtyField] or 0)
+                    totalCraftable = math.floor(stock / 10)
+                end
+            end
+        end
+        wait(config.delayBetweenCycles)
+    end
+end
