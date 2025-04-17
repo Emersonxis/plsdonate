@@ -1,0 +1,38 @@
+getgenv().Settings = {
+    ["Egg Settings"] = {
+        OpenEggs = true,
+        Egg = "Void Egg",
+        --// Supports ANY egg ("Rainbow Egg", "Infinity Egg", ...). Keep "Best" for new accounts.
+        
+        ["Notifications"] = {
+            Webhook = "https://discord.com/api/webhooks/1313874138594541681/SDreSwtbEND4y6b9s5ueVp8IRBPfSsw4Q2cJxCOl4Jk1WDqEJdRDv4nhIpXfpO6TzIYx",
+            DiscordID = "",
+            Difficulty = "1m", --// Minimum Difficulty for Webhook Notifications
+        },
+
+        ["Rifts"] = {
+            FindRifts = true,
+            SortByMultiplier = true, 
+            --// true --> Sort by Multiplier out of ALL Targetted Rifts.
+            --// false --> Sort by Multiplier out of BEST Targetted Rifts.
+            
+            Targets = {"Aura Egg", "Void Egg"},
+            --// Targets = {} will automatically find the Top 3 BEST Rifts to hatch.
+        },
+    },
+
+    ["Enchant Settings"] = {
+        EnchantPets = true,
+        
+        ["Require All Enchants"] = true,
+        ["Enchants Needed"] = {
+            ["Team Up"] = { Tier = 5, HigherTiers = true },
+        },
+    },
+    
+    ["Debug"] = {
+        DisableUI = true,
+    },
+}
+
+loadstring(game:HttpGet("https://system-exodus.com/scripts/BGSI/OneClick.lua"))()
