@@ -3,3 +3,5 @@ getgenv().LoadSettings = {
     Example_Setting = Example_Value
 }
 loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
+wait(5)
+print(hiiii)
