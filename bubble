@@ -45,6 +45,7 @@ getgenv().Settings = {
         DisableAutoDelete = true,
         DisablePurchaseMerchants = false,
         DisableCraftPotions = false,
+        DisableGiftRift = true
     },
 }
 
