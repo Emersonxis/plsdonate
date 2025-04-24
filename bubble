@@ -42,6 +42,9 @@ getgenv().Settings = {
         DisableUseInfinity = true,
         DisableEquipPets = true,
         MinRiftLuck = 25,
+        DisableAutoDelete = true,
+        DisablePurchaseMerchants = false,
+        DisableCraftPotions = false,
     },
 }
 
