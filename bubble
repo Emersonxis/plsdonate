@@ -9,7 +9,7 @@ getgenv().Settings = {
         },
         ["Rifts"] = {
             FindRifts = true,
-            SortByMultiplier = false,
+            SortByMultiplier = true,
             Targets = {"Aura Egg", "Throwback Egg"},
         },
     },
@@ -35,7 +35,7 @@ getgenv().Settings = {
     DisableAutoRestarts = false,
     DisableEquipPets = true,
     DisableCraftPotions = false,
-    MinRiftLuck = 20,
+    MinRiftLuck = 25,
     DisableUseInfinity = false,
     DisablePurchaseMerchants = false,
 
