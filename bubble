@@ -16,7 +16,7 @@ getgenv().Settings = {
     },
 
     ["Enchant Settings"] = {
-        EnchantPets           = true,
+        EnchantPets           = false,
         ["Require All Enchants"] = true,
         ["Enchants Needed"] = {
             ["Higher Tiers"] = { Tier = 1, HigherTiers = true },
