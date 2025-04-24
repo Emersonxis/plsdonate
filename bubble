@@ -14,10 +14,10 @@ getgenv().Settings = {
         },
     },
     ["Enchant Settings"] = {
-        EnchantPets = false,
+        EnchantPets = true,
         ["Require All Enchants"] = true,
         ["Enchants Needed"] = {
-            ["Team Up"] = {Tier = 5, HigherTiers = true},
+            ["Higher Tiers"] = {Tier = 1, HigherTiers = true},
         },
     },
     FPSLimit = 120,
