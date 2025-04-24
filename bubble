@@ -35,7 +35,7 @@ getgenv().Settings = {
     },
 
     ["Debug"] = {
-        DisableUI = false,
+        DisableUI = true,
         SellBubbles = true,
         FPSLimit = 120,
         DisablePurchaseMerchants = false,
