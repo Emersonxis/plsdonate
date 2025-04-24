@@ -41,6 +41,7 @@ getgenv().Settings = {
         DisablePurchaseMerchants = false,
         DisableUseInfinity = true,
         DisableEquipPets = true,
+        MinRiftLuck = 25,
     },
 }
 
