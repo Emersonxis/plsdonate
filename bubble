@@ -1,35 +1,44 @@
 getgenv().Settings = {
     ["Egg Settings"] = {
         OpenEggs = true,
-        Egg = "Infinity Egg",
-        --// Supports ANY egg ("Rainbow Egg", "Infinity Egg", ...). Keep "Best" for new accounts.
-        
+        Egg = "Throwback Egg",
         ["Notifications"] = {
-            Webhook = "https://discord.com/api/webhooks/1313874138594541681/SDreSwtbEND4y6b9s5ueVp8IRBPfSsw4Q2cJxCOl4Jk1WDqEJdRDv4nhIpXfpO6TzIYx",
+            Webhook = "https://discord.com/api/webhooks/1363542485384827001/f4Wo3gv8DG7naI2i2Jcx_h_MY7l4z3IE7hzoUDA-3BsghJ119thvmERwh-QkmIl_OT12",
             DiscordID = "",
-            Difficulty = "1m", --// Minimum Difficulty for Webhook Notifications
+            Difficulty = "500k",
         },
-
         ["Rifts"] = {
             FindRifts = true,
-            SortByMultiplier = true, 
-            --// true --> Sort by Multiplier out of ALL Targetted Rifts.
-            --// false --> Sort by Multiplier out of BEST Targetted Rifts.
-            
-            Targets = {"Aura Egg"},
-            --// Targets = {} will automatically find the Top 3 BEST Rifts to hatch.
+            SortByMultiplier = false,
+            Targets = {"Aura Egg", "Throwback Egg"},
         },
     },
-
     ["Enchant Settings"] = {
         EnchantPets = false,
-        
         ["Require All Enchants"] = true,
         ["Enchants Needed"] = {
-            ["Team Up"] = { Tier = 5, HigherTiers = true },
+            ["Team Up"] = {Tier = 5, HigherTiers = true},
         },
     },
-    
+    FPSLimit = 120,
+    DisableUseMysteryBox = false,
+    DisableUseSeason1Egg = true,
+    DisableVoidChest = false,
+    DisableGiantChest = false,
+    DisableUseSpinTicket = false,
+    DisableUseGoldenOrb = false,
+    DisableUseRerollOrb = true,
+    DisableGiftRift = true,
+    DisableGoldenRift = false,
+    DisableRoyalRift = false,
+    SellBubbles = true,
+    DisableAutoRestarts = false,
+    DisableEquipPets = true,
+    DisableCraftPotions = false,
+    MinRiftLuck = 20,
+    DisableUseInfinity = false,
+    DisablePurchaseMerchants = false,
+
     ["Debug"] = {
         DisableUI = true,
     },
