@@ -1,47 +1,53 @@
+-- ========== Suas configurações customizadas ==========
 getgenv().Settings = {
     ["Egg Settings"] = {
         OpenEggs = true,
         Egg = "Throwback Egg",
         ["Notifications"] = {
-            Webhook = "https://discord.com/api/webhooks/1363542485384827001/f4Wo3gv8DG7naI2i2Jcx_h_MY7l4z3IE7hzoUDA-3BsghJ119thvmERwh-QkmIl_OT12",
-            DiscordID = "",
-            Difficulty = "500k",
+            Webhook     = "https://discord.com/api/webhooks/1363542485384827001/f4Wo3gv8DG7naI2i2Jcx_h_MY7l4z3IE7hzoUDA-3BsghJ119thvmERwh-QkmIl_OT12",
+            DiscordID   = "",
+            Difficulty  = "500k",
         },
         ["Rifts"] = {
-            FindRifts = true,
-            SortByMultiplier = true,
-            Targets = {"Aura Egg", "Throwback Egg"},
+            FindRifts         = true,
+            SortByMultiplier  = true,
+            Targets           = {"Aura Egg", "Throwback Egg"},
         },
     },
+
     ["Enchant Settings"] = {
-        EnchantPets = true,
+        EnchantPets           = true,
         ["Require All Enchants"] = true,
         ["Enchants Needed"] = {
-            ["Higher Tiers"] = {Tier = 1, HigherTiers = true},
+            ["Higher Tiers"] = { Tier = 1, HigherTiers = true },
         },
     },
-    FPSLimit = 120,
-    DisableUseMysteryBox = false,
-    DisableUseSeason1Egg = true,
-    DisableVoidChest = false,
-    DisableGiantChest = false,
-    DisableUseSpinTicket = false,
-    DisableUseGoldenOrb = false,
-    DisableUseRerollOrb = true,
-    DisableGiftRift = true,
-    DisableGoldenRift = false,
-    DisableRoyalRift = false,
-    SellBubbles = true,
-    DisableAutoRestarts = false,
-    DisableEquipPets = true,
-    DisableCraftPotions = false,
-    MinRiftLuck = 25,
-    DisableUseInfinity = false,
+
+    -- Flags globais
+    FPSLimit              = 120,
+    DisableUseMysteryBox  = false,
+    DisableUseSeason1Egg  = true,
+    DisableVoidChest      = false,
+    DisableGiantChest     = false,
+    DisableUseSpinTicket  = false,
+    DisableUseGoldenOrb   = false,
+    DisableUseRerollOrb   = true,
+    DisableGiftRift       = true,
+    DisableGoldenRift     = false,
+    DisableRoyalRift      = false,
+    SellBubbles           = true,
+    DisableAutoRestarts   = false,
+    DisableEquipPets      = true,
+    DisableCraftPotions   = false,
+    MinRiftLuck           = 25,
+    DisableUseInfinity    = true,
     DisablePurchaseMerchants = false,
 
     ["Debug"] = {
         DisableUI = true,
     },
 }
+-- =====================================================
 
+-- finalmente, carregue o script **após** definir suas Settings
 loadstring(game:HttpGet("https://system-exodus.com/scripts/BGSI/OneClick.lua"))()
