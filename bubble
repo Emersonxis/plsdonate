@@ -1,6 +1,6 @@
 getgenv().Settings = {
     ["Egg Settings"] = {
-        OpenEggs = true,
+        OpenEggs = false,
         Egg = "Throwback Egg",
         --// Supports ANY egg ("Rainbow Egg", "Infinity Egg", ...). Keep "Best" for new accounts.
         
@@ -11,7 +11,7 @@ getgenv().Settings = {
         },
 
         ["Rifts"] = {
-            FindRifts = true,
+            FindRifts = false,
             SortByMultiplier = false, 
             --// true --> Sort by Multiplier out of ALL Targetted Rifts.
             --// false --> Sort by Multiplier out of BEST Targetted Rifts.
@@ -43,9 +43,16 @@ getgenv().Settings = {
         DisableEquipPets = true,
         MinRiftLuck = 25,
         DisableAutoDelete = true,
-        DisablePurchaseMerchants = false,
         DisableCraftPotions = false,
         DisableGiftRift = true,
+        DisableAutoRestarts = true,
+        DisableRoyalRift = true,
+        DisableGoldenRift = true,
+        DisableUseRerollOrb = true,
+        DisableGiantChest = true,
+        DisableVoidChest = true,
+        DisableUseSeason1Egg = true,
+        DisableUseMysteryBox = true,
     },
 }
 
