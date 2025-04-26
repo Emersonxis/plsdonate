@@ -11,7 +11,7 @@ getgenv().Settings = {
         },
 
         ["Rifts"] = {
-            FindRifts = false,
+            FindRifts = true,
             SortByMultiplier = false, 
             --// true --> Sort by Multiplier out of ALL Targetted Rifts.
             --// false --> Sort by Multiplier out of BEST Targetted Rifts.
@@ -26,7 +26,7 @@ getgenv().Settings = {
     },
 
     ["Enchant Settings"] = {
-        EnchantPets = true,
+        EnchantPets = false,
 
         ["Require All Enchants"] = true,
         ["Enchants Needed"] = {
@@ -53,6 +53,7 @@ getgenv().Settings = {
         DisableVoidChest = true,
         DisableUseSeason1Egg = true,
         DisableUseMysteryBox = true,
+        FarmCompetitiveQuests = true,
     },
 }
 
