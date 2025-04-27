@@ -2,21 +2,27 @@ getgenv().Settings = {
     ["Egg Settings"] = {
         OpenEggs = true,
         Egg = "100M Egg",
+        --// Supports ANY egg ("Rainbow Egg", "Infinity Egg", ...). Keep "Best" for new accounts.
+        
         ["Notifications"] = {
-            Webhook = "https://discord.com/api/webhooks/1363542485384827001/f4Wo3gv8DG7naI2i2Jcx_h_MY7l4z3IE7hzoUDA-3BsghJ119thvmERwh-QkmIl_OT12",
-            DiscordID = "",
-            Difficulty = "500k", --// Minimum Difficulty for Webhook Notifications
+            Webhook = "",
+            DiscordID = "https://discord.com/api/webhooks/1363542485384827001/f4Wo3gv8DG7naI2i2Jcx_h_MY7l4z3IE7hzoUDA-3BsghJ119thvmERwh-QkmIl_OT12",
+            Difficulty = "100k", --// Minimum Difficulty for Webhook Notifications
         },
 
         ["Rifts"] = {
             FindRifts = true,
-            Targets = {"Aura Egg", "Silly Egg"},
-            },
+            SortByMultiplier = false, 
+            --// true --> Sort by Multiplier out of ALL Targetted Rifts.
+            --// false --> Sort by Multiplier out of BEST Targetted Rifts.
+            
+            Targets = {"Aura Egg", "Hell Egg"},
+            --// Targets = {} will automatically find the Top 3 BEST Rifts to hatch.
+        },
     },
-    ["Debug"] = {
+    
+ ["Debug"] = {
         DisableUI = true,
-        DisableAutoRestarts = false
-        DisableGiftRift = true,
         DisableUseInfinity = true,
         DisableAutoDelete = true,
         DisableEquipPets = true,
