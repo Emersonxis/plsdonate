@@ -15,6 +15,7 @@ getgenv().Settings = {
     },
     ["Debug"] = {
         DisableUI = true,
+        DisableAutoRestarts = false
         DisableGiftRift = true,
         DisableUseInfinity = true,
         DisableAutoDelete = true,
