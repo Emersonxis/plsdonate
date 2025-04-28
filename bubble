@@ -22,7 +22,7 @@ getgenv().Settings = {
         DisableEquipPets = true,
         DisableGiftRift = true,
         DisableAutoDelete = true,
-        
+        DisableUseRerollOrb = true,
         
     }
 }
