@@ -1,5 +1,18 @@
-getgenv().AuthKey = "HUGE_yr9lEktNGFjD"
-getgenv().LoadSettings = {
-    Example_Setting = Example_Value
-}
-loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
+wait(20)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local FishGameModule   = ReplicatedStorage.Library.Client.EventFishingCmds.Game
+local FishGame         = require(FishGameModule)
+
+-- Só aplica o patch uma vez
+if not FishGame._isBeginPatched then
+    FishGame._isBeginPatched      = true
+    local originalBegin           = FishGame.Begin
+
+    -- Override
+    FishGame.Begin = function(self, settings, ...)
+        if type(settings) == "table" then
+            settings.BarSize = 1
+        end
+        return originalBegin(self, settings, ...)
+    end
+end
