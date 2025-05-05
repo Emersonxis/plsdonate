@@ -1,4 +1,4 @@
-wait(20)
+wait(40)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FishGameModule   = ReplicatedStorage.Library.Client.EventFishingCmds.Game
 local FishGame         = require(FishGameModule)
