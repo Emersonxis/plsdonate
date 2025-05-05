@@ -16,3 +16,52 @@ if not FishGame._isBeginPatched then
         return originalBegin(self, settings, ...)
     end
 end
+wait(10)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local player = Players.LocalPlayer
+
+function teleportTo(position)
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        player.Character.HumanoidRootPart.CFrame = CFrame.new(position)
+    end
+end
+
+local fishingToolName = "FishingRod"
+
+local function startFishing()
+    local tool = player.Backpack:FindFirstChild(fishingToolName) or player.Character:FindFirstChild(fishingToolName)
+    if tool then
+        tool:Activate()
+    end
+end
+
+local function isBackpackFull()
+    local storage = player:FindFirstChild("BackpackStorage")
+    if storage and storage.Value >= storage.Max.Value then
+        return true
+    end
+    return false
+end
+
+local function sellFish()
+    local sellPart = Workspace:FindFirstChild("SellArea")
+    if sellPart then
+        teleportTo(sellPart.Position)
+        wait(1)
+        ReplicatedStorage:WaitForChild("SellFishEvent"):FireServer()
+    end
+end
+
+spawn(function()
+    while true do
+        wait(1)
+        if isBackpackFull() then
+            sellFish()
+        else
+            startFishing()
+        end
+        wait(3)
+    end
+end)
