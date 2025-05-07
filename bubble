@@ -1,1 +1,91 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LogService = game:GetService("LogService")
 
+for _, conn in pairs(getconnections(LogService.MessageOut)) do
+    conn:Disconnect()
+end
+
+local LocalPlayer = Players.LocalPlayer
+local ScreenGui    = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("ScreenGui")
+
+local remoteFolder   = ReplicatedStorage.Shared.Framework.Network.Remote
+local remoteEvent    = remoteFolder:WaitForChild("Event")
+local remoteFunction = remoteFolder:WaitForChild("Function")
+
+local button = Instance.new("TextButton")
+button.Size             = UDim2.new(0.12, 0, 0.05, 0)
+button.Position         = UDim2.new(0.88, 0, 0.1, 0)
+button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+button.TextColor3       = Color3.new(1, 1, 1)
+button.Font             = Enum.Font.SourceSansBold
+button.TextScaled       = true
+button.Active           = true
+button.Draggable        = true
+button.Text             = "Start Robot Claw"
+button.Parent           = ScreenGui
+
+local clawRunning = false
+button.MouseButton1Click:Connect(function()
+    clawRunning = not clawRunning
+    button.Text = clawRunning and "Stop Robot Claw" or "Start Robot Claw"
+    button.BackgroundColor3 = clawRunning and Color3.fromRGB(170, 0, 0) or Color3.fromRGB(0, 170, 0)
+end)
+
+local function processClaw()
+    remoteEvent:FireServer("SkipMinigameCooldown", "Robot Claw")
+    remoteEvent:FireServer("StartMinigame", "Robot Claw", "Insane")
+    task.wait(3) -- delay aumentado para 3 segundos antes da coleta
+
+    while true do
+        local ids = {}
+        for _, item in ipairs(ScreenGui:GetChildren()) do
+            if item.Name:match("^ClawItem") then
+                ids[#ids + 1] = item.Name:sub(9)
+            end
+        end
+        if #ids == 0 then break end
+        for _, id in ipairs(ids) do
+            remoteEvent:FireServer("GrabMinigameItem", id)
+            task.wait(0.1)
+        end
+        task.wait(0.1)
+    end
+
+    remoteEvent:FireServer("FinishMinigame")
+end
+
+-- Robot Claw Loop (resiliente)
+task.spawn(function()
+    while true do
+        if clawRunning then
+            local success, err = pcall(processClaw)
+            if not success then
+                warn("processClaw error:", err)
+            end
+            task.wait(1)
+        else
+            task.wait(0.1)
+        end
+    end
+end)
+
+-- Dice Loop (resiliente)
+task.spawn(function()
+    while true do
+        local ok = pcall(function()
+            remoteFunction:InvokeServer("RollDice", "Dice")
+        end)
+        if not ok then
+            warn("RollDice failed")
+        end
+        task.wait(1)
+        local claimed = pcall(function()
+            remoteEvent:FireServer("ClaimTile")
+        end)
+        if not claimed then
+            warn("ClaimTile failed")
+        end
+        task.wait(0.5)
+    end
+end)
