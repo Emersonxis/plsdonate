@@ -1,3 +1,15 @@
+-- Filtrar por Name: substitua pelos nomes corretos
+local allowedUsers = {
+    ["Emerson_GTA"] = true,  -- nome da conta A
+    ["sophiaa418"] = true,  -- nome da conta B
+}
+
+-- Se não for um dos nomes permitidos, encerra a execução
+if not allowedUsers[game.Players.LocalPlayer.Name] then
+    return
+end
+
+-- === resto do seu código ===
 wait(40)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local FishGameModule   = ReplicatedStorage.Library.Client.EventFishingCmds.Game
@@ -16,13 +28,13 @@ if not FishGame._isBeginPatched then
         return originalBegin(self, settings, ...)
     end
 end
+
 wait(10)
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 
-function teleportTo(position)
+local function teleportTo(position)
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         player.Character.HumanoidRootPart.CFrame = CFrame.new(position)
     end
