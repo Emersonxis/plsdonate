@@ -1,1 +1,8 @@
-opa
+local allowedUsers = {
+    ["Emerson_GTA3"] = true,
+    ["ByPayxX"] = true,
+}
+
+if allowedUsers[game.Players.LocalPlayer.Name] then
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Emersonxis/plsdonate/refs/heads/main/autoexecbubble"))()
+end
