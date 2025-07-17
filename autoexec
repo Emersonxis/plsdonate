@@ -13,10 +13,3 @@ task.spawn(function()
         end)
     end
 end)
-
-task.wait(8)
-getgenv().AuthKey = "HUGE_yr9lEktNGFjD"
-getgenv().LoadSettings = {
-    ToggleBind = Enum.KeyCode.RightBracket,
-}
-loadstring(game:HttpGet("https://HugeGames.io/ps99"))()
