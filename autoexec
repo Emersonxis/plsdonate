@@ -13,22 +13,24 @@ task.spawn(function()
         end)
     end
 end)
-task.spawn(8)
-local PlayerService = game:GetService("Players")
-local LocalPlayer = PlayerService.LocalPlayer
 
-local TargetName = "Emerson_GTA"
+task.spawn(function()
+    task.wait(8)
+    local PlayerService = game:GetService("Players")
+    local LocalPlayer = PlayerService.LocalPlayer
 
-local function TeleportToTarget()
-    local TargetPlayer = PlayerService:FindFirstChild(TargetName)
-    if TargetPlayer and TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        if LocalPlayer.Name ~= TargetName then
-            LocalPlayer.Character:MoveTo(TargetPlayer.Character.HumanoidRootPart.Position)
-        end
-    end
-end
+    local TargetName = "Emerson_GTA"
 
-while task.wait(20) do
-    Telepor
-tToTarget()
-end
+    local function TeleportToTarget()
+        local TargetPlayer = PlayerService:FindFirstChild(TargetName)
+        if TargetPlayer and TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            if LocalPlayer.Name ~= TargetName then
+                LocalPlayer.Character:MoveTo(TargetPlayer.Character.HumanoidRootPart.Position)
+            end
+        end
+    end
+
+    while task.wait(20) do
+        TeleportToTarget()
+    end
+end)
