@@ -1,6 +1,35 @@
 task.spawn(function()
     task.wait(1)
     pcall(function()
+        local PlayerService = game:GetService("Players")
+        local LocalPlayer = PlayerService.LocalPlayer
+
+        if LocalPlayer.Name == "Emerson_GTA" then
+            _G.ZapSettings = {
+                ["PetSimulator99 - NewHugePetsToggle"] = true,
+                ["PetSimulator99 - AutoClaimMailboxToggle"] = true,
+                ["PetSimulator99 - DisableEggAnimationToggle"] = true,
+                ["PetSimulator99 - AutoBlockPartyRebirthToggle"] = false,
+                ["PetSimulator99 - AutoClaimRankRewardsToggle"] = true,
+                ["PetSimulator99 - AutoBlockPartyRebirthDisableEggMultiplier"] = { "Block Party Titanic Egg x100 Luck" },
+                ["PetSimulator99 - NewHugePetsWebhookInput"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW",
+                ["PetSimulator99 - AutoOpenLootboxToggle"] = true,
+                ["PetSimulator99 - AutoClaimTilesRewardsToggle"] = true,
+                ["PetSimulator99 - AutoBuyNearestBlockPartyEggMinimumIslandProgress"] = 98,
+                ["PetSimulator99 - NewTitanicPetsToggle"] = true,
+                ["PetSimulator99 - AutoOptimizeBlockPartyTilesToggle"] = true,
+                ["PetSimulator99 - AutoCollectToggle"] = true,
+                ["PetSimulator99 - AutoClaimDefaultForeverPackFreeGiftToggle"] = true,
+                ["PetSimulator99 - AutoBuyNearestBlockPartyEggToggle"] = true,
+                ["PetSimulator99 - SelectGiftsMultiDropdownn"] = { "Tropical Gift" },
+                ["PetSimulator99 - AutoClaimFreeGiftsToggle"] = true,
+                ["PetSimulator99 - AutoTeleportToBestBlockPartyEggToggle"] = true,
+                ["PetSimulator99 - AutoBuyTilesToggle"] = true,
+                ["PetSimulator99 - NewTitanicPetsWebhookInput"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW",
+                ["PetSimulator99 - AutoCraftTropicalGiftToggle"] = true,
+            }
+        end
+
         loadstring(game:HttpGet('https://zaphub.xyz/Exec'))()
     end)
 end)
