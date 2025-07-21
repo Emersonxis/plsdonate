@@ -4,34 +4,41 @@ task.spawn(function()
         -- AutoSummerEvent Config (executa sempre)
         getgenv().AutoSummerEvent = {
             ["_GEnabled"] = true,
-            ["_GWebhookID"] = "YOUR_DISCORDID_HERE",
+
+            ["_GWebhookID"] = "",
             ["_GWebhookURL"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW",
-            ["_GWebhookForcedPets"] = {
-                {"Test Pet", "All"}
-            },
+
             ["_GOptimizationsLastestVersion"] = true,
             ["_GOptimizationsStatUI"] = true,
             ["_GOptimizationAutoRejoin"] = nil,
+
             ["_GAutoServerHop"] = false,
             ["_GAutoServerHopEggChance"] = {"100x"},
+
+            ["_GAutoTiles"] = true,
+            ["_GTilesDelay"] = 1,
+
+            ["_GAutoRewards"] = true,
+            ["_GRewardsDelay"] = 20,
+
+            ["_GAutoRaffle"] = true,
+            ["_GRaffleAmount"] = 10,
+
+            ["_GHatchStopIslandProgress"] = 90,
+            ["_GHatchEggs"] = true,
+            ["_GHatchDelay"] = 0.2,
+
             ["_GAutoRebirth"] = true,
             ["_GRebirthDelay"] = 120,
-            ["_GSkipRebirthOnTitanicEgg"] = {"100x"},
             ["_GSkipRebirthOnNormalEgg"] = {"100x"},
-            ["_GAutoTeleportToBestSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
-            ["_GSkipRebirthOnSelectedTitanicEggs"] = {"Eight"},
+            ["_GSkipRebirthOnTitanicEgg"] = {"100x"},
+            ["_GSkipRebirthOnSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
+
+            ["_GEggScanInterval"] = 1,
             ["_GAutoTeleportToOthersEggs"] = true,
             ["_GAutoTeleportToBestEgg"] = true,
             ["_GAutoTeleportToBestTitanicEgg"] = true,
-            ["_GEggScanInterval"] = 1,
-            ["_GHatchStopIslandProgress"] = 99,
-            ["_GHatchEggs"] = true,
-            ["_GHatchDelay"] = 0.2,
-            ["_GAutoTiles"] = true,
-            ["_GTilesDelay"] = 15,
-            ["_GAutoRewards"] = true,
-            ["_GRewardsDelay"] = 10,
-            ["_GAutoCollectOrbs"] = true,
+            ["_GAutoTeleportToBestSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
         }
 
         -- Carrega o AutoSummerEvent Script
@@ -39,7 +46,7 @@ task.spawn(function()
     end)
 end)
 
--- Anti-Log (desconecta prints)
+-- Anti-Log (desconecta prints do console)
 task.spawn(function()
     task.wait(4)
     for i, v in pairs(getconnections(game.LogService.MessageOut)) do
