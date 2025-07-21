@@ -12,7 +12,7 @@ task.spawn(function()
             ["_GOptimizationsLastestVersion"] = true,
             ["_GOptimizationsStatUI"] = true,
             ["_GOptimizationAutoRejoin"] = nil,
-            ["_GAutoServerHop"] = true,
+            ["_GAutoServerHop"] = false,
             ["_GAutoServerHopEggChance"] = {"100x"},
             ["_GAutoRebirth"] = true,
             ["_GRebirthDelay"] = 120,
