@@ -5,7 +5,7 @@ task.spawn(function()
         getgenv().AutoSummerEvent = {
             ["_GEnabled"] = true,
 
-            ["_GWebhookID"] = "",
+            ["_GWebhookID"] = "426889632488095754",
             ["_GWebhookURL"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW",
 
             ["_GOptimizationsLastestVersion"] = true,
