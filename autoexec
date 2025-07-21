@@ -5,7 +5,7 @@ task.spawn(function()
         getgenv().AutoSummerEvent = {
             ["_GEnabled"] = true,
             ["_GWebhookID"] = "YOUR_DISCORDID_HERE",
-            ["_GWebhookURL"] = "YOUR_WEBHOOK_HERE",
+            ["_GWebhookURL"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW",
             ["_GWebhookForcedPets"] = {
                 {"Test Pet", "All"}
             },
@@ -13,7 +13,7 @@ task.spawn(function()
             ["_GOptimizationsStatUI"] = true,
             ["_GOptimizationAutoRejoin"] = nil,
             ["_GAutoServerHop"] = true,
-            ["_GAutoServerHopEggChance"] = {"100x", "25x"},
+            ["_GAutoServerHopEggChance"] = {"100x"},
             ["_GAutoRebirth"] = true,
             ["_GRebirthDelay"] = 120,
             ["_GSkipRebirthOnTitanicEgg"] = {"100x", "25x"},
