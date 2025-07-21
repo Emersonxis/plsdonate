@@ -14,17 +14,17 @@ task.spawn(function()
             ["_GOptimizationAutoRejoin"] = nil,
             ["_GAutoServerHop"] = false,
             ["_GAutoServerHopEggChance"] = {"100x"},
-            ["_GAutoRebirth"] = false,
+            ["_GAutoRebirth"] = true,
             ["_GRebirthDelay"] = 120,
-            ["_GSkipRebirthOnTitanicEgg"] = {"100x", "25x"},
+            ["_GSkipRebirthOnTitanicEgg"] = {"100x"},
             ["_GSkipRebirthOnNormalEgg"] = {"100x"},
             ["_GAutoTeleportToBestSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
-            ["_GSkipRebirthOnSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
+            ["_GSkipRebirthOnSelectedTitanicEggs"] = {"Eight"},
             ["_GAutoTeleportToOthersEggs"] = true,
             ["_GAutoTeleportToBestEgg"] = true,
             ["_GAutoTeleportToBestTitanicEgg"] = true,
             ["_GEggScanInterval"] = 1,
-            ["_GHatchStopIslandProgress"] = 50,
+            ["_GHatchStopIslandProgress"] = 99,
             ["_GHatchEggs"] = true,
             ["_GHatchDelay"] = 0.2,
             ["_GAutoTiles"] = true,
@@ -37,25 +37,6 @@ task.spawn(function()
         -- Carrega o script do evento
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Sub2BK/Stratum/refs/heads/Scripts/PS99_Event.lua"))()
 
-        -- ZapHub Settings
-        _G.ZapSettings = {
-            ["PetSimulator99 - NewHugePetsToggle"] = true,
-            ["PetSimulator99 - NewTitanicPetsToggle"] = true,
-            ["PetSimulator99 - NewExclusivePetsToggle"] = true,
-            ["PetSimulator99 - NewGargantuanPetsWebhookInput"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW",
-            ["PetSimulator99 - SelectGiftsMultiDropdownn"] = { "Tropical Gift" },
-            ["PetSimulator99 - AutoOpenLootboxToggle"] = true,
-            ["PetSimulator99 - NewGargantuanPetsToggle"] = true,
-            ["PetSimulator99 - NewExclusivePetsWebhookInput"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW",
-            ["PetSimulator99 - NewHugePetsWebhookInput"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW",
-            ["PetSimulator99 - NewTitanicPetsWebhookInput"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW",
-            ["PetSimulator99 - AutoCraftTropicalGiftToggle"] = true,
-        }
-
-        -- Carrega o ZapHub
-        loadstring(game:HttpGet('https://zaphub.xyz/Exec'))()
-    end)
-end)
 
 -- Anti-Log continua
 task.spawn(function()
