@@ -32,13 +32,13 @@ task.spawn(function()
             ["_GRebirthDelay"] = 120,
             ["_GSkipRebirthOnNormalEgg"] = {"100x"},
             ["_GSkipRebirthOnTitanicEgg"] = {"100x"},
-            ["_GSkipRebirthOnSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
+            ["_GSkipRebirthOnSelectedTitanicEggs"] = {"Seven", "Eight"},
 
             ["_GEggScanInterval"] = 1,
             ["_GAutoTeleportToOthersEggs"] = true,
             ["_GAutoTeleportToBestEgg"] = true,
             ["_GAutoTeleportToBestTitanicEgg"] = true,
-            ["_GAutoTeleportToBestSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
+            ["_GAutoTeleportToBestSelectedTitanicEggs"] = {"Seven", "Eight"},
         }
 
         -- Carrega o AutoSummerEvent Script
