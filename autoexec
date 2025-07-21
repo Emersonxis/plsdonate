@@ -1,7 +1,7 @@
 task.spawn(function()
     task.wait(1)
     pcall(function()
-        -- AutoSummerEvent Config (sempre executa para qualquer conta)
+        -- AutoSummerEvent Config (executa sempre)
         getgenv().AutoSummerEvent = {
             ["_GEnabled"] = true,
             ["_GWebhookID"] = "YOUR_DISCORDID_HERE",
@@ -34,11 +34,12 @@ task.spawn(function()
             ["_GAutoCollectOrbs"] = true,
         }
 
-        -- Carrega o script do evento
+        -- Carrega o AutoSummerEvent Script
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Sub2BK/Stratum/refs/heads/Scripts/PS99_Event.lua"))()
+    end)
+end)
 
-
--- Anti-Log continua
+-- Anti-Log (desconecta prints)
 task.spawn(function()
     task.wait(4)
     for i, v in pairs(getconnections(game.LogService.MessageOut)) do
