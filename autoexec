@@ -14,7 +14,7 @@ task.spawn(function()
             ["_GOptimizationAutoRejoin"] = nil,
             ["_GAutoServerHop"] = false,
             ["_GAutoServerHopEggChance"] = {"100x"},
-            ["_GAutoRebirth"] = true,
+            ["_GAutoRebirth"] = false,
             ["_GRebirthDelay"] = 120,
             ["_GSkipRebirthOnTitanicEgg"] = {"100x", "25x"},
             ["_GSkipRebirthOnNormalEgg"] = {"100x"},
