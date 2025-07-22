@@ -22,7 +22,7 @@ task.spawn(function()
             ["_GRewardsDelay"] = 20,
 
             ["_GAutoRaffle"] = true,
-            ["_GRaffleAmount"] = 10,
+            ["_GRaffleAmount"] = 30,
 
             ["_GHatchStopIslandProgress"] = 90,
             ["_GHatchEggs"] = true,
