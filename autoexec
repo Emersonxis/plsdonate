@@ -12,7 +12,7 @@ task.spawn(function()
             ["_GOptimizationsStatUI"] = true,
             ["_GOptimizationAutoRejoin"] = nil,
 
-            ["_GAutoServerHop"] = false,
+            ["_GAutoServerHop"] = true,
             ["_GAutoServerHopEggChance"] = {"100x"},
 
             ["_GAutoTiles"] = true,
@@ -22,20 +22,20 @@ task.spawn(function()
             ["_GRewardsDelay"] = 20,
 
             ["_GAutoRaffle"] = true,
-            ["_GRaffleAmount"] = 30,
+            ["_GRaffleAmount"] = 10,
 
-            ["_GHatchStopIslandProgress"] = 90,
+            ["_GHatchStopIslandProgress"] = 95,
             ["_GHatchEggs"] = true,
             ["_GHatchDelay"] = 0.2,
 
-            ["_GAutoRebirth"] = true,
+            ["_GAutoRebirth"] = false,
             ["_GRebirthDelay"] = 120,
             ["_GSkipRebirthOnNormalEgg"] = {"100x"},
             ["_GSkipRebirthOnTitanicEgg"] = {"100x"},
             ["_GSkipRebirthOnSelectedTitanicEggs"] = {"Seven", "Eight"},
 
             ["_GEggScanInterval"] = 1,
-            ["_GAutoTeleportToOthersEggs"] = false,
+            ["_GAutoTeleportToOthersEggs"] = true,
             ["_GAutoTeleportToBestEgg"] = true,
             ["_GAutoTeleportToBestTitanicEgg"] = true,
             ["_GAutoTeleportToBestSelectedTitanicEggs"] = {"Seven", "Eight"},
