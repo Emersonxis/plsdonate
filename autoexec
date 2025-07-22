@@ -1,1 +1,57 @@
-loadstring(game:HttpGet('https://zaphub.xyz/Exec'))()
+task.spawn(function()
+    task.wait(10)
+    pcall(function()
+        -- AutoSummerEvent Config (executa sempre)
+        getgenv().AutoSummerEvent = {
+            ["_GEnabled"] = true,
+
+            ["_GWebhookID"] = "426889632488095754",
+            ["_GWebhookURL"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW",
+
+            ["_GOptimizationsLastestVersion"] = true,
+            ["_GOptimizationsStatUI"] = true,
+            ["_GOptimizationAutoRejoin"] = nil,
+
+            ["_GAutoServerHop"] = true,
+            ["_GAutoServerHopEggChance"] = {"100x"},
+
+            ["_GAutoTiles"] = true,
+            ["_GTilesDelay"] = 1,
+
+            ["_GAutoRewards"] = true,
+            ["_GRewardsDelay"] = 20,
+
+            ["_GAutoRaffle"] = true,
+            ["_GRaffleAmount"] = 10,
+
+            ["_GHatchStopIslandProgress"] = 95,
+            ["_GHatchEggs"] = true,
+            ["_GHatchDelay"] = 0.2,
+
+            ["_GAutoRebirth"] = false,
+            ["_GRebirthDelay"] = 120,
+            ["_GSkipRebirthOnNormalEgg"] = {"100x"},
+            ["_GSkipRebirthOnTitanicEgg"] = {"100x"},
+            ["_GSkipRebirthOnSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
+
+            ["_GEggScanInterval"] = 1,
+            ["_GAutoTeleportToOthersEggs"] = true,
+            ["_GAutoTeleportToBestEgg"] = true,
+            ["_GAutoTeleportToBestTitanicEgg"] = true,
+            ["_GAutoTeleportToBestSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
+        }
+
+        -- Carrega o AutoSummerEvent Script
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Sub2BK/Stratum/refs/heads/Scripts/PS99_Event.lua"))()
+    end)
+end)
+
+-- Anti-Log (desconecta prints do console)
+task.spawn(function()
+    task.wait(4)
+    for i, v in pairs(getconnections(game.LogService.MessageOut)) do
+        pcall(function()
+            v:Disconnect()
+        end)
+    end
+end)
