@@ -1,7 +1,29 @@
+-- ✅ CONFIGURAÇÃO DO TELEPORTE (edite aqui se quiser trocar o servidor)
+local placeId = 17503543197
+local jobId = "71270401-f07c-40ed-845e-9c5d02875dd1" -- <--- Troque aqui quando quiser outro servidor
+
+-- 🚀 TELEPORTE AUTOMÁTICO (somente se não estiver no servidor atual)
+task.spawn(function()
+    local TeleportService = game:GetService("TeleportService")
+    local currentJobId = game.JobId
+
+    if currentJobId ~= jobId then
+        local success, err = pcall(function()
+            TeleportService:TeleportToPlaceInstance(placeId, jobId, game.Players.LocalPlayer)
+        end)
+        if not success then
+            warn("Falha ao teleportar:", err)
+        end
+    else
+        warn("Já está no servidor desejado, pulando teleport...")
+    end
+end)
+
+-- ⏳ DELAY PARA CARREGAR O SCRIPT DO EVENTO DEPOIS DO TELEPORTE (ou direto, se já estiver no servidor)
 task.spawn(function()
     task.wait(10)
     pcall(function()
-        -- AutoSummerEvent Config (executa sempre)
+        -- ⚙️ CONFIG DO AutoSummerEvent
         getgenv().AutoSummerEvent = {
             ["_GEnabled"] = true,
 
@@ -41,12 +63,12 @@ task.spawn(function()
             ["_GAutoTeleportToBestSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
         }
 
-        -- Carrega o AutoSummerEvent Script
+        -- 🔁 Carrega o script principal do evento
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Sub2BK/Stratum/refs/heads/Scripts/PS99_Event.lua"))()
     end)
 end)
 
--- Anti-Log (desconecta prints do console)
+-- 🛡️ ANTI-LOG PARA DESLIGAR O CONSOLE
 task.spawn(function()
     task.wait(4)
     for i, v in pairs(getconnections(game.LogService.MessageOut)) do
