@@ -1,6 +1,6 @@
 -- ✅ CONFIGURAÇÃO DO TELEPORTE (edite aqui se quiser trocar o servidor)
 local placeId = 17503543197
-local jobId = "7eb64779-c1bd-4cf1-b1c5-da1c7da9cbed" -- <--- NOVO ID DO SERVIDOR
+local jobId = "ca683769-c2d4-4307-840b-92e938696cda" --- NOVO ID DO SERVIDOR
 
 -- 🚀 TELEPORTE AUTOMÁTICO (somente se não estiver no servidor atual)
 task.spawn(function()
