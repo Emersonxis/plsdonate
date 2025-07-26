@@ -1,4 +1,23 @@
+-- ✅ CONFIGURAÇÃO DO TELEPORTE (edite aqui se quiser trocar o servidor)
+local placeId = 17503543197
+local jobId = "7eb64779-c1bd-4cf1-b1c5-da1c7da9cbed" -- <--- NOVO ID DO SERVIDOR
 
+-- 🚀 TELEPORTE AUTOMÁTICO (somente se não estiver no servidor atual)
+task.spawn(function()
+    local TeleportService = game:GetService("TeleportService")
+    local currentJobId = game.JobId
+
+    if currentJobId ~= jobId then
+        local success, err = pcall(function()
+            TeleportService:TeleportToPlaceInstance(placeId, jobId, game.Players.LocalPlayer)
+        end)
+        if not success then
+            warn("Falha ao teleportar:", err)
+        end
+    else
+        warn("Já está no servidor desejado, pulando teleport...")
+    end
+end)
 -- ⏳ DELAY PARA CARREGAR O SCRIPT DO EVENTO DEPOIS DO TELEPORTE (ou direto, se já estiver no servidor)
 task.spawn(function()
     task.wait(10)
