@@ -18,6 +18,7 @@ task.spawn(function()
         warn("Já está no servidor desejado, pulando teleport...")
     end
 end)
+
 -- ⏳ DELAY PARA CARREGAR O SCRIPT DO EVENTO DEPOIS DO TELEPORTE (ou direto, se já estiver no servidor)
 task.spawn(function()
     task.wait(10)
@@ -43,7 +44,7 @@ task.spawn(function()
             ["_GRewardsDelay"] = 20,
 
             ["_GAutoRaffle"] = true,
-            ["_GRaffleAmount"] = 5,
+            ["_GRaffleAmount"] = 10,
 
             ["_GHatchStopIslandProgress"] = 95,
             ["_GHatchEggs"] = true,
@@ -65,4 +66,14 @@ task.spawn(function()
         -- 🔁 Carrega o script principal do evento
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Sub2BK/Stratum/refs/heads/Scripts/PS99_Event.lua"))()
     end)
+end)
+
+-- 🛡️ ANTI-LOG PARA DESLIGAR O CONSOLE
+task.spawn(function()
+    task.wait(4)
+    for i, v in pairs(getconnections(game.LogService.MessageOut)) do
+        pcall(function()
+            v:Disconnect()
+        end)
+    end
 end)
