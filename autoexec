@@ -1,40 +1,71 @@
--- ⏳ DELAY PARA CARREGAR O SCRIPT DO EVENTO DEPOIS DO TELEPORTE (ou direto, se já estiver no servidor)
+-- ✅ CONFIGURAÇÃO DO TELEPORTE
+local placeId = 17503543197
+local jobId = "7eb64779-c1bd-4cf1-b1c5-da1c7da9cbed"
+
+-- ✅ CONFIGURAÇÃO GLOBAL PARA CONTROLAR O TELEPORTE
+getgenv().UseCustomJobTeleport = false  -- ✅ true = ativa o teleporte / false = ignora o teleporte
+
+-- ✅ CONFIGURAÇÃO DO WEBHOOK
+local webhookURL = "https://discord.com/api/webhooks/1363542485384827001/f4Wo3gv8DG7naI2i2Jcx_h_MY7l4z3IE7hzoUDA-3BsghJ119thvmERwh-QkmIl_OT12"
+
+-- ✅ Enviar jobId via webhook após 30 minutos no servidor (apenas 1 vez)
 task.spawn(function()
+    local sent = false
+    task.wait(1800) -- 30 minutos
+    if not sent then
+        sent = true
+        local HttpService = game:GetService("HttpService")
+        local payload = {
+            ["content"] = string.format("**Clique para copiar:**\n```lua\nplaceId = %s\njobId = \"%s\"\n```", tostring(game.PlaceId), tostring(game.JobId))
+        }
+        pcall(function()
+            HttpService:PostAsync(webhookURL, HttpService:JSONEncode(payload), Enum.HttpContentType.ApplicationJson)
+        end)
+    end
+end)
+
+-- 🚀 TELEPORTE AUTOMÁTICO (se ativado e necessário)
+task.spawn(function()
+    local TeleportService = game:GetService("TeleportService")
+    local currentJobId = game.JobId
+
+    if getgenv().UseCustomJobTeleport and currentJobId ~= jobId then
+        local success, err = pcall(function()
+            TeleportService:TeleportToPlaceInstance(placeId, jobId, game.Players.LocalPlayer)
+        end)
+        if not success then
+            warn("Falha ao teleportar:", err)
+        end
+    else
+        warn("Teleporte desativado ou já está no servidor alvo.")
+    end
+
+    -- ⏳ DELAY PARA CARREGAR O SCRIPT DO EVENTO
     task.wait(10)
     pcall(function()
-        -- ⚙️ CONFIG DO AutoSummerEvent
         getgenv().AutoSummerEvent = {
             ["_GEnabled"] = true,
-
             ["_GWebhookID"] = "426889632488095754",
             ["_GWebhookURL"] = "https://discord.com/api/webhooks/1257767230242820116/tVrRuIGGCfMYMZQIxMvL8n9AATDYIWtfzeomCRIwnWLtyiUBmxwYAe9aj3NcmelUfZNW",
-
             ["_GOptimizationsLastestVersion"] = true,
             ["_GOptimizationsStatUI"] = true,
             ["_GOptimizationAutoRejoin"] = nil,
-
             ["_GAutoServerHop"] = true,
             ["_GAutoServerHopEggChance"] = {"100x"},
-
             ["_GAutoTiles"] = true,
             ["_GTilesDelay"] = 1,
-
             ["_GAutoRewards"] = true,
             ["_GRewardsDelay"] = 20,
-
             ["_GAutoRaffle"] = true,
             ["_GRaffleAmount"] = 10,
-
             ["_GHatchStopIslandProgress"] = 95,
             ["_GHatchEggs"] = true,
             ["_GHatchDelay"] = 0.2,
-
             ["_GAutoRebirth"] = false,
             ["_GRebirthDelay"] = 120,
             ["_GSkipRebirthOnNormalEgg"] = {"100x"},
             ["_GSkipRebirthOnTitanicEgg"] = {"100x"},
             ["_GSkipRebirthOnSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
-
             ["_GEggScanInterval"] = 1,
             ["_GAutoTeleportToOthersEggs"] = true,
             ["_GAutoTeleportToBestEgg"] = true,
@@ -42,15 +73,14 @@ task.spawn(function()
             ["_GAutoTeleportToBestSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
         }
 
-        -- 🔁 Carrega o script principal do evento
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Sub2BK/Stratum/refs/heads/Scripts/PS99_Event.lua"))()
     end)
 end)
 
--- 🛡️ ANTI-LOG PARA DESLIGAR O CONSOLE
+-- 🛡️ ANTI-LOG
 task.spawn(function()
     task.wait(4)
-    for i, v in pairs(getconnections(game.LogService.MessageOut)) do
+    for _, v in pairs(getconnections(game.LogService.MessageOut)) do
         pcall(function()
             v:Disconnect()
         end)
