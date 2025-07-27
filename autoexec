@@ -11,7 +11,7 @@ local webhookURL = "https://discord.com/api/webhooks/1363542485384827001/f4Wo3gv
 -- ✅ Enviar jobId via webhook após 30 minutos no servidor (apenas 1 vez)
 task.spawn(function()
     local sent = false
-    task.wait(1800) -- 30 minutos
+    task.wait(600)
     if not sent then
         sent = true
         local HttpService = game:GetService("HttpService")
