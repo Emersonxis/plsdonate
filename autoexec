@@ -1,28 +1,9 @@
 -- ✅ CONFIGURAÇÃO DO TELEPORTE
 local placeId = 17503543197
-local jobId = "7864fd23-675d-44bd-ab0c-4e37495c3838"
+local jobId = "143c1961-a718-44e8-ba2d-a7d08b64fe33"
 
 -- ✅ CONFIGURAÇÃO GLOBAL PARA CONTROLAR O TELEPORTE
-getgenv().UseCustomJobTeleport = false  -- ✅ true = ativa o teleporte / false = ignora o teleporte
-
--- ✅ CONFIGURAÇÃO DO WEBHOOK
-local webhookURL = "https://discord.com/api/webhooks/1363542485384827001/f4Wo3gv8DG7naI2i2Jcx_h_MY7l4z3IE7hzoUDA-3BsghJ119thvmERwh-QkmIl_OT12"
-
--- ✅ Enviar jobId via webhook após 30 minutos no servidor (apenas 1 vez)
-task.spawn(function()
-    local sent = false
-    task.wait(600)
-    if not sent then
-        sent = true
-        local HttpService = game:GetService("HttpService")
-        local payload = {
-            ["content"] = string.format("**Clique para copiar:**\n```lua\nplaceId = %s\njobId = \"%s\"\n```", tostring(game.PlaceId), tostring(game.JobId))
-        }
-        pcall(function()
-            HttpService:PostAsync(webhookURL, HttpService:JSONEncode(payload), Enum.HttpContentType.ApplicationJson)
-        end)
-    end
-end)
+getgenv().UseCustomJobTeleport = true  -- ✅ true = ativa o teleporte / false = ignora o teleporte
 
 -- 🚀 TELEPORTE AUTOMÁTICO (se ativado e necessário)
 task.spawn(function()
