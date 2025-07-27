@@ -1,6 +1,6 @@
 -- ✅ CONFIGURAÇÃO DO TELEPORTE
 local placeId = 17503543197
-local jobId = "7eb64779-c1bd-4cf1-b1c5-da1c7da9cbed"
+local jobId = "7864fd23-675d-44bd-ab0c-4e37495c3838"
 
 -- ✅ CONFIGURAÇÃO GLOBAL PARA CONTROLAR O TELEPORTE
 getgenv().UseCustomJobTeleport = false  -- ✅ true = ativa o teleporte / false = ignora o teleporte
