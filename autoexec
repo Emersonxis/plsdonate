@@ -39,6 +39,7 @@ task.spawn(function()
             ["_GRewardsDelay"] = 20,
             ["_GAutoRaffle"] = true,
             ["_GRaffleAmount"] = 10,
+            ["_GAutoCraftGifts"] = true,
             ["_GHatchStopIslandProgress"] = 95,
             ["_GHatchEggs"] = true,
             ["_GHatchDelay"] = 0.2,
@@ -46,12 +47,12 @@ task.spawn(function()
             ["_GRebirthDelay"] = 120,
             ["_GSkipRebirthOnNormalEgg"] = {"100x"},
             ["_GSkipRebirthOnTitanicEgg"] = {"100x"},
-            ["_GSkipRebirthOnSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
+            ["_GSkipRebirthOnSelectedTitanicEggs"] = {"Six", "Seven", "Eight"},
             ["_GEggScanInterval"] = 1,
             ["_GAutoTeleportToOthersEggs"] = true,
             ["_GAutoTeleportToBestEgg"] = true,
             ["_GAutoTeleportToBestTitanicEgg"] = true,
-            ["_GAutoTeleportToBestSelectedTitanicEggs"] = {"Five", "Six", "Seven", "Eight"},
+            ["_GAutoTeleportToBestSelectedTitanicEggs"] = {"Six", "Seven", "Eight"},
         }
 
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Sub2BK/Stratum/refs/heads/Scripts/PS99_Event.lua"))()
