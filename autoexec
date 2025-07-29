@@ -1,9 +1,9 @@
 -- ✅ CONFIGURAÇÃO DO TELEPORTE
 local placeId = 17503543197
-local jobId = "537b5e0f-e24f-4f4d-8299-4f37debc4996"
+local jobId = "a43041c4-c7d5-4419-bcec-f51c9145d64b"
 
 -- ✅ CONFIGURAÇÃO GLOBAL PARA CONTROLAR O TELEPORTE
-getgenv().UseCustomJobTeleport = false  -- ✅ true = ativa o teleporte / false = ignora o teleporte
+getgenv().UseCustomJobTeleport = true  -- ✅ true = ativa o teleporte / false = ignora o teleporte
 
 -- 🚀 TELEPORTE AUTOMÁTICO (se ativado e necessário)
 task.spawn(function()
