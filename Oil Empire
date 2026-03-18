@@ -1,0 +1,205 @@
+-- ==========================================
+-- 1. TRAVA DE SEGURANÇA E NOME DO JOGO
+-- ==========================================
+local JogoID = 107095834793267
+if game.PlaceId ~= JogoID and game.GameId ~= JogoID then
+    return
+end
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local sucesso, info = pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId) end)
+local NomeDoJogoAtual = sucesso and info.Name or "Jogo Desconhecido"
+
+-- ==========================================
+-- 2. INICIALIZAÇÃO DA INTERFACE
+-- ==========================================
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "FrancesS Hub | Premium",
+   LoadingTitle = "🎮 " .. NomeDoJogoAtual,
+   LoadingSubtitle = "by Gemini",
+   ConfigurationSaving = { Enabled = true, FolderName = "FrancesS_Scripts", FileName = "MainConfig" },
+   Discord = { Enabled = false }
+})
+
+local player = game.Players.LocalPlayer
+local ColetarTodos = false
+local CompraDevil = false
+local CompraAngel = false
+local AutoSellAtivo = false
+local PrecoParaVenda = 15 
+
+-- Remotes
+local PurchaseRemote = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("Knit"):WaitForChild("Services"):WaitForChild("StoresService"):WaitForChild("RE"):WaitForChild("Purchase")
+local SellRemote = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("Knit"):WaitForChild("Services"):WaitForChild("BaseService"):WaitForChild("RE"):WaitForChild("SellGas")
+local GasPriceValue = game:GetService("ReplicatedStorage"):WaitForChild("GasPrice")
+
+-- ==========================================
+-- 3. ABAS COM EMOJIS 
+-- ==========================================
+local TabFarm = Window:CreateTab("Auto Coletor 💰", 4483345998)
+TabFarm:CreateToggle({
+   Name = "Auto Coletor [Quando estiver cheio]",
+   CurrentValue = false,
+   Callback = function(Value)
+       ColetarTodos = Value
+   end,
+})
+
+local TabShop = Window:CreateTab("Loja Misteriosa 📦", 4483362458)
+TabShop:CreateToggle({
+   Name = "Auto Buy: Devil Pack (20s)",
+   CurrentValue = false,
+   Callback = function(Value)
+       CompraDevil = Value
+       if Value then
+           task.spawn(function()
+               while CompraDevil do
+                   pcall(function() PurchaseRemote:FireServer("MerchantShop", "Devil Pack") end)
+                   task.wait(20)
+               end
+           end)
+       end
+   end,
+})
+
+TabShop:CreateToggle({
+   Name = "Auto Buy: Angel Pack (20s)",
+   CurrentValue = false,
+   Callback = function(Value)
+       CompraAngel = Value
+       if Value then
+           task.spawn(function()
+               while CompraAngel do
+                   pcall(function() PurchaseRemote:FireServer("MerchantShop", "Angel Pack") end)
+                   task.wait(20)
+               end
+           end)
+       end
+   end,
+})
+
+local TabSell = Window:CreateTab("Combustível ⛽", 4483362458)
+TabSell:CreateInput({
+   Name = "Preço Mínimo para Vender",
+   PlaceholderText = "Ex: 15",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+       PrecoParaVenda = tonumber(Text) or 15
+   end,
+})
+
+TabSell:CreateToggle({
+   Name = "Ativar Auto Sell Inteligente",
+   CurrentValue = false,
+   Callback = function(Value)
+       AutoSellAtivo = Value
+       if Value then
+           task.spawn(function()
+               while AutoSellAtivo do
+                   if GasPriceValue and GasPriceValue.Value >= PrecoParaVenda then
+                       pcall(function() SellRemote:FireServer() end)
+                       task.wait(5)
+                   end
+                   task.wait(1)
+               end
+           end)
+       end
+   end,
+})
+
+-- ==========================================
+-- 4. OTIMIZAÇÃO: SISTEMA DE CACHE BLINDADO E ESTÁTICO
+-- ==========================================
+local ColetoresEmCache = {}
+
+task.spawn(function()
+    while true do
+        task.wait(5)
+        local meuPlot = nil
+        for _, p in pairs(workspace.Plots:GetChildren()) do
+            local h = p:FindFirstChild("HolderName", true)
+            if h and h.Text == player.DisplayName then
+                meuPlot = p
+                break
+            end
+        end
+
+        if meuPlot then
+            local novosColetores = {}
+            for _, bld in pairs(meuPlot.Buildings:GetChildren()) do
+                local primary = bld:FindFirstChild("Primary")
+                local info = primary and primary:FindFirstChild("Info")
+                local valObj = info and info:FindFirstChild("Main") and info.Main:FindFirstChild("Value")
+                
+                if valObj and primary and info then
+                    -- Guardamos o Primary, o Valor e a pasta Info separadamente
+                    table.insert(novosColetores, {
+                        Primary = primary, 
+                        Valor = valObj, 
+                        Info = info, 
+                        Building = bld
+                    })
+                end
+            end
+            ColetoresEmCache = novosColetores
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.05) 
+        if ColetarTodos then
+            local char = player.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            
+            if root then
+                for _, dados in pairs(ColetoresEmCache) do
+                    if not ColetarTodos then break end
+                    
+                    if dados.Primary and dados.Valor and dados.Primary.Parent then
+                        local ok, atual, maximo = pcall(function()
+                            return string.match(dados.Valor.ContentText, "(%d+)/(%d+)")
+                        end)
+                        
+                        if ok and atual and maximo and tonumber(atual) >= tonumber(maximo) then
+                            local primary = dados.Primary
+                            local infoFolder = dados.Info
+                            local building = dados.Building
+                            
+                            local posOri = primary.CFrame
+                            
+                            -- [MELHORIA] Desacopla a pasta Info para ela não teleportar
+                            infoFolder.Parent = building
+                            
+                            -- Teleporta só a Primary
+                            primary.CFrame = root.CFrame
+                            firetouchinterest(root, primary, 0)
+                            task.wait(0.05)
+                            firetouchinterest(root, primary, 1)
+                            
+                            -- Volta a Primary para o lugar
+                            primary.CFrame = posOri
+                            
+                            -- [MELHORIA] Devolve a pasta Info para dentro da Primary
+                            infoFolder.Parent = primary
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- 5. ANTI-AFK SILENCIOSO 🛡️
+-- ==========================================
+local VirtualUser = game:GetService("VirtualUser")
+player.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+Rayfield:Notify({Title = "FrancesS Hub", Content = "Sistema de invisibilidade de texto ativado!", Duration = 4})
