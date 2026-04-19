@@ -1,59 +1,50 @@
 --[[
     NAME: Zombies Auto Kill
-    VERSION: 4.0.0
-    STATUS: Permanent Anti-Waste & Panic Mode Ready
+    VERSION: 4.2.0
+    STATUS: Fixed Concatenation Error
 ]]
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
-local mobFolder = workspace:WaitForChild("Characters")
+local mobFolder = workspace:FindFirstChild("Characters") or workspace:FindFirstChild("Zombies") or workspace:FindFirstChild("NPCs")
 local camera = workspace.CurrentCamera
 
--- Configurações e Armazenamento
 local mobBlacklist = {} 
 local healthHistory = {} 
-local EXP_PanicMode = false -- Função Experimental 1
+local failCount = {} -- Tabela separada para evitar erro de concatenação
+local EXP_PanicMode = false 
 
--- Limpeza periódica da Blacklist (Roda em segundo plano)
-task.spawn(function()
-    while true do
-        task.wait(5)
-        mobBlacklist = {} -- Dá uma nova chance aos mobs bugados a cada 5 segundos
-    end
-end)
-
--- Controle do Chat (Comando 1)
-player.Chatted:Connect(function(msg)
-    if msg == "1" then
-        EXP_PanicMode = not EXP_PanicMode
-    end
-end)
-
--- Visibilidade Estrita (Centro da Cabeça)
+-- 1. Visibilidade Flexível
 local function isStrictlyVisible(mob)
     local char = player.Character
-    local head = mob:FindFirstChild("Head")
+    local head = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
     if not char or not head then return false end
 
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
     rayParams.FilterDescendantsInstances = {char, camera, mob}
+    rayParams.IgnoreWater = true
     
     local origin = camera.CFrame.Position
     local direction = (head.Position - origin)
     local result = workspace:Raycast(origin, direction, rayParams)
 
-    return result == nil
+    if result then
+        if result.Instance.CanCollide == false or result.Instance.Transparency > 0.7 then
+            return true
+        end
+        return false 
+    end
+    return true 
 end
 
--- Lista de Alvos por Proximidade
+-- 2. Régua de Proximidade
 local function getPrioritizedTargets()
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return {} end
+    if not root or not mobFolder then return {} end
 
     local validMobs = {}
-
     for _, mob in ipairs(mobFolder:GetChildren()) do
         local mRoot = mob:FindFirstChild("HumanoidRootPart")
         local mHum = mob:FindFirstChildOfClass("Humanoid")
@@ -62,62 +53,53 @@ local function getPrioritizedTargets()
             if not mobBlacklist[mob] then
                 local dist = (root.Position - mRoot.Position).Magnitude
                 if isStrictlyVisible(mob) then
-                    table.insert(validMobs, {instance = mob, distance = dist, health = mHum.Health})
+                    table.insert(validMobs, {instance = mob, distance = dist})
                 end
             end
         end
     end
-
-    table.sort(validMobs, function(a, b)
-        return a.distance < b.distance
-    end)
-
+    table.sort(validMobs, function(a, b) return a.distance < b.distance end)
     return validMobs
 end
 
--- Loop Principal de Combate
+-- 3. Loop Principal
 task.spawn(function()
     while true do
         local char = player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local tool = char and char:FindFirstChildOfClass("Tool")
-        local shootEvent = tool and tool:FindFirstChild("Shoot")
+        local shootEvent = tool and (tool:FindFirstChild("Shoot") or tool:FindFirstChild("Fire"))
 
         if char and root and shootEvent then
             local prioritizedList = getPrioritizedTargets()
             
-            -- Lógica do Modo Pânico (Overdrive)
+            -- Panic Mode Check (Comando 1)
             local isPanicking = false
-            if EXP_PanicMode and #prioritizedList > 0 then
-                -- Se o mob mais próximo estiver a menos de 15 studs, entra em pânico
-                if prioritizedList[1].distance <= 15 then
-                    isPanicking = true
-                end
+            if EXP_PanicMode and #prioritizedList > 0 and prioritizedList[1].distance <= 15 then
+                isPanicking = true
             end
 
-            -- Configurações dinâmicas de disparo
-            local maxTargets = isPanicking and 6 or 3     -- Mata até 6 no pânico, 3 no normal
-            local loopDelay = isPanicking and 0.05 or 0.15 -- Atira 3x mais rápido no pânico
+            local maxTargets = isPanicking and 6 or 3
+            local waitTime = isPanicking and 0.07 or 0.12
 
             for i = 1, math.min(#prioritizedList, maxTargets) do
-                local targetData = prioritizedList[i]
-                local target = targetData.instance
-                local head = target:FindFirstChild("Head")
+                local target = prioritizedList[i].instance
+                local head = target:FindFirstChild("Head") or target:FindFirstChild("HumanoidRootPart")
                 local hum = target:FindFirstChildOfClass("Humanoid")
 
                 if head and hum then
-                    -- Sistema Anti-Waste (Sempre Ativado)
+                    -- Anti-Waste Logic (Consertado)
                     if healthHistory[target] and healthHistory[target] <= hum.Health then
-                        healthHistory[target .. "_fails"] = (healthHistory[target .. "_fails"] or 0) + 1
-                        if healthHistory[target .. "_fails"] >= 3 then
+                        failCount[target] = (failCount[target] or 0) + 1
+                        if failCount[target] >= 5 then 
                             mobBlacklist[target] = true 
                         end
                     else
-                        healthHistory[target .. "_fails"] = 0
+                        failCount[target] = 0
                     end
                     healthHistory[target] = hum.Health
 
-                    -- Disparo
+                    -- Fire
                     local args = {
                         [1] = root.Position,
                         [2] = {
@@ -130,15 +112,19 @@ task.spawn(function()
                     shootEvent:FireServer(unpack(args))
                 end
             end
-            
-            -- Reseta o histórico se a lista estiver vazia para liberar memória
-            if #prioritizedList == 0 then
-                healthHistory = {}
-            end
-            
-            task.wait(loopDelay)
+            task.wait(waitTime)
         else
-            task.wait(0.5) -- Espera mais tempo se não tiver arma na mão para poupar CPU
+            task.wait(0.5)
         end
     end
+end)
+
+-- Comandos e Limpeza
+player.Chatted:Connect(function(msg) if msg == "1" then EXP_PanicMode = not EXP_PanicMode end end)
+task.spawn(function() 
+    while true do 
+        task.wait(4) 
+        mobBlacklist = {} 
+        failCount = {} -- Limpa os contadores de falha
+    end 
 end)
