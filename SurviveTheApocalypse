@@ -1,0 +1,132 @@
+--[[
+    NAME: Zombies Auto Kill
+    VERSION: 3.0.0 (Experimental Dupla)
+    STATUS: Optimized for Delta Mobile
+]]
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local player = Players.LocalPlayer
+local mobFolder = workspace:WaitForChild("Characters")
+local camera = workspace.CurrentCamera
+
+-- Variáveis de Controle (Toggles)
+local EXP_BulletTeleport = false -- Função 1
+local EXP_Wallbang = false       -- Função 2
+local EXP_Optimization = false   -- Função 3
+
+local originalData = {}
+local targetHighlight = Instance.new("Highlight")
+targetHighlight.FillColor = Color3.fromRGB(255, 0, 0)
+targetHighlight.FillTransparency = 0.5
+targetHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+
+-- Função de Verificação de Visibilidade (Raycast Multiponto)
+local function isTargetVisible(mob)
+    if EXP_Wallbang then return true end -- Se Função 2 ligada, ignora paredes
+
+    local char = player.Character
+    local head = mob:FindFirstChild("Head")
+    if not char or not head then return false end
+
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = {char, camera, mob}
+    
+    local origin = camera.CFrame.Position
+    local points = {head.Position, head.Position + Vector3.new(0, 2, 0), head.Position + Vector3.new(2, 0, 0)}
+
+    for _, targetPoint in ipairs(points) do
+        local result = workspace:Raycast(origin, (targetPoint - origin), rayParams)
+        if not result then return true end
+    end
+    return false
+end
+
+-- Função para Obter Múltiplos Alvos (Multi-Kill)
+local function getValidTargets(limit)
+    local targets = {}
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+
+    if root then
+        for _, mob in ipairs(mobFolder:GetChildren()) do
+            if #targets >= limit then break end
+            
+            local mRoot = mob:FindFirstChild("HumanoidRootPart")
+            local mHum = mob:FindFirstChildOfClass("Humanoid")
+            local name = mob.Name:lower()
+
+            if mRoot and mHum and mHum.Health > 0 
+               and not Players:GetPlayerFromCharacter(mob)
+               and not name:find("merchant") then
+                
+                if isTargetVisible(mob) then
+                    table.insert(targets, mob)
+                end
+            end
+        end
+    end
+    return targets
+end
+
+-- Comando de Chat para Toggles (1, 2, 3)
+player.Chatted:Connect(function(msg)
+    if msg == "1" then
+        EXP_BulletTeleport = not EXP_BulletTeleport
+    elseif msg == "2" then
+        EXP_Wallbang = not EXP_Wallbang
+    elseif msg == "3" then
+        EXP_Optimization = not EXP_Optimization
+        if EXP_Optimization then
+            Lighting.FogEnd = 100000
+            Lighting.GlobalShadows = false
+            for _, obj in ipairs(Lighting:GetChildren()) do
+                if obj:IsA("Atmosphere") or obj:IsA("Clouds") then obj.Parent = nil end
+            end
+        end
+    end
+end)
+
+-- Loop Principal (Always On)
+task.spawn(function()
+    while true do
+        local char = player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local tool = char and char:FindFirstChildOfClass("Tool")
+        local shootEvent = tool and tool:FindFirstChild("Shoot")
+
+        if char and root and shootEvent then
+            local targets = getValidTargets(5) -- Mata até 5 por vez (evita kick por spam)
+
+            for i, target in ipairs(targets) do
+                local head = target:FindFirstChild("Head")
+                if head then
+                    -- Efeito Visual no primeiro alvo do lote
+                    if i == 1 then targetHighlight.Parent = target else targetHighlight.Parent = nil end
+
+                    -- Hitbox 5x
+                    if not originalData[target] then originalData[target] = head.Size end
+                    head.Size = originalData[target] * 5
+                    head.Transparency = 1
+                    head.CanCollide = false
+
+                    -- Lógica de Disparo
+                    local originPos = EXP_BulletTeleport and (head.Position + Vector3.new(0, 1, 0)) or root.Position
+                    
+                    local args = {
+                        [1] = originPos,
+                        [2] = {
+                            [1] = {
+                                ["Target"] = head.Position,
+                                ["HitData"] = {{["HitChar"] = target, ["HitPos"] = head.Position, ["HitPart"] = head}}
+                            }
+                        }
+                    }
+                    shootEvent:FireServer(unpack(args))
+                end
+            end
+        end
+        task.wait(0.1) -- Delay otimizado para não travar o celular
+    end
+end)
