@@ -1,30 +1,36 @@
 --[[
     NAME: Zombies Auto Kill
-    VERSION: 3.0.0 (Experimental Dupla)
-    STATUS: Optimized for Delta Mobile
+    VERSION: 4.0.0
+    STATUS: Permanent Anti-Waste & Panic Mode Ready
 ]]
 
 local Players = game:GetService("Players")
-local Lighting = game:GetService("Lighting")
 local player = Players.LocalPlayer
 local mobFolder = workspace:WaitForChild("Characters")
 local camera = workspace.CurrentCamera
 
--- Variáveis de Controle (Toggles)
-local EXP_BulletTeleport = false -- Função 1
-local EXP_Wallbang = false       -- Função 2
-local EXP_Optimization = false   -- Função 3
+-- Configurações e Armazenamento
+local mobBlacklist = {} 
+local healthHistory = {} 
+local EXP_PanicMode = false -- Função Experimental 1
 
-local originalData = {}
-local targetHighlight = Instance.new("Highlight")
-targetHighlight.FillColor = Color3.fromRGB(255, 0, 0)
-targetHighlight.FillTransparency = 0.5
-targetHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+-- Limpeza periódica da Blacklist (Roda em segundo plano)
+task.spawn(function()
+    while true do
+        task.wait(5)
+        mobBlacklist = {} -- Dá uma nova chance aos mobs bugados a cada 5 segundos
+    end
+end)
 
--- Função de Verificação de Visibilidade (Raycast Multiponto)
-local function isTargetVisible(mob)
-    if EXP_Wallbang then return true end -- Se Função 2 ligada, ignora paredes
+-- Controle do Chat (Comando 1)
+player.Chatted:Connect(function(msg)
+    if msg == "1" then
+        EXP_PanicMode = not EXP_PanicMode
+    end
+end)
 
+-- Visibilidade Estrita (Centro da Cabeça)
+local function isStrictlyVisible(mob)
     local char = player.Character
     local head = mob:FindFirstChild("Head")
     if not char or not head then return false end
@@ -34,61 +40,42 @@ local function isTargetVisible(mob)
     rayParams.FilterDescendantsInstances = {char, camera, mob}
     
     local origin = camera.CFrame.Position
-    local points = {head.Position, head.Position + Vector3.new(0, 2, 0), head.Position + Vector3.new(2, 0, 0)}
+    local direction = (head.Position - origin)
+    local result = workspace:Raycast(origin, direction, rayParams)
 
-    for _, targetPoint in ipairs(points) do
-        local result = workspace:Raycast(origin, (targetPoint - origin), rayParams)
-        if not result then return true end
-    end
-    return false
+    return result == nil
 end
 
--- Função para Obter Múltiplos Alvos (Multi-Kill)
-local function getValidTargets(limit)
-    local targets = {}
+-- Lista de Alvos por Proximidade
+local function getPrioritizedTargets()
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return {} end
 
-    if root then
-        for _, mob in ipairs(mobFolder:GetChildren()) do
-            if #targets >= limit then break end
-            
-            local mRoot = mob:FindFirstChild("HumanoidRootPart")
-            local mHum = mob:FindFirstChildOfClass("Humanoid")
-            local name = mob.Name:lower()
+    local validMobs = {}
 
-            if mRoot and mHum and mHum.Health > 0 
-               and not Players:GetPlayerFromCharacter(mob)
-               and not name:find("merchant") then
-                
-                if isTargetVisible(mob) then
-                    table.insert(targets, mob)
+    for _, mob in ipairs(mobFolder:GetChildren()) do
+        local mRoot = mob:FindFirstChild("HumanoidRootPart")
+        local mHum = mob:FindFirstChildOfClass("Humanoid")
+        
+        if mRoot and mHum and mHum.Health > 0 and not Players:GetPlayerFromCharacter(mob) then
+            if not mobBlacklist[mob] then
+                local dist = (root.Position - mRoot.Position).Magnitude
+                if isStrictlyVisible(mob) then
+                    table.insert(validMobs, {instance = mob, distance = dist, health = mHum.Health})
                 end
             end
         end
     end
-    return targets
+
+    table.sort(validMobs, function(a, b)
+        return a.distance < b.distance
+    end)
+
+    return validMobs
 end
 
--- Comando de Chat para Toggles (1, 2, 3)
-player.Chatted:Connect(function(msg)
-    if msg == "1" then
-        EXP_BulletTeleport = not EXP_BulletTeleport
-    elseif msg == "2" then
-        EXP_Wallbang = not EXP_Wallbang
-    elseif msg == "3" then
-        EXP_Optimization = not EXP_Optimization
-        if EXP_Optimization then
-            Lighting.FogEnd = 100000
-            Lighting.GlobalShadows = false
-            for _, obj in ipairs(Lighting:GetChildren()) do
-                if obj:IsA("Atmosphere") or obj:IsA("Clouds") then obj.Parent = nil end
-            end
-        end
-    end
-end)
-
--- Loop Principal (Always On)
+-- Loop Principal de Combate
 task.spawn(function()
     while true do
         local char = player.Character
@@ -97,25 +84,42 @@ task.spawn(function()
         local shootEvent = tool and tool:FindFirstChild("Shoot")
 
         if char and root and shootEvent then
-            local targets = getValidTargets(5) -- Mata até 5 por vez (evita kick por spam)
+            local prioritizedList = getPrioritizedTargets()
+            
+            -- Lógica do Modo Pânico (Overdrive)
+            local isPanicking = false
+            if EXP_PanicMode and #prioritizedList > 0 then
+                -- Se o mob mais próximo estiver a menos de 15 studs, entra em pânico
+                if prioritizedList[1].distance <= 15 then
+                    isPanicking = true
+                end
+            end
 
-            for i, target in ipairs(targets) do
+            -- Configurações dinâmicas de disparo
+            local maxTargets = isPanicking and 6 or 3     -- Mata até 6 no pânico, 3 no normal
+            local loopDelay = isPanicking and 0.05 or 0.15 -- Atira 3x mais rápido no pânico
+
+            for i = 1, math.min(#prioritizedList, maxTargets) do
+                local targetData = prioritizedList[i]
+                local target = targetData.instance
                 local head = target:FindFirstChild("Head")
-                if head then
-                    -- Efeito Visual no primeiro alvo do lote
-                    if i == 1 then targetHighlight.Parent = target else targetHighlight.Parent = nil end
+                local hum = target:FindFirstChildOfClass("Humanoid")
 
-                    -- Hitbox 5x
-                    if not originalData[target] then originalData[target] = head.Size end
-                    head.Size = originalData[target] * 5
-                    head.Transparency = 1
-                    head.CanCollide = false
+                if head and hum then
+                    -- Sistema Anti-Waste (Sempre Ativado)
+                    if healthHistory[target] and healthHistory[target] <= hum.Health then
+                        healthHistory[target .. "_fails"] = (healthHistory[target .. "_fails"] or 0) + 1
+                        if healthHistory[target .. "_fails"] >= 3 then
+                            mobBlacklist[target] = true 
+                        end
+                    else
+                        healthHistory[target .. "_fails"] = 0
+                    end
+                    healthHistory[target] = hum.Health
 
-                    -- Lógica de Disparo
-                    local originPos = EXP_BulletTeleport and (head.Position + Vector3.new(0, 1, 0)) or root.Position
-                    
+                    -- Disparo
                     local args = {
-                        [1] = originPos,
+                        [1] = root.Position,
                         [2] = {
                             [1] = {
                                 ["Target"] = head.Position,
@@ -126,7 +130,15 @@ task.spawn(function()
                     shootEvent:FireServer(unpack(args))
                 end
             end
+            
+            -- Reseta o histórico se a lista estiver vazia para liberar memória
+            if #prioritizedList == 0 then
+                healthHistory = {}
+            end
+            
+            task.wait(loopDelay)
+        else
+            task.wait(0.5) -- Espera mais tempo se não tiver arma na mão para poupar CPU
         end
-        task.wait(0.1) -- Delay otimizado para não travar o celular
     end
 end)
