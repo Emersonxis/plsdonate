@@ -1,92 +1,96 @@
 --[[
     NAME: Zombies Auto Kill
-    VERSION: 6.0.0
-    STATUS: Advanced Multipoint Visibility & Aura Check
+    VERSION: 7.0.0
+    STATUS: Strict Visibility & Proximity Refactor
 ]]
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
-local mobFolder = workspace:FindFirstChild("Characters") or workspace:FindFirstChild("Zombies") or workspace:FindFirstChild("NPCs")
 local camera = workspace.CurrentCamera
 
-local mobBlacklist = {} 
-local healthHistory = {} 
-local failCount = {} 
-local EXP_CycleKill = true -- Função Experimental 1 (1 Tiro por Mob)
+-- Pasta de alvos (ajustável conforme o jogo)
+local mobFolder = workspace:FindFirstChild("Characters") or workspace:FindFirstChild("Zombies")
 
--- 1. NOVO MÉTODO DE VISIBILIDADE (Multiponto + Ignora Horda)
-local function isTrulyVisible(mob, head)
+-- Configurações Internas
+local SETTINGS = {
+    MaxDistance = 300,        -- Limite da Aura
+    MaxTargets = 1,          -- Alvos simultâneos
+    PanicDistance = 50,       -- Gatilho de velocidade
+    FailLimit = 2             -- Tiros antes de ignorar mob bugado
+}
+
+local blacklist = {}
+local healthCache = {}
+local failStats = {}
+
+---------------------------------------------------------
+-- 1. SISTEMA DE VISIBILIDADE REAL (STRICT RAYCAST)
+---------------------------------------------------------
+local function hasLineOfSight(mob, head)
     local char = player.Character
-    
+    if not char or not head then return false end
+
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
     
-    -- Ignora a câmera, TODOS os zumbis (para um não bloquear o outro) e você mesmo
-    local ignoreList = {camera, mobFolder}
-    if char then table.insert(ignoreList, char) end
-    rayParams.FilterDescendantsInstances = ignoreList
+    -- Otimização: O raio ignora você, a câmera e TODOS os mobs 
+    -- para que um zumbi não bloqueie a visão do que está atrás.
+    rayParams.FilterDescendantsInstances = {char, camera, mobFolder}
     rayParams.IgnoreWater = true
-    
+
     local origin = camera.CFrame.Position
-    local root = mob:FindFirstChild("HumanoidRootPart")
+    local direction = (head.Position - origin)
     
-    -- Pontos de checagem (Centro, Cima, Direita, Esquerda, Cintura)
-    local pointsToCheck = {
-        head.Position,
-        head.Position + Vector3.new(0, 1.2, 0),
-        head.Position + Vector3.new(1.5, 0, 0),
-        head.Position + Vector3.new(-1.5, 0, 0),
-        root and root.Position or head.Position
-    }
-    
-    -- Checagem ESTREITA: Se o raio bater em ALGO, é parede/obstáculo. Zero exceções.
-    for _, targetPoint in ipairs(pointsToCheck) do
-        local result = workspace:Raycast(origin, (targetPoint - origin), rayParams)
-        if not result then
-            -- Se pelo menos UM ponto estiver 100% livre, o mob é um alvo válido.
-            return true 
-        end
-    end
-    
-    return false
+    local result = workspace:Raycast(origin, direction, rayParams)
+
+    -- Se o resultado for nil, o caminho está 100% livre.
+    -- Se bater em algo, o alvo está atrás de uma parede/obstáculo sólido.
+    return result == nil
 end
 
--- 2. Filtro de Aura (300 Studs) e Coleta de Dados
-local function getValidTargetData(mob, rootPos)
-    local head = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
-    local hum = mob:FindFirstChildOfClass("Humanoid")
-    
-    if head and hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(mob) then
-        local dist = (rootPos - head.Position).Magnitude
-        -- Limite de 300 studs
-        if dist <= 300 then 
-            if isTrulyVisible(mob, head) then
-                return {instance = mob, distance = dist, head = head, hum = hum}
-            end
-        end
-    end
-    return nil
-end
-
--- 3. Gerenciador de Prioridade (Do mais perto para o mais longe)
-local function getSortedTargets()
+---------------------------------------------------------
+-- 2. GERENCIADOR DE PRIORIDADE (MÉTODO RÉGUA/AURA)
+---------------------------------------------------------
+local function getPrioritizedTargets()
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root or not mobFolder then return {} end
 
-    local targets = {}
+    local validTargets = {}
+
     for _, mob in ipairs(mobFolder:GetChildren()) do
-        if not mobBlacklist[mob] then
-            local data = getValidTargetData(mob, root.Position)
-            if data then table.insert(targets, data) end
+        local mHum = mob:FindFirstChildOfClass("Humanoid")
+        local mHead = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
+
+        if mHum and mHum.Health > 0 and mHead and not blacklist[mob] then
+            local dist = (root.Position - mHead.Position).Magnitude
+            
+            -- Filtro 1: Distância máxima
+            if dist <= SETTINGS.MaxDistance then
+                -- Filtro 2: Visibilidade Real (Raycast)
+                if hasLineOfSight(mob, mHead) then
+                    table.insert(validTargets, {
+                        instance = mob,
+                        head = mHead,
+                        hum = mHum,
+                        dist = dist
+                    })
+                end
+            end
         end
     end
 
-    table.sort(targets, function(a, b) return a.distance < b.distance end)
-    return targets
+    -- Ordenação Linear: O mais próximo sempre será o index [1]
+    table.sort(validTargets, function(a, b)
+        return a.dist < b.dist
+    end)
+
+    return validTargets
 end
 
--- 4. Motor Principal (Loop de Combate)
+---------------------------------------------------------
+-- 3. MOTOR DE EXECUÇÃO (LOOP OTIMIZADO)
+---------------------------------------------------------
 task.spawn(function()
     while true do
         local char = player.Character
@@ -95,62 +99,57 @@ task.spawn(function()
         local shootEvent = tool and (tool:FindFirstChild("Shoot") or tool:FindFirstChild("Fire"))
 
         if char and root and shootEvent then
-            local targets = getSortedTargets()
+            local targetList = getPrioritizedTargets()
             
-            -- Sistema de Alerta (Panic Mode) em 50 studs
-            local isPanic = #targets > 0 and targets[1].distance <= 50
-            
-            -- Lógica de limites: Se Experimental 1 ligado, ataca todos visíveis 1 vez. Se desligado, foca em 10 (ou 12 no pânico).
-            local limit = EXP_CycleKill and #targets or (isPanic and 12 or 10)
-            local waitTime = isPanic and 0.05 or 0.1
+            if #targetList > 0 then
+                -- Modo Pânico: Se o mob estiver a menos de 50 studs, aumenta a agressividade
+                local isPanic = targetList[1].dist <= SETTINGS.PanicDistance
+                local count = isPanic and (SETTINGS.MaxTargets + 2) or SETTINGS.MaxTargets
+                local delay = isPanic and 0.06 or 0.12
 
-            for i = 1, math.min(#targets, limit) do
-                local data = targets[i]
-                local mob = data.instance
-                
-                -- Anti-Waste Logic: Bloqueia mobs com hitbox bugada pelo servidor após 4 falhas
-                if healthHistory[mob] and healthHistory[mob] <= data.hum.Health then
-                    failCount[mob] = (failCount[mob] or 0) + 1
-                    if failCount[mob] >= 4 then mobBlacklist[mob] = true end
-                else
-                    failCount[mob] = 0
-                end
-                healthHistory[mob] = data.hum.Health
+                for i = 1, math.min(#targetList, count) do
+                    local data = targetList[i]
+                    local mob = data.instance
+                    
+                    -- Lógica Anti-Desperdício (Smart Check)
+                    if healthCache[mob] and healthCache[mob] <= data.hum.Health then
+                        failStats[mob] = (failStats[mob] or 0) + 1
+                        if failStats[mob] >= SETTINGS.FailLimit then 
+                            blacklist[mob] = true 
+                        end
+                    else
+                        failStats[mob] = 0
+                    end
+                    healthCache[mob] = data.hum.Health
 
-                -- Argumentos originais de disparo
-                local args = {
-                    [1] = root.Position,
-                    [2] = {
+                    -- Disparo via Remote
+                    shootEvent:FireServer(root.Position, {
                         [1] = {
                             ["Target"] = data.head.Position,
-                            ["HitData"] = {{["HitChar"] = mob, ["HitPos"] = data.head.Position, ["HitPart"] = data.head}}
+                            ["HitData"] = {{
+                                ["HitChar"] = mob, 
+                                ["HitPos"] = data.head.Position, 
+                                ["HitPart"] = data.head
+                            }}
                         }
-                    }
-                }
-                shootEvent:FireServer(unpack(args))
-                
-                -- Micro-delay no ciclo experimental para não bugar a fila de pacotes
-                if EXP_CycleKill then task.wait(0.01) end 
+                    })
+                end
+                task.wait(delay)
+            else
+                task.wait(0.2) -- Sem alvos visíveis: poupa CPU
             end
-            task.wait(waitTime)
         else
-            task.wait(0.5) -- Pausa maior se o jogador desequipar a arma
+            task.wait(0.5) -- Sem arma: descanso total do script
         end
     end
 end)
 
--- Comandos e Limpeza de Memória
-player.Chatted:Connect(function(msg) 
-    if msg == "1" then 
-        EXP_CycleKill = not EXP_CycleKill 
-    end 
-end)
-
-task.spawn(function() 
-    while true do 
-        task.wait(5) 
-        mobBlacklist = {} 
-        failCount = {} 
-        healthHistory = {}
-    end 
+-- Limpeza de Cache de 5 em 5 segundos
+task.spawn(function()
+    while true do
+        task.wait(5)
+        blacklist = {}
+        failStats = {}
+        healthCache = {}
+    end
 end)
