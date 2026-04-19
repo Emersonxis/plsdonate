@@ -1,78 +1,68 @@
 --[[
     NAME: Zombies Auto Kill
-    VERSION: 7.0.0
-    STATUS: Strict Visibility & Proximity Refactor
+    VERSION: 8.0.0
+    STATUS: Priority Fix & NPC/Player Filter
 ]]
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
-
--- Pasta de alvos (ajustável conforme o jogo)
 local mobFolder = workspace:FindFirstChild("Characters") or workspace:FindFirstChild("Zombies")
 
--- Configurações Internas
 local SETTINGS = {
-    MaxDistance = 300,        -- Limite da Aura
-    MaxTargets = 1,          -- Alvos simultâneos
-    PanicDistance = 50,       -- Gatilho de velocidade
-    FailLimit = 2             -- Tiros antes de ignorar mob bugado
+    MaxDistance = 300,
+    MaxTargets = 10,
+    PanicDistance = 50,
+    FailLimit = 5
 }
 
 local blacklist = {}
 local healthCache = {}
 local failStats = {}
 
----------------------------------------------------------
--- 1. SISTEMA DE VISIBILIDADE REAL (STRICT RAYCAST)
----------------------------------------------------------
-local function hasLineOfSight(mob, head)
+-- 1. Filtro de Visibilidade Estrito (Head Only)
+local function isHeadVisible(mob, head)
     local char = player.Character
     if not char or not head then return false end
 
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    
-    -- Otimização: O raio ignora você, a câmera e TODOS os mobs 
-    -- para que um zumbi não bloqueie a visão do que está atrás.
     rayParams.FilterDescendantsInstances = {char, camera, mobFolder}
     rayParams.IgnoreWater = true
 
     local origin = camera.CFrame.Position
-    local direction = (head.Position - origin)
-    
-    local result = workspace:Raycast(origin, direction, rayParams)
+    local result = workspace:Raycast(origin, (head.Position - origin), rayParams)
 
-    -- Se o resultado for nil, o caminho está 100% livre.
-    -- Se bater em algo, o alvo está atrás de uma parede/obstáculo sólido.
     return result == nil
 end
 
----------------------------------------------------------
--- 2. GERENCIADOR DE PRIORIDADE (MÉTODO RÉGUA/AURA)
----------------------------------------------------------
-local function getPrioritizedTargets()
+-- 2. Coleta e Ordenação (Aura por Proximidade)
+local function getSortedAura()
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root or not mobFolder then return {} end
 
-    local validTargets = {}
+    local targets = {}
+    local myPos = root.Position
 
     for _, mob in ipairs(mobFolder:GetChildren()) do
-        local mHum = mob:FindFirstChildOfClass("Humanoid")
-        local mHead = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
+        -- Filtros Obrigatórios: Ignora Players e Mercadores
+        if Players:GetPlayerFromCharacter(mob) then continue end
+        if mob.Name:lower():find("merchant") then continue end
+        
+        local hum = mob:FindFirstChildOfClass("Humanoid")
+        local head = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
 
-        if mHum and mHum.Health > 0 and mHead and not blacklist[mob] then
-            local dist = (root.Position - mHead.Position).Magnitude
+        if hum and hum.Health > 0 and head and not blacklist[mob] then
+            local dist = (myPos - head.Position).Magnitude
             
-            -- Filtro 1: Distância máxima
             if dist <= SETTINGS.MaxDistance then
-                -- Filtro 2: Visibilidade Real (Raycast)
-                if hasLineOfSight(mob, mHead) then
-                    table.insert(validTargets, {
+                -- Só adiciona à lista se a cabeça estiver visível
+                if isHeadVisible(mob, head) then
+                    table.insert(targets, {
                         instance = mob,
-                        head = mHead,
-                        hum = mHum,
+                        head = head,
+                        hum = hum,
                         dist = dist
                     })
                 end
@@ -80,17 +70,15 @@ local function getPrioritizedTargets()
         end
     end
 
-    -- Ordenação Linear: O mais próximo sempre será o index [1]
-    table.sort(validTargets, function(a, b)
+    -- Ordenação: O mais perto de VOCÊ vira o primeiro da lista
+    table.sort(targets, function(a, b)
         return a.dist < b.dist
     end)
 
-    return validTargets
+    return targets
 end
 
----------------------------------------------------------
--- 3. MOTOR DE EXECUÇÃO (LOOP OTIMIZADO)
----------------------------------------------------------
+-- 3. Motor de Disparo
 task.spawn(function()
     while true do
         local char = player.Character
@@ -99,55 +87,55 @@ task.spawn(function()
         local shootEvent = tool and (tool:FindFirstChild("Shoot") or tool:FindFirstChild("Fire"))
 
         if char and root and shootEvent then
-            local targetList = getPrioritizedTargets()
+            local auraList = getSortedAura()
             
-            if #targetList > 0 then
-                -- Modo Pânico: Se o mob estiver a menos de 50 studs, aumenta a agressividade
-                local isPanic = targetList[1].dist <= SETTINGS.PanicDistance
-                local count = isPanic and (SETTINGS.MaxTargets + 2) or SETTINGS.MaxTargets
-                local delay = isPanic and 0.06 or 0.12
+            if #auraList > 0 then
+                -- Se o primeiro da lista (o mais perto) estiver a 50 studs, entra em Pânico
+                local nearestDist = auraList[1].dist
+                local isPanic = nearestDist <= SETTINGS.PanicDistance
+                
+                local maxToKill = isPanic and 12 or 10
+                local waitTime = isPanic and 0.05 or 0.12
 
-                for i = 1, math.min(#targetList, count) do
-                    local data = targetList[i]
-                    local mob = data.instance
+                for i = 1, math.min(#auraList, maxToKill) do
+                    local targetData = auraList[i]
+                    local mob = targetData.instance
                     
-                    -- Lógica Anti-Desperdício (Smart Check)
-                    if healthCache[mob] and healthCache[mob] <= data.hum.Health then
+                    -- Anti-Waste
+                    if healthCache[mob] and healthCache[mob] <= targetData.hum.Health then
                         failStats[mob] = (failStats[mob] or 0) + 1
-                        if failStats[mob] >= SETTINGS.FailLimit then 
-                            blacklist[mob] = true 
-                        end
+                        if failStats[mob] >= SETTINGS.FailLimit then blacklist[mob] = true end
                     else
                         failStats[mob] = 0
                     end
-                    healthCache[mob] = data.hum.Health
+                    healthCache[mob] = targetData.hum.Health
 
-                    -- Disparo via Remote
+                    -- Remote Call
                     shootEvent:FireServer(root.Position, {
                         [1] = {
-                            ["Target"] = data.head.Position,
+                            ["Target"] = targetData.head.Position,
                             ["HitData"] = {{
                                 ["HitChar"] = mob, 
-                                ["HitPos"] = data.head.Position, 
-                                ["HitPart"] = data.head
+                                ["HitPos"] = targetData.head.Position, 
+                                ["HitPart"] = targetData.head
                             }}
                         }
                     })
                 end
-                task.wait(delay)
+                task.wait(waitTime)
             else
-                task.wait(0.2) -- Sem alvos visíveis: poupa CPU
+                task.wait(0.2)
             end
         else
-            task.wait(0.5) -- Sem arma: descanso total do script
+            task.wait(0.5)
         end
     end
 end)
 
--- Limpeza de Cache de 5 em 5 segundos
+-- Reset de Cache
 task.spawn(function()
     while true do
-        task.wait(5)
+        task.wait(4)
         blacklist = {}
         failStats = {}
         healthCache = {}
