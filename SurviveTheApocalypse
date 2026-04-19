@@ -1,7 +1,7 @@
 --[[
     NAME: Zombies Auto Kill
-    VERSION: 5.0.0
-    STATUS: Aura Priority & Target Cycling
+    VERSION: 6.0.0
+    STATUS: Advanced Multipoint Visibility & Aura Check
 ]]
 
 local Players = game:GetService("Players")
@@ -12,25 +12,55 @@ local camera = workspace.CurrentCamera
 local mobBlacklist = {} 
 local healthHistory = {} 
 local failCount = {} 
-local EXP_CycleKill = false -- Função Experimental 1
+local EXP_CycleKill = true -- Função Experimental 1 (1 Tiro por Mob)
 
--- 1. Visibilidade e Filtro de Distância (300 studs)
+-- 1. NOVO MÉTODO DE VISIBILIDADE (Multiponto + Ignora Horda)
+local function isTrulyVisible(mob, head)
+    local char = player.Character
+    
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    
+    -- Ignora a câmera, TODOS os zumbis (para um não bloquear o outro) e você mesmo
+    local ignoreList = {camera, mobFolder}
+    if char then table.insert(ignoreList, char) end
+    rayParams.FilterDescendantsInstances = ignoreList
+    rayParams.IgnoreWater = true
+    
+    local origin = camera.CFrame.Position
+    local root = mob:FindFirstChild("HumanoidRootPart")
+    
+    -- Pontos de checagem (Centro, Cima, Direita, Esquerda, Cintura)
+    local pointsToCheck = {
+        head.Position,
+        head.Position + Vector3.new(0, 1.2, 0),
+        head.Position + Vector3.new(1.5, 0, 0),
+        head.Position + Vector3.new(-1.5, 0, 0),
+        root and root.Position or head.Position
+    }
+    
+    -- Checagem ESTREITA: Se o raio bater em ALGO, é parede/obstáculo. Zero exceções.
+    for _, targetPoint in ipairs(pointsToCheck) do
+        local result = workspace:Raycast(origin, (targetPoint - origin), rayParams)
+        if not result then
+            -- Se pelo menos UM ponto estiver 100% livre, o mob é um alvo válido.
+            return true 
+        end
+    end
+    
+    return false
+end
+
+-- 2. Filtro de Aura (300 Studs) e Coleta de Dados
 local function getValidTargetData(mob, rootPos)
     local head = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
     local hum = mob:FindFirstChildOfClass("Humanoid")
     
     if head and hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(mob) then
         local dist = (rootPos - head.Position).Magnitude
-        if dist <= 300 then -- Limite de 300 studs
-            -- Raycast para verificar obstrução
-            local rayParams = RaycastParams.new()
-            rayParams.FilterType = Enum.RaycastFilterType.Exclude
-            rayParams.FilterDescendantsInstances = {player.Character, camera, mob}
-            
-            local result = workspace:Raycast(camera.CFrame.Position, (head.Position - camera.CFrame.Position), rayParams)
-            
-            -- Se não houver nada sólido ou for transparente/sem colisão
-            if not result or result.Instance.CanCollide == false or result.Instance.Transparency > 0.7 then
+        -- Limite de 300 studs
+        if dist <= 300 then 
+            if isTrulyVisible(mob, head) then
                 return {instance = mob, distance = dist, head = head, hum = hum}
             end
         end
@@ -38,7 +68,7 @@ local function getValidTargetData(mob, rootPos)
     return nil
 end
 
--- 2. Gerenciador de Alvos (Prioridade Estilo Régua/Aura)
+-- 3. Gerenciador de Prioridade (Do mais perto para o mais longe)
 local function getSortedTargets()
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -52,12 +82,11 @@ local function getSortedTargets()
         end
     end
 
-    -- Ordena do mais perto para o mais longe
     table.sort(targets, function(a, b) return a.distance < b.distance end)
     return targets
 end
 
--- 3. Loop Principal
+-- 4. Motor Principal (Loop de Combate)
 task.spawn(function()
     while true do
         local char = player.Character
@@ -68,11 +97,10 @@ task.spawn(function()
         if char and root and shootEvent then
             local targets = getSortedTargets()
             
-            -- Alerta de Proximidade (Panic Mode Automático em 50 studs)
+            -- Sistema de Alerta (Panic Mode) em 50 studs
             local isPanic = #targets > 0 and targets[1].distance <= 50
             
-            -- Se EXP_CycleKill estiver ON, ele dá apenas 1 tiro por mob e pula pro próximo
-            -- Se estiver OFF, ele tenta focar nos 10 mais próximos simultaneamente
+            -- Lógica de limites: Se Experimental 1 ligado, ataca todos visíveis 1 vez. Se desligado, foca em 10 (ou 12 no pânico).
             local limit = EXP_CycleKill and #targets or (isPanic and 12 or 10)
             local waitTime = isPanic and 0.05 or 0.1
 
@@ -80,16 +108,16 @@ task.spawn(function()
                 local data = targets[i]
                 local mob = data.instance
                 
-                -- Anti-Waste Logic
+                -- Anti-Waste Logic: Bloqueia mobs com hitbox bugada pelo servidor após 4 falhas
                 if healthHistory[mob] and healthHistory[mob] <= data.hum.Health then
                     failCount[mob] = (failCount[mob] or 0) + 1
-                    if failCount[mob] >= 5 then mobBlacklist[mob] = true end
+                    if failCount[mob] >= 4 then mobBlacklist[mob] = true end
                 else
                     failCount[mob] = 0
                 end
                 healthHistory[mob] = data.hum.Health
 
-                -- Disparo na Cabeça
+                -- Argumentos originais de disparo
                 local args = {
                     [1] = root.Position,
                     [2] = {
@@ -101,17 +129,17 @@ task.spawn(function()
                 }
                 shootEvent:FireServer(unpack(args))
                 
-                -- Se o modo de ciclo estiver ativo, ele processa um por um rapidamente
+                -- Micro-delay no ciclo experimental para não bugar a fila de pacotes
                 if EXP_CycleKill then task.wait(0.01) end 
             end
             task.wait(waitTime)
         else
-            task.wait(0.5)
+            task.wait(0.5) -- Pausa maior se o jogador desequipar a arma
         end
     end
 end)
 
--- Comandos e Limpeza
+-- Comandos e Limpeza de Memória
 player.Chatted:Connect(function(msg) 
     if msg == "1" then 
         EXP_CycleKill = not EXP_CycleKill 
@@ -120,9 +148,9 @@ end)
 
 task.spawn(function() 
     while true do 
-        task.wait(4) 
+        task.wait(5) 
         mobBlacklist = {} 
         failCount = {} 
-        healthHistory = {} -- Limpa histórico para evitar cache pesado
+        healthHistory = {}
     end 
 end)
