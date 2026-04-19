@@ -1,7 +1,7 @@
 --[[
     NAME: Zombies Auto Kill
-    VERSION: 4.2.0
-    STATUS: Fixed Concatenation Error
+    VERSION: 5.0.0
+    STATUS: Aura Priority & Target Cycling
 ]]
 
 local Players = game:GetService("Players")
@@ -11,55 +11,50 @@ local camera = workspace.CurrentCamera
 
 local mobBlacklist = {} 
 local healthHistory = {} 
-local failCount = {} -- Tabela separada para evitar erro de concatenação
-local EXP_PanicMode = false 
+local failCount = {} 
+local EXP_CycleKill = false -- Função Experimental 1
 
--- 1. Visibilidade Flexível
-local function isStrictlyVisible(mob)
-    local char = player.Character
+-- 1. Visibilidade e Filtro de Distância (300 studs)
+local function getValidTargetData(mob, rootPos)
     local head = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
-    if not char or not head then return false end
-
-    local rayParams = RaycastParams.new()
-    rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    rayParams.FilterDescendantsInstances = {char, camera, mob}
-    rayParams.IgnoreWater = true
+    local hum = mob:FindFirstChildOfClass("Humanoid")
     
-    local origin = camera.CFrame.Position
-    local direction = (head.Position - origin)
-    local result = workspace:Raycast(origin, direction, rayParams)
-
-    if result then
-        if result.Instance.CanCollide == false or result.Instance.Transparency > 0.7 then
-            return true
+    if head and hum and hum.Health > 0 and not Players:GetPlayerFromCharacter(mob) then
+        local dist = (rootPos - head.Position).Magnitude
+        if dist <= 300 then -- Limite de 300 studs
+            -- Raycast para verificar obstrução
+            local rayParams = RaycastParams.new()
+            rayParams.FilterType = Enum.RaycastFilterType.Exclude
+            rayParams.FilterDescendantsInstances = {player.Character, camera, mob}
+            
+            local result = workspace:Raycast(camera.CFrame.Position, (head.Position - camera.CFrame.Position), rayParams)
+            
+            -- Se não houver nada sólido ou for transparente/sem colisão
+            if not result or result.Instance.CanCollide == false or result.Instance.Transparency > 0.7 then
+                return {instance = mob, distance = dist, head = head, hum = hum}
+            end
         end
-        return false 
     end
-    return true 
+    return nil
 end
 
--- 2. Régua de Proximidade
-local function getPrioritizedTargets()
+-- 2. Gerenciador de Alvos (Prioridade Estilo Régua/Aura)
+local function getSortedTargets()
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root or not mobFolder then return {} end
 
-    local validMobs = {}
+    local targets = {}
     for _, mob in ipairs(mobFolder:GetChildren()) do
-        local mRoot = mob:FindFirstChild("HumanoidRootPart")
-        local mHum = mob:FindFirstChildOfClass("Humanoid")
-        
-        if mRoot and mHum and mHum.Health > 0 and not Players:GetPlayerFromCharacter(mob) then
-            if not mobBlacklist[mob] then
-                local dist = (root.Position - mRoot.Position).Magnitude
-                if isStrictlyVisible(mob) then
-                    table.insert(validMobs, {instance = mob, distance = dist})
-                end
-            end
+        if not mobBlacklist[mob] then
+            local data = getValidTargetData(mob, root.Position)
+            if data then table.insert(targets, data) end
         end
     end
-    table.sort(validMobs, function(a, b) return a.distance < b.distance end)
-    return validMobs
+
+    -- Ordena do mais perto para o mais longe
+    table.sort(targets, function(a, b) return a.distance < b.distance end)
+    return targets
 end
 
 -- 3. Loop Principal
@@ -71,46 +66,43 @@ task.spawn(function()
         local shootEvent = tool and (tool:FindFirstChild("Shoot") or tool:FindFirstChild("Fire"))
 
         if char and root and shootEvent then
-            local prioritizedList = getPrioritizedTargets()
+            local targets = getSortedTargets()
             
-            -- Panic Mode Check (Comando 1)
-            local isPanicking = false
-            if EXP_PanicMode and #prioritizedList > 0 and prioritizedList[1].distance <= 15 then
-                isPanicking = true
-            end
+            -- Alerta de Proximidade (Panic Mode Automático em 50 studs)
+            local isPanic = #targets > 0 and targets[1].distance <= 50
+            
+            -- Se EXP_CycleKill estiver ON, ele dá apenas 1 tiro por mob e pula pro próximo
+            -- Se estiver OFF, ele tenta focar nos 10 mais próximos simultaneamente
+            local limit = EXP_CycleKill and #targets or (isPanic and 12 or 10)
+            local waitTime = isPanic and 0.05 or 0.1
 
-            local maxTargets = isPanicking and 6 or 3
-            local waitTime = isPanicking and 0.07 or 0.12
+            for i = 1, math.min(#targets, limit) do
+                local data = targets[i]
+                local mob = data.instance
+                
+                -- Anti-Waste Logic
+                if healthHistory[mob] and healthHistory[mob] <= data.hum.Health then
+                    failCount[mob] = (failCount[mob] or 0) + 1
+                    if failCount[mob] >= 5 then mobBlacklist[mob] = true end
+                else
+                    failCount[mob] = 0
+                end
+                healthHistory[mob] = data.hum.Health
 
-            for i = 1, math.min(#prioritizedList, maxTargets) do
-                local target = prioritizedList[i].instance
-                local head = target:FindFirstChild("Head") or target:FindFirstChild("HumanoidRootPart")
-                local hum = target:FindFirstChildOfClass("Humanoid")
-
-                if head and hum then
-                    -- Anti-Waste Logic (Consertado)
-                    if healthHistory[target] and healthHistory[target] <= hum.Health then
-                        failCount[target] = (failCount[target] or 0) + 1
-                        if failCount[target] >= 5 then 
-                            mobBlacklist[target] = true 
-                        end
-                    else
-                        failCount[target] = 0
-                    end
-                    healthHistory[target] = hum.Health
-
-                    -- Fire
-                    local args = {
-                        [1] = root.Position,
-                        [2] = {
-                            [1] = {
-                                ["Target"] = head.Position,
-                                ["HitData"] = {{["HitChar"] = target, ["HitPos"] = head.Position, ["HitPart"] = head}}
-                            }
+                -- Disparo na Cabeça
+                local args = {
+                    [1] = root.Position,
+                    [2] = {
+                        [1] = {
+                            ["Target"] = data.head.Position,
+                            ["HitData"] = {{["HitChar"] = mob, ["HitPos"] = data.head.Position, ["HitPart"] = data.head}}
                         }
                     }
-                    shootEvent:FireServer(unpack(args))
-                end
+                }
+                shootEvent:FireServer(unpack(args))
+                
+                -- Se o modo de ciclo estiver ativo, ele processa um por um rapidamente
+                if EXP_CycleKill then task.wait(0.01) end 
             end
             task.wait(waitTime)
         else
@@ -120,11 +112,17 @@ task.spawn(function()
 end)
 
 -- Comandos e Limpeza
-player.Chatted:Connect(function(msg) if msg == "1" then EXP_PanicMode = not EXP_PanicMode end end)
+player.Chatted:Connect(function(msg) 
+    if msg == "1" then 
+        EXP_CycleKill = not EXP_CycleKill 
+    end 
+end)
+
 task.spawn(function() 
     while true do 
         task.wait(4) 
         mobBlacklist = {} 
-        failCount = {} -- Limpa os contadores de falha
+        failCount = {} 
+        healthHistory = {} -- Limpa histórico para evitar cache pesado
     end 
 end)
