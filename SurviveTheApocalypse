@@ -1,143 +1,196 @@
 --[[
-    NAME: Zombies Auto Kill
-    VERSION: 8.0.0
-    STATUS: Priority Fix & NPC/Player Filter
+    NAME: Aim Kill Base (Zero Point)
+    VERSION: 0.1
+    STATUS: Rebuilt from scratch. Single Target Focus, Cycle System & Magnet Tech.
 ]]
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
-local mobFolder = workspace:FindFirstChild("Characters") or workspace:FindFirstChild("Zombies")
+local mobFolder = workspace:FindFirstChild("Characters") or workspace:FindFirstChild("Zombies") or workspace:FindFirstChild("NPCs")
 
-local SETTINGS = {
-    MaxDistance = 300,
-    MaxTargets = 10,
-    PanicDistance = 50,
-    FailLimit = 5
-}
+-- Toggles (Comandos de Chat)
+local TOGGLE_CYCLE = false   -- Comando "1"
+local TOGGLE_MAGNET = false  -- Comando "2"
 
-local blacklist = {}
-local healthCache = {}
-local failStats = {}
+local hitCounts = {} -- Registra quantos tiros cada mob levou no modo Cycle
 
--- 1. Filtro de Visibilidade Estrito (Head Only)
-local function isHeadVisible(mob, head)
-    local char = player.Character
-    if not char or not head then return false end
+---------------------------------------------------------
+-- 1. FILTRO DE ALVOS (IGNORA PLAYERS E MERCHANTS)
+---------------------------------------------------------
+local function isValidMob(mob)
+    if not mob then return false end
+    if Players:GetPlayerFromCharacter(mob) then return false end
+    if mob.Name:lower():find("merchant") then return false end
+    
+    local hum = mob:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    
+    return true
+end
 
+---------------------------------------------------------
+-- 2. NOVA DETECÇÃO DE VISIBILIDADE (RAYCAST LIMPO)
+---------------------------------------------------------
+local function isVisible(targetPart)
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    rayParams.FilterDescendantsInstances = {char, camera, mobFolder}
+    -- Ignora tudo que for do jogador, a câmera e TODOS os mobs (para não bloquearem a visão uns dos outros)
+    rayParams.FilterDescendantsInstances = {player.Character, camera, mobFolder}
     rayParams.IgnoreWater = true
 
     local origin = camera.CFrame.Position
-    local result = workspace:Raycast(origin, (head.Position - origin), rayParams)
-
+    local direction = targetPart.Position - origin
+    
+    local result = workspace:Raycast(origin, direction, rayParams)
+    
+    -- Se result for nil, significa que não bateu em nenhuma parede.
     return result == nil
 end
 
--- 2. Coleta e Ordenação (Aura por Proximidade)
-local function getSortedAura()
+---------------------------------------------------------
+-- 3. TECNOLOGIA MAGNET MOB (PUXA PARA FORA DA PAREDE)
+---------------------------------------------------------
+local function applyMagnet(mob)
+    local root = mob:FindFirstChild("HumanoidRootPart")
+    local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    
+    if root and myRoot then
+        -- Calcula a direção da parede/mob até você e puxa ele 5 studs na sua direção
+        local directionToMe = (myRoot.Position - root.Position).Unit
+        root.CFrame = root.CFrame + (directionToMe * 5)
+    end
+end
+
+---------------------------------------------------------
+-- 4. AURA DE SELEÇÃO E ORDENAÇÃO (O CÉREBRO)
+---------------------------------------------------------
+local function getBestSingleTarget()
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root or not mobFolder then return {} end
+    if not root or not mobFolder then return nil end
 
-    local targets = {}
-    local myPos = root.Position
+    local bestMob = nil
+    local bestScore = math.huge -- Quanto menor o score, maior a prioridade
 
     for _, mob in ipairs(mobFolder:GetChildren()) do
-        -- Filtros Obrigatórios: Ignora Players e Mercadores
-        if Players:GetPlayerFromCharacter(mob) then continue end
-        if mob.Name:lower():find("merchant") then continue end
-        
-        local hum = mob:FindFirstChildOfClass("Humanoid")
-        local head = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
+        if isValidMob(mob) then
+            local head = mob:FindFirstChild("Head") or mob:FindFirstChild("HumanoidRootPart")
+            local dist = (head.Position - root.Position).Magnitude
 
-        if hum and hum.Health > 0 and head and not blacklist[mob] then
-            local dist = (myPos - head.Position).Magnitude
-            
-            if dist <= SETTINGS.MaxDistance then
-                -- Só adiciona à lista se a cabeça estiver visível
-                if isHeadVisible(mob, head) then
-                    table.insert(targets, {
-                        instance = mob,
-                        head = head,
-                        hum = hum,
-                        dist = dist
-                    })
+            -- Aura de 200 metros (studs)
+            if dist <= 200 then
+                local vis = isVisible(head)
+
+                -- Se não estiver visível e o Magnet estiver ON, tenta puxar ele
+                if not vis and TOGGLE_MAGNET then
+                    applyMagnet(mob)
+                    -- Não atira na mesma hora, deixa a física atualizar para o próximo tick
+                end
+
+                if vis then
+                    local mobHitCount = hitCounts[mob] or 0
+                    local hum = mob:FindFirstChildOfClass("Humanoid")
+                    local score = 0
+
+                    if TOGGLE_CYCLE then
+                        -- SISTEMA DE CICLO (1 Tiro por vez)
+                        -- Multiplicador gigante para quem já tomou tiro ir para o fim da fila
+                        score = mobHitCount * 10000 
+                        
+                        if mobHitCount == 0 then
+                            score = score + dist -- Se ninguém tomou tiro, foca no mais perto
+                        else
+                            score = score + hum.Health -- Se todos já tomaram, foca no que tem menos vida
+                        end
+                    else
+                        -- SISTEMA PADRÃO (Foco total no mais perto até morrer)
+                        score = dist
+                    end
+
+                    -- Tie-breaker: Salva o menor score
+                    if score < bestScore then
+                        bestScore = score
+                        bestMob = {instance = mob, head = head}
+                    end
                 end
             end
         end
     end
 
-    -- Ordenação: O mais perto de VOCÊ vira o primeiro da lista
-    table.sort(targets, function(a, b)
-        return a.dist < b.dist
-    end)
-
-    return targets
+    return bestMob
 end
 
--- 3. Motor de Disparo
+---------------------------------------------------------
+-- 5. LOOP DE COMBATE E SEGURANÇA
+---------------------------------------------------------
 task.spawn(function()
     while true do
         local char = player.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
         local tool = char and char:FindFirstChildOfClass("Tool")
-        local shootEvent = tool and (tool:FindFirstChild("Shoot") or tool:FindFirstChild("Fire"))
+        
+        -- SISTEMA DE SEGURANÇA: Se não tiver arma na mão, o código dorme e não faz nada
+        if char and tool then
+            local shootEvent = tool:FindFirstChild("Shoot") or tool:FindFirstChild("Fire")
+            local root = char:FindFirstChild("HumanoidRootPart")
 
-        if char and root and shootEvent then
-            local auraList = getSortedAura()
-            
-            if #auraList > 0 then
-                -- Se o primeiro da lista (o mais perto) estiver a 50 studs, entra em Pânico
-                local nearestDist = auraList[1].dist
-                local isPanic = nearestDist <= SETTINGS.PanicDistance
-                
-                local maxToKill = isPanic and 12 or 10
-                local waitTime = isPanic and 0.05 or 0.12
+            if shootEvent and root then
+                local targetData = getBestSingleTarget()
 
-                for i = 1, math.min(#auraList, maxToKill) do
-                    local targetData = auraList[i]
+                if targetData then
                     local mob = targetData.instance
-                    
-                    -- Anti-Waste
-                    if healthCache[mob] and healthCache[mob] <= targetData.hum.Health then
-                        failStats[mob] = (failStats[mob] or 0) + 1
-                        if failStats[mob] >= SETTINGS.FailLimit then blacklist[mob] = true end
-                    else
-                        failStats[mob] = 0
-                    end
-                    healthCache[mob] = targetData.hum.Health
+                    local head = targetData.head
 
-                    -- Remote Call
+                    -- Dispara
                     shootEvent:FireServer(root.Position, {
                         [1] = {
-                            ["Target"] = targetData.head.Position,
+                            ["Target"] = head.Position,
                             ["HitData"] = {{
                                 ["HitChar"] = mob, 
-                                ["HitPos"] = targetData.head.Position, 
-                                ["HitPart"] = targetData.head
+                                ["HitPos"] = head.Position, 
+                                ["HitPart"] = head
                             }}
                         }
                     })
+
+                    -- Registra o hit para o sistema de Ciclo funcionar
+                    hitCounts[mob] = (hitCounts[mob] or 0) + 1
+                    
+                    -- Sem delay inútil. Usa a menor fração possível para trocar de alvo instantaneamente se o atual morrer.
+                    task.wait(0.05) 
+                else
+                    task.wait(0.1) -- Procura alvos a cada 0.1s se não achar ninguém
                 end
-                task.wait(waitTime)
             else
-                task.wait(0.2)
+                task.wait(0.5) -- Arma na mão, mas sem o evento de atirar
             end
         else
-            task.wait(0.5)
+            task.wait(0.5) -- Sem arma equipada, descansa a CPU
         end
     end
 end)
 
--- Reset de Cache
+---------------------------------------------------------
+-- 6. CONTROLES E LIMPEZA DE MEMÓRIA
+---------------------------------------------------------
+player.Chatted:Connect(function(msg)
+    if msg == "1" then
+        TOGGLE_CYCLE = not TOGGLE_CYCLE
+        hitCounts = {} -- Reseta o ciclo ao ligar/desligar
+    elseif msg == "2" then
+        TOGGLE_MAGNET = not TOGGLE_MAGNET
+    end
+end)
+
+-- Limpa a tabela de hits de mobs que já morreram para não vazar memória
 task.spawn(function()
     while true do
-        task.wait(4)
-        blacklist = {}
-        failStats = {}
-        healthCache = {}
+        task.wait(5)
+        for mob, _ in pairs(hitCounts) do
+            if not mob or not mob.Parent or not mob:FindFirstChild("Humanoid") or mob.Humanoid.Health <= 0 then
+                hitCounts[mob] = nil
+            end
+        end
     end
 end)
