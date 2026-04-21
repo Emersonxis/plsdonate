@@ -15,7 +15,7 @@ local mobFolder = workspace:FindFirstChild("Characters") or workspace:FindFirstC
 local CONFIG = {
     MaxAura = 200,            
     OneShotMode = true,       
-    MagnetEnabled = true,     
+    MagnetEnabled = false,     
     MagnetPower = 1.5,        
     AntiWasteHits = 3         
 }
