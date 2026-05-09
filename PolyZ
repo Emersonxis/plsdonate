@@ -50,6 +50,85 @@ task.spawn(function()
     end
 end)
 
+-- ==========================================
+-- NOVAS FUNÇÕES ADICIONADAS (WAVE SAFE & CRATE)
+-- ==========================================
+
+local waveSafeEnabled = false
+local savedPos = nil
+local isSafe = false
+local lastWave = -1
+
+CombatTab:CreateToggle({
+    Name = "🛡️ Auto Safe Wave (Múlt. 10)",
+    CurrentValue = false,
+    Flag = "WaveSafeToggle",
+    Callback = function(state)
+        waveSafeEnabled = state
+        if state then
+            task.spawn(function()
+                while waveSafeEnabled do
+                    local char = player.Character
+                    local root = char and char:FindFirstChild("HumanoidRootPart")
+                    local gui = player:FindFirstChild("PlayerGui")
+                    local label = gui and gui:FindFirstChild("HUD") and gui.HUD:FindFirstChild("Wave") and gui.HUD.Wave:FindFirstChild("Label")
+                    
+                    if root and label then
+                        local waveNum = tonumber(label.ContentText:match("%d+"))
+                        if waveNum then
+                            -- Se for múltiplo de 10 e não estiver safe
+                            if waveNum % 10 == 0 and not isSafe then
+                                savedPos = root.CFrame
+                                root.CFrame = CFrame.new(139, 5, 66)
+                                isSafe = true
+                                lastWave = waveNum
+                            -- Se for a próxima wave e estiver safe, volta
+                            elseif isSafe and waveNum == (lastWave + 1) then
+                                if savedPos then
+                                    root.CFrame = savedPos
+                                end
+                                isSafe = false
+                            end
+                        end
+                    end
+                    task.wait(1)
+                end
+            end)
+        else
+            isSafe = false -- Reset se desligar
+        end
+    end
+})
+
+local autoCrateLift = false
+CombatTab:CreateToggle({
+    Name = "📦 WeaponCrate +10 Studs",
+    CurrentValue = false,
+    Flag = "CrateLiftToggle",
+    Callback = function(state)
+        autoCrateLift = state
+        if state then
+            task.spawn(function()
+                while autoCrateLift do
+                    local crate = workspace:FindFirstChild("Interactable") and workspace.Interactable:FindFirstChild("WeaponCrate")
+                    if crate then
+                        if crate:IsA("Model") then
+                            crate:PivotTo(crate:GetPivot() + Vector3.new(0, 10, 0))
+                        else
+                            crate.CFrame = crate.CFrame + Vector3.new(0, 10, 0)
+                        end
+                    end
+                    task.wait(2) -- Espera 2 segundos antes de tentar subir de novo (evita que a caixa suma no céu)
+                end
+            end)
+        end
+    end
+})
+
+-- ==========================================
+-- FIM DAS NOVAS FUNÇÕES
+-- ==========================================
+
 -- Auto Headshots
 local autoKill = false
 local shootDelay = 0.1
@@ -351,6 +430,208 @@ OpenTab:CreateToggle({
 })
 
 -- 🐾 Pet Crates
+local autoOpenPet = false
+OpenTab:CreateToggle({
+    Name = "🐾 Pet Crates",
+    CurrentValue = false,
+    Callback = function(state)
+        autoOpenPet = state
+        if state then
+            task.spawn(function()
+                while autoOpenPet do
+                    pcall(function()
+                        for i = 1, selectedQuantity do
+                            ReplicatedStorage.Remotes.OpenPetCrate:InvokeServer(1)
+                            task.wait(0.1)
+                        end
+                    end)
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end
+})
+
+-- 🔫 Weapon Crates
+local autoOpenGun = false
+OpenTab:CreateToggle({
+    Name = "🔫 Weapon Crates",
+    CurrentValue = false,
+    Callback = function(state)
+        autoOpenGun = state
+        if state then
+            task.spawn(function()
+                while autoOpenGun do
+                    pcall(function()
+                        for i = 1, selectedQuantity do
+                            ReplicatedStorage.Remotes.OpenGunCrate:InvokeServer(1)
+                            task.wait(0.1)
+                        end
+                    end)
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end
+})
+
+
+-- Mod Tab
+local ModTab = Window:CreateTab("🌀 Mods", "Skull")
+
+-- ⬇ Змінні оголошуються глобально (всередині скрипта, але поза функціями)
+local spinning = false
+local angle = 0
+local speed = 5      -- ✅ глобально
+local radius = 15    -- ✅ глобально
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local HRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+
+player.CharacterAdded:Connect(function(char)
+    HRP = char:WaitForChild("HumanoidRootPart")
+end)
+
+-- 🔁 Головне коло
+RunService.RenderStepped:Connect(function(dt)
+    if spinning and HRP then
+        local function findNearestBoss()
+            local bosses = {
+                workspace.Enemies:FindFirstChild("GoblinKing"),
+                workspace.Enemies:FindFirstChild("CaptainBoom"),
+                workspace.Enemies:FindFirstChild("Fungarth")
+            }
+
+            local nearestBoss = nil
+            local shortestDistance = math.huge
+
+            for _, boss in pairs(bosses) do
+                if boss and boss:FindFirstChild("Head") then
+                    local distance = (boss.Head.Position - HRP.Position).Magnitude
+                    if distance < shortestDistance then
+                        shortestDistance = distance
+                        nearestBoss = boss
+                    end
+                end
+            end
+            return nearestBoss
+        end
+
+        local boss = findNearestBoss()
+        if boss and boss:FindFirstChild("Head") then
+            angle += dt * speed  -- ✅ використовує глобальну змінну
+            local bossPos = boss.Head.Position
+            local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * radius -- ✅ радіус
+            local orbitPos = bossPos + offset
+            HRP.CFrame = CFrame.new(Vector3.new(orbitPos.X, bossPos.Y, orbitPos.Z), bossPos)
+        end
+    end
+end)
+
+-- 🔘 Кнопка в меню
+ModTab:CreateToggle({
+    Name = "🌪️ Orbit Around Boss",
+    CurrentValue = false,
+    Callback = function(value)
+        spinning = value
+    end
+})
+
+-- ⚙️ Слайдер швидкості
+ModTab:CreateSlider({
+    Name = "⚡ Rotation Speed",
+    Range = {1, 20},
+    Increment = 0.1,
+    Suffix = "x",
+    CurrentValue = 5,
+    Callback = function(val)
+        speed = val   -- ✅ оновлює глобальну змінну
+    end
+})
+
+-- 📏 Слайдер радіуса
+ModTab:CreateSlider({
+    Name = "📏 Orbit Radius",
+    Range = {5, 100},
+    Increment = 1,
+    Suffix = "units",
+    CurrentValue = 15,
+    Callback = function(val)
+        radius = val  -- ✅ оновлює глобальну змінну
+    end
+})
+
+
+ModTab:CreateButton({
+    Name = "🛸 TP & Smart Platform",
+    Callback = function()
+        local Players = game:GetService("Players")
+        local RunService = game:GetService("RunService")
+        local player = Players.LocalPlayer
+        local HRP = player.Character and player.Character:WaitForChild("HumanoidRootPart")
+
+        if not HRP then
+            warn("❌ HumanoidRootPart не знайдено")
+            return
+        end
+
+        local currentPos = HRP.Position
+        local targetPos = currentPos + Vector3.new(0, 60, 0)
+
+        -- 🧱 Створюємо платформу
+        local platform = Instance.new("Part")
+        platform.Size = Vector3.new(20, 1, 20)
+        platform.Anchored = true
+        platform.Position = targetPos - Vector3.new(0, 2, 0)
+        platform.Color = Color3.fromRGB(120, 120, 120)
+        platform.Material = Enum.Material.Metal
+        platform.Name = "SmartPlatform"
+        platform.Parent = workspace
+
+        -- ⏫ Телепорт гравця трохи вище платформи
+        HRP.CFrame = CFrame.new(targetPos + Vector3.new(0, 2, 0))
+
+        -- ⏱️ Таймер самознищення, коли гравець сходить
+        local isStanding = true
+        local lastTouch = tick()
+
+        -- Перевірка кожен кадр
+        local conn
+        conn = RunService.RenderStepped:Connect(function()
+            if not platform or not platform.Parent then
+                conn:Disconnect()
+                return
+            end
+
+            local char = player.Character
+            local humanoidRoot = char and char:FindFirstChild("HumanoidRootPart")
+            if not humanoidRoot then return end
+
+            local rayOrigin = humanoidRoot.Position
+            local rayDirection = Vector3.new(0, -5, 0)
+            local raycastParams = RaycastParams.new()
+            raycastParams.FilterDescendantsInstances = {char}
+            raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+            local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+            if raycastResult and raycastResult.Instance == platform then
+                -- Гравець стоїть на платформі
+                lastTouch = tick()
+            end
+
+            -- Якщо пройшло більше 10 секунд після того, як гравець стояв — видалити
+            if tick() - lastTouch > 10 then
+                platform:Destroy()
+                conn:Disconnect()
+            end
+        end)
+    end
+})
+
+-- Load config
+Rayfield:LoadConfiguration()et Crates
 local autoOpenPet = false
 OpenTab:CreateToggle({
     Name = "🐾 Pet Crates",
