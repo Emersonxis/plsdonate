@@ -131,7 +131,7 @@ CombatTab:CreateToggle({
 
 -- Auto Headshots
 local autoKill = false
-local shootDelay = 0.1
+local shootDelay = 0.3
 
 -- Text input for shot delay
 CombatTab:CreateInput({
