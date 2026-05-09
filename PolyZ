@@ -1,3 +1,17 @@
+-- // Proteção Anti-Kick Local // --
+local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
+if setreadonly then setreadonly(mt, false) end
+
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    if tostring(method) == "Kick" or tostring(method) == "kick" then
+        return nil
+    end
+    return oldNamecall(self, ...)
+end)
+if setreadonly then setreadonly(mt, true) end
+
 -- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,7 +27,7 @@ local Window = Rayfield:CreateWindow({
     Name = "✨ LimerHub ✨ | POLY-Z",
     Icon = 71338090068856,
     LoadingTitle = "Loading...",
-    LoadingSubtitle = "Author: LimerBoy",
+    LoadingSubtitle = "Author: LimerBoy x FrancesS",
     Theme = "BlackWhite",
     ToggleUIKeybind = Enum.KeyCode.K,
     ConfigurationSaving = {
@@ -50,88 +64,9 @@ task.spawn(function()
     end
 end)
 
--- ==========================================
--- NOVAS FUNÇÕES (CORRIGIDAS PARA O PADRÃO ORIGINAL)
--- ==========================================
-
-local waveSafeEnabled = false
-local savedPos = nil
-local isSafe = false
-local lastWave = -1
-
-CombatTab:CreateToggle({
-    Name = "🛡️ Auto Safe Wave (Múlt. 10)",
-    CurrentValue = false,
-    Flag = "WaveSafeToggle",
-    Callback = function(state)
-        waveSafeEnabled = state
-        if state then
-            task.spawn(function()
-                while waveSafeEnabled do
-                    pcall(function()
-                        local char = player.Character
-                        local root = char and char:FindFirstChild("HumanoidRootPart")
-                        local gui = player:FindFirstChild("PlayerGui")
-                        local label = gui and gui.HUD.Wave.Label
-                        
-                        if root and label then
-                            local waveNum = tonumber(label.ContentText:match("%d+"))
-                            if waveNum then
-                                if waveNum % 10 == 0 and not isSafe then
-                                    savedPos = root.CFrame
-                                    root.CFrame = CFrame.new(139, 5, 66)
-                                    isSafe = true
-                                    lastWave = waveNum
-                                elseif isSafe and waveNum == (lastWave + 1) then
-                                    if savedPos then root.CFrame = savedPos end
-                                    isSafe = false
-                                end
-                            end
-                        end
-                    end)
-                    task.wait(1)
-                end
-            end)
-        else
-            isSafe = false
-        end
-    end
-})
-
-local autoCrateLift = false
-CombatTab:CreateToggle({
-    Name = "📦 WeaponCrate +10 Studs",
-    CurrentValue = false,
-    Flag = "CrateLiftToggle",
-    Callback = function(state)
-        autoCrateLift = state
-        if state then
-            task.spawn(function()
-                while autoCrateLift do
-                    pcall(function()
-                        local crate = workspace.Interactable:FindFirstChild("WeaponCrate")
-                        if crate then
-                            if crate:IsA("Model") then
-                                crate:PivotTo(crate:GetPivot() + Vector3.new(0, 10, 0))
-                            else
-                                crate.CFrame = crate.CFrame + Vector3.new(0, 10, 0)
-                            end
-                        end
-                    end)
-                    task.wait(2)
-                end
-            end)
-        end
-    end
-})
-
--- ==========================================
--- RESTO DO CÓDIGO ORIGINAL (MANTIDO)
--- ==========================================
-
 -- Auto Headshots
 local autoKill = false
-local shootDelay = 0.3
+local shootDelay = 0.1
 
 -- Text input for shot delay
 CombatTab:CreateInput({
@@ -170,18 +105,35 @@ CombatTab:CreateToggle({
                 while autoKill do
                     local enemies = workspace:FindFirstChild("Enemies")
                     local shootRemote = Remotes:FindFirstChild("ShootEnemy")
+                    
                     if enemies and shootRemote then
                         local weapon = getEquippedWeaponName()
+                        
                         for _, zombie in pairs(enemies:GetChildren()) do
+                            if not autoKill then break end
+                            
                             if zombie:IsA("Model") then
                                 local head = zombie:FindFirstChild("Head")
-                                if head then
-                                    local args = {zombie, head, head.Position, 0.5, weapon}
-                                    pcall(function() shootRemote:FireServer(unpack(args)) end)
+                                local humanoid = zombie:FindFirstChildOfClass("Humanoid")
+                                
+                                if head and humanoid and humanoid.Health > 0 then
+                                    -- SISTEMA DE TEMPO (2 SEGUNDOS)
+                                    -- Marca a hora exata que o script encontrou esse zumbi
+                                    if not zombie:GetAttribute("HoraDoSpawn") then
+                                        zombie:SetAttribute("HoraDoSpawn", tick())
+                                    end
+                                    
+                                    -- Só ataca se a diferença entre a hora atual e a hora do spawn for >= 2 segundos
+                                    if tick() - zombie:GetAttribute("HoraDoSpawn") >= 2 then
+                                        local args = {zombie, head, head.Position, 0.5, weapon}
+                                        pcall(function() shootRemote:FireServer(unpack(args)) end)
+                                    end
                                 end
                             end
                         end
                     end
+                    
+                    -- Voltou a usar APENAS o delay do slider
                     task.wait(shootDelay)
                 end
             end)
@@ -353,8 +305,9 @@ MiscTab:CreateButton({
 -- Open Tab
 local OpenTab = Window:CreateTab("🎁 Crates", "Gift")
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local selectedQuantity = 1
-local selectedOutfitType = "Random"
+local selectedOutfitType = "Random" 
 
 OpenTab:CreateDropdown({
     Name = "🔢 Open Quantity",
@@ -474,10 +427,14 @@ local ModTab = Window:CreateTab("🌀 Mods", "Skull")
 
 local spinning = false
 local angle = 0
-local speed = 5
-local radius = 15
+local speed = 5      
+local radius = 15    
 
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
 local HRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+
 player.CharacterAdded:Connect(function(char)
     HRP = char:WaitForChild("HumanoidRootPart")
 end)
@@ -490,8 +447,10 @@ RunService.RenderStepped:Connect(function(dt)
                 workspace.Enemies:FindFirstChild("CaptainBoom"),
                 workspace.Enemies:FindFirstChild("Fungarth")
             }
+
             local nearestBoss = nil
             local shortestDistance = math.huge
+
             for _, boss in pairs(bosses) do
                 if boss and boss:FindFirstChild("Head") then
                     local distance = (boss.Head.Position - HRP.Position).Magnitude
@@ -506,9 +465,9 @@ RunService.RenderStepped:Connect(function(dt)
 
         local boss = findNearestBoss()
         if boss and boss:FindFirstChild("Head") then
-            angle += dt * speed
+            angle += dt * speed  
             local bossPos = boss.Head.Position
-            local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * radius
+            local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * radius 
             local orbitPos = bossPos + offset
             HRP.CFrame = CFrame.new(Vector3.new(orbitPos.X, bossPos.Y, orbitPos.Z), bossPos)
         end
@@ -530,7 +489,7 @@ ModTab:CreateSlider({
     Suffix = "x",
     CurrentValue = 5,
     Callback = function(val)
-        speed = val
+        speed = val   
     end
 })
 
@@ -541,31 +500,62 @@ ModTab:CreateSlider({
     Suffix = "units",
     CurrentValue = 15,
     Callback = function(val)
-        radius = val
+        radius = val  
     end
 })
 
 ModTab:CreateButton({
     Name = "🛸 TP & Smart Platform",
     Callback = function()
+        local Players = game:GetService("Players")
+        local RunService = game:GetService("RunService")
+        local player = Players.LocalPlayer
         local HRP = player.Character and player.Character:WaitForChild("HumanoidRootPart")
-        if not HRP then return end
-        local targetPos = HRP.Position + Vector3.new(0, 60, 0)
+
+        if not HRP then
+            warn("❌ HumanoidRootPart não encontrado")
+            return
+        end
+
+        local currentPos = HRP.Position
+        local targetPos = currentPos + Vector3.new(0, 60, 0)
+
         local platform = Instance.new("Part")
         platform.Size = Vector3.new(20, 1, 20)
         platform.Anchored = true
         platform.Position = targetPos - Vector3.new(0, 2, 0)
         platform.Color = Color3.fromRGB(120, 120, 120)
+        platform.Material = Enum.Material.Metal
+        platform.Name = "SmartPlatform"
         platform.Parent = workspace
+
         HRP.CFrame = CFrame.new(targetPos + Vector3.new(0, 2, 0))
+
+        local isStanding = true
         local lastTouch = tick()
+
         local conn
         conn = RunService.RenderStepped:Connect(function()
-            if not platform or not platform.Parent then conn:Disconnect() return end
+            if not platform or not platform.Parent then
+                conn:Disconnect()
+                return
+            end
+
             local char = player.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
+            local humanoidRoot = char and char:FindFirstChild("HumanoidRootPart")
+            if not humanoidRoot then return end
+
+            local rayOrigin = humanoidRoot.Position
+            local rayDirection = Vector3.new(0, -5, 0)
+            local raycastParams = RaycastParams.new()
+            raycastParams.FilterDescendantsInstances = {char}
+            raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+            local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+            if raycastResult and raycastResult.Instance == platform then
                 lastTouch = tick()
             end
+
             if tick() - lastTouch > 10 then
                 platform:Destroy()
                 conn:Disconnect()
@@ -574,4 +564,5 @@ ModTab:CreateButton({
     end
 })
 
+-- Load config
 Rayfield:LoadConfiguration()
