@@ -8,6 +8,9 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false
 })
 
+-- ========================================================
+-- VARIÁVEIS GERAIS
+-- ========================================================
 local AutoBuyTab = Window:CreateTab("Auto Compra", 4483362458)
 local AutoSellTab = Window:CreateTab("Auto Venda", 4483362458)
 local GearTab = Window:CreateTab("Loja Gears", 4483362458)
@@ -23,10 +26,40 @@ local SelectedFertilizers = {}
 local SelectedOthers = {}
 local StockLabels = {}
 local BuyingDebounce = {}
+local SeedDebounce = {}
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks"):WaitForChild("FrancesS_WW")
 
+-- ========================================================
+-- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA (SUPORTA $, VÍRGULAS E SIGLAS)
+-- ========================================================
+local function ParseTextToNumber(text)
+    local str = string.lower(tostring(text))
+    str = string.gsub(str, "[$,]", "") -- Remove cifrões e vírgulas (Ex: $1,500,000,000 vira 1500000000)
+    
+    local numStr = string.match(str, "[%d%.]+")
+    local letter = string.match(str, "[a-z]+")
+    local num = tonumber(numStr)
+    
+    if num then
+        local multipliers = {
+            k = 1e3, m = 1e6, b = 1e9, t = 1e12, 
+            q = 1e15, qd = 1e15, qn = 1e18, 
+            sx = 1e21, sp = 1e24, o = 1e27, n = 1e30
+        }
+        
+        if letter and multipliers[letter] then
+            return num * multipliers[letter]
+        end
+        return num
+    end
+    return 0
+end
+
+-- ========================================================
+-- FUNÇÕES DE FILTRAGEM DE GEARS
+-- ========================================================
 local sprayList = {}
 local fertList = {}
 local otherList = {}
@@ -46,6 +79,9 @@ for _, gear in ipairs(GearStocks:GetChildren()) do
     end
 end
 
+-- ========================================================
+-- ABA: AUTO COMPRA (Sementes e Roll)
+-- ========================================================
 AutoBuyTab:CreateSection("Configuração de Valor")
 
 AutoBuyTab:CreateInput({
@@ -53,26 +89,7 @@ AutoBuyTab:CreateInput({
     PlaceholderText = "Ex: 1.5k, 5b, 1.9t...",
     RemoveTextAfterFocusLost = false,
     Callback = function(Text)
-        local str = string.lower(tostring(Text))
-        local numStr = string.match(str, "^[%d%.]+")
-        local letter = string.match(str, "[a-z]+$")
-        local num = tonumber(numStr)
-        
-        if num then
-            local multipliers = {
-                k = 1e3, m = 1e6, b = 1e9, t = 1e12, 
-                q = 1e15, qd = 1e15, qn = 1e18, 
-                sx = 1e21, sp = 1e24, o = 1e27, n = 1e30
-            }
-            
-            if letter and multipliers[letter] then
-                TargetPrice = num * multipliers[letter]
-            else
-                TargetPrice = num
-            end
-        else
-            TargetPrice = 0
-        end
+        TargetPrice = ParseTextToNumber(Text)
     end,
 })
 
@@ -96,6 +113,9 @@ AutoBuyTab:CreateToggle({
     end,
 })
 
+-- ========================================================
+-- ABA: AUTO VENDA
+-- ========================================================
 AutoSellTab:CreateSection("Venda de Caixas")
 
 AutoSellTab:CreateToggle({
@@ -107,6 +127,9 @@ AutoSellTab:CreateToggle({
     end,
 })
 
+-- ========================================================
+-- ABA: LOJA DE GEARS
+-- ========================================================
 GearTab:CreateSection("Seleção de Equipamentos")
 
 if #sprayList > 0 then
@@ -168,30 +191,55 @@ for _, gearName in ipairs(allGearsList) do
     StockLabels[gearName] = GearTab:CreateLabel(gearName .. " : stock 0")
 end
 
+-- ========================================================
+-- LOOPS DE AUTOMAÇÃO
+-- ========================================================
+
+-- Loop 1: Auto Buy Sementes (Totalmente Dinâmico e Recursivo)
 task.spawn(function()
-    while task.wait(0.2) do
+    while task.wait(0.3) do
         if AutoBuyEnabled and TargetPrice > 0 then
             for _, obj in ipairs(workspace:GetChildren()) do
-                local fruit = obj:FindFirstChild("Fruit")
-                if fruit then
-                    local seedGui = fruit:FindFirstChild("SeedGui")
-                    if seedGui and seedGui:FindFirstChild("Frame") and seedGui.Frame:FindFirstChild("InfoFrame") and seedGui.Frame.InfoFrame:FindFirstChild("Cost") then
-                        
-                        local costText = seedGui.Frame.InfoFrame.Cost.Text
-                        if costText == "" and seedGui.Frame.InfoFrame.Cost.ContentText ~= "" then
-                            costText = seedGui.Frame.InfoFrame.Cost.ContentText
+                -- Procura pelo SeedGui em qualquer lugar do modelo (ignora se é Fruit ou Union)
+                local seedGui = obj:FindFirstChild("SeedGui", true)
+                
+                if seedGui then
+                    local frame = seedGui:FindFirstChild("Frame")
+                    local infoFrame = frame and frame:FindFirstChild("InfoFrame")
+                    local costObj = infoFrame and infoFrame:FindFirstChild("Cost")
+                    
+                    if costObj then
+                        local costText = costObj.Text
+                        if costText == "" and costObj.ContentText ~= "" then
+                            costText = costObj.ContentText
                         end
                         
-                        local cleanStr = string.gsub(costText, "[^%d]", "")
-                        local currentPrice = tonumber(cleanStr) or 0
+                        -- Converte valores complexos como "$1,500,000,000" ou "1.5B" para números inteiros
+                        local currentPrice = ParseTextToNumber(costText)
                         
                         if currentPrice >= TargetPrice then
-                            local buyNode = fruit:FindFirstChild("BuySeed")
+                            -- Busca o nó de compra de forma flexível
+                            local buyNode = obj:FindFirstChild("BuySeed", true)
+                            local prompt = nil
+                            
                             if buyNode then
-                                local prompt = buyNode:IsA("ProximityPrompt") and buyNode or buyNode:FindFirstChildWhichIsA("ProximityPrompt")
-                                if prompt then
-                                    fireproximityprompt(prompt)
-                                end
+                                prompt = buyNode:IsA("ProximityPrompt") and buyNode or buyNode:FindFirstChildWhichIsA("ProximityPrompt")
+                            end
+                            
+                            -- Caso não exista um "BuySeed", puxa qualquer ProximityPrompt do modelo da semente
+                            if not prompt then
+                                prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            end
+                            
+                            if prompt and not SeedDebounce[prompt] then
+                                SeedDebounce[prompt] = true
+                                
+                                fireproximityprompt(prompt)
+                                
+                                -- Delay curto para não travar no mesmo item enquanto o jogo o deleta
+                                task.delay(1, function()
+                                    SeedDebounce[prompt] = nil
+                                end)
                             end
                         end
                     end
@@ -201,6 +249,7 @@ task.spawn(function()
     end
 end)
 
+-- Loop 2: Auto Roll Sementes
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait() do
@@ -210,6 +259,7 @@ task.spawn(function()
     end
 end)
 
+-- Loop 3: Auto Sell Caixas
 task.spawn(function()
     local sellRemote = Remotes:WaitForChild("SellCrates", 5)
     while task.wait(5) do
@@ -219,6 +269,7 @@ task.spawn(function()
     end
 end)
 
+-- Loop 4: Auto Gear Snipe
 task.spawn(function()
     local gearTransaction = Remotes:WaitForChild("Gear", 5):WaitForChild("Transaction", 5)
     while task.wait(0.1) do
