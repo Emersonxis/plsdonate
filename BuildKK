@@ -8,43 +8,72 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false
 })
 
+-- ========================================================
+-- VARIÁVEIS GERAIS
+-- ========================================================
 local AutoBuyTab = Window:CreateTab("Auto Compra", 4483362458)
 local GearTab = Window:CreateTab("Loja Gears", 4483362458)
 
 local AutoBuyEnabled = false
+local AutoRollEnabled = false
 local TargetPrice = 0
+
 local AutoGearEnabled = false
-local SelectedGears = {}
+local SelectedSprays = {}
+local SelectedFertilizers = {}
+local SelectedOthers = {}
 local StockLabels = {}
 local BuyingDebounce = {}
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks"):WaitForChild("FrancesS_WW")
 
-local function GetAvailableGears()
-    local list = {}
-    for _, gear in ipairs(GearStocks:GetChildren()) do
-        if gear.Name ~= "NextRestockTime" then
-            table.insert(list, gear.Name)
+-- ========================================================
+-- FUNÇÕES DE FILTRAGEM E ESTOQUE
+-- ========================================================
+local sprayList = {}
+local fertList = {}
+local otherList = {}
+local allGearsList = {}
+
+for _, gear in ipairs(GearStocks:GetChildren()) do
+    if gear.Name ~= "NextRestockTime" then
+        table.insert(allGearsList, gear.Name)
+        
+        -- Separação por tipo baseada no final do nome
+        if string.match(gear.Name, "Spray$") then
+            table.insert(sprayList, gear.Name)
+        elseif string.match(gear.Name, "Fertilizer$") then
+            table.insert(fertList, gear.Name)
+        else
+            table.insert(otherList, gear.Name)
         end
     end
-    return list
 end
 
-local gearsOrder = GetAvailableGears()
+-- ========================================================
+-- ABA: AUTO COMPRA (Sementes e Roll)
+-- ========================================================
+AutoBuyTab:CreateSection("Configuração de Valor")
 
 AutoBuyTab:CreateInput({
     Name = "Valor Mínimo para Compra",
-    PlaceholderText = "Ex: 5b, 100t...",
+    PlaceholderText = "Ex: 1.5k, 5b, 1.9t...",
     RemoveTextAfterFocusLost = false,
     Callback = function(Text)
         local str = string.lower(tostring(Text))
-        local numStr = string.match(str, "[%d%.]+")
-        local letter = string.match(str, "[a-z]+")
+        local numStr = string.match(str, "^[%d%.]+")
+        local letter = string.match(str, "[a-z]+$")
         local num = tonumber(numStr)
         
         if num then
-            local multipliers = {k = 1e3, m = 1e6, b = 1e9, t = 1e12, qd = 1e15, qn = 1e18}
+            -- Tabela expandida para números até limites absurdos
+            local multipliers = {
+                k = 1e3, m = 1e6, b = 1e9, t = 1e12, 
+                q = 1e15, qd = 1e15, qn = 1e18, 
+                sx = 1e21, sp = 1e24, o = 1e27, n = 1e30
+            }
+            
             if letter and multipliers[letter] then
                 TargetPrice = num * multipliers[letter]
             else
@@ -56,8 +85,10 @@ AutoBuyTab:CreateInput({
     end,
 })
 
+AutoBuyTab:CreateSection("Automações de Semente")
+
 AutoBuyTab:CreateToggle({
-    Name = "Ativar Auto Sementes + Roll",
+    Name = "Ativar Auto Buy Sementes",
     CurrentValue = false,
     Flag = "Toggle_AutoBuy",
     Callback = function(Value)
@@ -65,19 +96,63 @@ AutoBuyTab:CreateToggle({
     end,
 })
 
-GearTab:CreateDropdown({
-    Name = "Selecionar Gears",
-    Options = gearsOrder,
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "Dropdown_Gears",
-    Callback = function(Options)
-        SelectedGears = {}
-        for _, v in ipairs(Options) do
-            SelectedGears[v] = true
-        end
+AutoBuyTab:CreateToggle({
+    Name = "Ativar Auto Roll",
+    CurrentValue = false,
+    Flag = "Toggle_AutoRoll",
+    Callback = function(Value)
+        AutoRollEnabled = Value
     end,
 })
+
+-- ========================================================
+-- ABA: LOJA DE GEARS (Separado)
+-- ========================================================
+GearTab:CreateSection("Seleção de Equipamentos")
+
+if #sprayList > 0 then
+    GearTab:CreateDropdown({
+        Name = "Selecionar Sprays",
+        Options = sprayList,
+        CurrentOption = {},
+        MultipleOptions = true,
+        Flag = "Dropdown_Sprays",
+        Callback = function(Options)
+            SelectedSprays = {}
+            for _, v in ipairs(Options) do SelectedSprays[v] = true end
+        end,
+    })
+end
+
+if #fertList > 0 then
+    GearTab:CreateDropdown({
+        Name = "Selecionar Fertilizers",
+        Options = fertList,
+        CurrentOption = {},
+        MultipleOptions = true,
+        Flag = "Dropdown_Fertilizers",
+        Callback = function(Options)
+            SelectedFertilizers = {}
+            for _, v in ipairs(Options) do SelectedFertilizers[v] = true end
+        end,
+    })
+end
+
+if #otherList > 0 then
+    GearTab:CreateDropdown({
+        Name = "Selecionar Outros",
+        Options = otherList,
+        CurrentOption = {},
+        MultipleOptions = true,
+        Flag = "Dropdown_Others",
+        Callback = function(Options)
+            SelectedOthers = {}
+            for _, v in ipairs(Options) do SelectedOthers[v] = true end
+        end,
+    })
+end
+
+GearTab:CreateSection("Controle de Compra")
 
 GearTab:CreateToggle({
     Name = "Auto Snipe Stock",
@@ -90,10 +165,15 @@ GearTab:CreateToggle({
 
 GearTab:CreateSection("Estoque Atual")
 
-for _, gearName in ipairs(gearsOrder) do
+for _, gearName in ipairs(allGearsList) do
     StockLabels[gearName] = GearTab:CreateLabel(gearName .. " : stock 0")
 end
 
+-- ========================================================
+-- LOOPS DE AUTOMAÇÃO
+-- ========================================================
+
+-- Loop 1: Auto Buy Sementes
 task.spawn(function()
     while task.wait(0.2) do
         if AutoBuyEnabled and TargetPrice > 0 then
@@ -127,31 +207,38 @@ task.spawn(function()
     end
 end)
 
+-- Loop 2: Auto Roll Sementes
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait() do
-        if AutoBuyEnabled and rollRemote then
+        if AutoRollEnabled and rollRemote then
             rollRemote:FireServer()
         end
     end
 end)
 
+-- Loop 3: Auto Gear Snipe
 task.spawn(function()
     local gearTransaction = Remotes:WaitForChild("Gear", 5):WaitForChild("Transaction", 5)
     while task.wait(0.1) do
-        for _, gearName in ipairs(gearsOrder) do
+        for _, gearName in ipairs(allGearsList) do
             local gear = GearStocks:FindFirstChild(gearName)
             if gear then
                 local stock = gear.Value or 0
                 
+                -- Atualiza a UI em tempo real
                 if StockLabels[gearName] then
                     StockLabels[gearName]:Set(gearName .. " : stock " .. tostring(stock))
                 end
                 
-                if AutoGearEnabled and SelectedGears[gearName] and stock > 0 and not BuyingDebounce[gearName] and gearTransaction then
+                -- Verifica se o item está em alguma das listas de seleção e faz a compra
+                local isSelected = SelectedSprays[gearName] or SelectedFertilizers[gearName] or SelectedOthers[gearName]
+                
+                if AutoGearEnabled and isSelected and stock > 0 and not BuyingDebounce[gearName] and gearTransaction then
                     BuyingDebounce[gearName] = true
                     task.spawn(function()
                         gearTransaction:InvokeServer(gearName)
+                        task.wait(0.1) -- Pequeno delay para evitar sobrecarga no remote
                         BuyingDebounce[gearName] = false
                     end)
                 end
