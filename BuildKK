@@ -32,11 +32,11 @@ local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks"):WaitForChild("FrancesS_WW")
 
 -- ========================================================
--- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA (SUPORTA $, VÍRGULAS E SIGLAS)
+-- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA
 -- ========================================================
 local function ParseTextToNumber(text)
     local str = string.lower(tostring(text))
-    str = string.gsub(str, "[$,]", "") -- Remove cifrões e vírgulas (Ex: $1,500,000,000 vira 1500000000)
+    str = string.gsub(str, "[$,]", "") 
     
     local numStr = string.match(str, "[%d%.]+")
     local letter = string.match(str, "[a-z]+")
@@ -192,64 +192,74 @@ for _, gearName in ipairs(allGearsList) do
 end
 
 -- ========================================================
--- LOOPS DE AUTOMAÇÃO
+-- LOGICA DE COMPRA ULTRA-RÁPIDA (SEM DELAY)
 -- ========================================================
 
--- Loop 1: Auto Buy Sementes (Totalmente Dinâmico e Recursivo)
-task.spawn(function()
-    while task.wait(0.3) do
-        if AutoBuyEnabled and TargetPrice > 0 then
-            for _, obj in ipairs(workspace:GetChildren()) do
-                -- Procura pelo SeedGui em qualquer lugar do modelo (ignora se é Fruit ou Union)
-                local seedGui = obj:FindFirstChild("SeedGui", true)
+local function ProcessInstance(obj)
+    -- Filtro de Performance: Ignora instantaneamente itens comuns da Workspace que não são sementes
+    if not (obj:IsA("Model") or obj:IsA("Folder")) then return end
+
+    -- Verifica se o item possui o "BuySeed" na sua estrutura interna
+    local buyNode = obj:FindFirstChild("BuySeed", true)
+    if buyNode then
+        -- Se tem BuySeed, localiza o SeedGui que está no mesmo parente (Ex: Union)
+        local parentNode = buyNode.Parent
+        local seedGui = parentNode:FindFirstChild("SeedGui")
+        
+        if seedGui then
+            local frame = seedGui:FindFirstChild("Frame")
+            local infoFrame = frame and frame:FindFirstChild("InfoFrame")
+            local costObj = infoFrame and infoFrame:FindFirstChild("Cost")
+            
+            if costObj then
+                local costText = costObj.Text == "" and costObj.ContentText or costObj.Text
+                local currentPrice = ParseTextToNumber(costText)
                 
-                if seedGui then
-                    local frame = seedGui:FindFirstChild("Frame")
-                    local infoFrame = frame and frame:FindFirstChild("InfoFrame")
-                    local costObj = infoFrame and infoFrame:FindFirstChild("Cost")
+                -- Se o valor for igual ou maior que o desejado, executa a compra imediata
+                if currentPrice >= TargetPrice then
+                    local prompt = buyNode:IsA("ProximityPrompt") and buyNode or buyNode:FindFirstChildWhichIsA("ProximityPrompt")
+                    if not prompt then
+                        prompt = parentNode:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChildWhichIsA("ProximityPrompt")
+                    end
                     
-                    if costObj then
-                        local costText = costObj.Text
-                        if costText == "" and costObj.ContentText ~= "" then
-                            costText = costObj.ContentText
-                        end
+                    if prompt and not SeedDebounce[prompt] then
+                        SeedDebounce[prompt] = true
+                        fireproximityprompt(prompt)
                         
-                        -- Converte valores complexos como "$1,500,000,000" ou "1.5B" para números inteiros
-                        local currentPrice = ParseTextToNumber(costText)
-                        
-                        if currentPrice >= TargetPrice then
-                            -- Busca o nó de compra de forma flexível
-                            local buyNode = obj:FindFirstChild("BuySeed", true)
-                            local prompt = nil
-                            
-                            if buyNode then
-                                prompt = buyNode:IsA("ProximityPrompt") and buyNode or buyNode:FindFirstChildWhichIsA("ProximityPrompt")
-                            end
-                            
-                            -- Caso não exista um "BuySeed", puxa qualquer ProximityPrompt do modelo da semente
-                            if not prompt then
-                                prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                            end
-                            
-                            if prompt and not SeedDebounce[prompt] then
-                                SeedDebounce[prompt] = true
-                                
-                                fireproximityprompt(prompt)
-                                
-                                -- Delay curto para não travar no mesmo item enquanto o jogo o deleta
-                                task.delay(1, function()
-                                    SeedDebounce[prompt] = nil
-                                end)
-                            end
-                        end
+                        -- Liberação instantânea do debounce específico desse prompt após sumir
+                        task.delay(0.5, function()
+                            SeedDebounce[prompt] = nil
+                        end)
                     end
                 end
             end
         end
     end
+end
+
+-- Gatilho Instantâneo: Executa no exato milésimo de segundo que o Auto Roll gera a semente
+workspace.ChildAdded:Connect(function(child)
+    if AutoBuyEnabled and TargetPrice > 0 then
+        ProcessInstance(child)
+    end
 end)
 
--- Loop 2: Auto Roll Sementes
+-- Loop Secundário Otimizado: Apenas para garantir a varredura rápida de sementes já existentes
+task.spawn(function()
+    while task.wait(0.1) do
+        if AutoBuyEnabled and TargetPrice > 0 then
+            for _, obj in ipairs(workspace:GetChildren()) do
+                ProcessInstance(obj)
+            end
+        end
+    end
+end)
+
+-- ========================================================
+-- OUTROS LOOPS DE AUTOMAÇÃO
+-- ========================================================
+
+-- Loop: Auto Roll Sementes
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait() do
@@ -259,7 +269,7 @@ task.spawn(function()
     end
 end)
 
--- Loop 3: Auto Sell Caixas
+-- Loop: Auto Sell Caixas
 task.spawn(function()
     local sellRemote = Remotes:WaitForChild("SellCrates", 5)
     while task.wait(5) do
@@ -269,7 +279,7 @@ task.spawn(function()
     end
 end)
 
--- Loop 4: Auto Gear Snipe
+-- Loop: Auto Gear Snipe
 task.spawn(function()
     local gearTransaction = Remotes:WaitForChild("Gear", 5):WaitForChild("Transaction", 5)
     while task.wait(0.1) do
