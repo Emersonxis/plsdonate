@@ -8,10 +8,8 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false
 })
 
--- ========================================================
--- VARIÁVEIS GERAIS
--- ========================================================
 local AutoBuyTab = Window:CreateTab("Auto Compra", 4483362458)
+local AutoSellTab = Window:CreateTab("Auto Venda", 4483362458)
 local GearTab = Window:CreateTab("Loja Gears", 4483362458)
 
 local AutoBuyEnabled = false
@@ -29,9 +27,6 @@ local BuyingDebounce = {}
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks"):WaitForChild("FrancesS_WW")
 
--- ========================================================
--- FUNÇÕES DE FILTRAGEM E ESTOQUE
--- ========================================================
 local sprayList = {}
 local fertList = {}
 local otherList = {}
@@ -41,7 +36,6 @@ for _, gear in ipairs(GearStocks:GetChildren()) do
     if gear.Name ~= "NextRestockTime" then
         table.insert(allGearsList, gear.Name)
         
-        -- Separação por tipo baseada no final do nome
         if string.match(gear.Name, "Spray$") then
             table.insert(sprayList, gear.Name)
         elseif string.match(gear.Name, "Fertilizer$") then
@@ -52,9 +46,6 @@ for _, gear in ipairs(GearStocks:GetChildren()) do
     end
 end
 
--- ========================================================
--- ABA: AUTO COMPRA (Sementes, Roll e Venda)
--- ========================================================
 AutoBuyTab:CreateSection("Configuração de Valor")
 
 AutoBuyTab:CreateInput({
@@ -105,9 +96,9 @@ AutoBuyTab:CreateToggle({
     end,
 })
 
-AutoBuyTab:CreateSection("Automação de Venda")
+AutoSellTab:CreateSection("Venda de Caixas")
 
-AutoBuyTab:CreateToggle({
+AutoSellTab:CreateToggle({
     Name = "Ativar Auto Sell (Caixas)",
     CurrentValue = false,
     Flag = "Toggle_AutoSell",
@@ -116,9 +107,6 @@ AutoBuyTab:CreateToggle({
     end,
 })
 
--- ========================================================
--- ABA: LOJA DE GEARS (Separado)
--- ========================================================
 GearTab:CreateSection("Seleção de Equipamentos")
 
 if #sprayList > 0 then
@@ -180,11 +168,6 @@ for _, gearName in ipairs(allGearsList) do
     StockLabels[gearName] = GearTab:CreateLabel(gearName .. " : stock 0")
 end
 
--- ========================================================
--- LOOPS DE AUTOMAÇÃO
--- ========================================================
-
--- Loop 1: Auto Buy Sementes
 task.spawn(function()
     while task.wait(0.2) do
         if AutoBuyEnabled and TargetPrice > 0 then
@@ -218,7 +201,6 @@ task.spawn(function()
     end
 end)
 
--- Loop 2: Auto Roll Sementes
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait() do
@@ -228,7 +210,6 @@ task.spawn(function()
     end
 end)
 
--- Loop 3: Auto Sell Caixas
 task.spawn(function()
     local sellRemote = Remotes:WaitForChild("SellCrates", 5)
     while task.wait(5) do
@@ -238,7 +219,6 @@ task.spawn(function()
     end
 end)
 
--- Loop 4: Auto Gear Snipe
 task.spawn(function()
     local gearTransaction = Remotes:WaitForChild("Gear", 5):WaitForChild("Transaction", 5)
     while task.wait(0.1) do
@@ -247,12 +227,10 @@ task.spawn(function()
             if gear then
                 local stock = gear.Value or 0
                 
-                -- Atualiza a UI em tempo real
                 if StockLabels[gearName] then
                     StockLabels[gearName]:Set(gearName .. " : stock " .. tostring(stock))
                 end
                 
-                -- Verifica se o item está em alguma das listas de seleção e faz a compra
                 local isSelected = SelectedSprays[gearName] or SelectedFertilizers[gearName] or SelectedOthers[gearName]
                 
                 if AutoGearEnabled and isSelected and stock > 0 and not BuyingDebounce[gearName] and gearTransaction then
