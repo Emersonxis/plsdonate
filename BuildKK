@@ -16,6 +16,7 @@ local TargetPrice = 0
 local AutoGearEnabled = false
 local SelectedGears = {}
 local StockLabels = {}
+local BuyingDebounce = {}
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks"):WaitForChild("FrancesS_WW")
@@ -137,19 +138,22 @@ end)
 
 task.spawn(function()
     local gearTransaction = Remotes:WaitForChild("Gear", 5):WaitForChild("Transaction", 5)
-    while task.wait(0.2) do
+    while task.wait(0.1) do
         for _, gearName in ipairs(gearsOrder) do
             local gear = GearStocks:FindFirstChild(gearName)
             if gear then
-                local data = gear:FindFirstChild("Data")
-                local stock = data and data.Value or 0
+                local stock = gear.Value or 0
                 
                 if StockLabels[gearName] then
                     StockLabels[gearName]:Set(gearName .. " : stock " .. tostring(stock))
                 end
                 
-                if AutoGearEnabled and SelectedGears[gearName] and stock > 0 and gearTransaction then
-                    gearTransaction:InvokeServer(gearName)
+                if AutoGearEnabled and SelectedGears[gearName] and stock > 0 and not BuyingDebounce[gearName] and gearTransaction then
+                    BuyingDebounce[gearName] = true
+                    task.spawn(function()
+                        gearTransaction:InvokeServer(gearName)
+                        BuyingDebounce[gearName] = false
+                    end)
                 end
             end
         end
