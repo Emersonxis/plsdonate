@@ -1,0 +1,149 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "FrancesS Tools",
+    LoadingTitle = "FrancesS Tools",
+    LoadingSubtitle = "Auto Systems",
+    ConfigurationSaving = { Enabled = false },
+    KeySystem = false
+})
+
+local AutoBuyTab = Window:CreateTab("Auto Compra", 4483362458)
+local GearTab = Window:CreateTab("Loja Gears", 4483362458)
+
+local AutoBuyEnabled = false
+local TargetPrice = 0
+local AutoGearEnabled = false
+local SelectedGears = {}
+
+local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
+local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks"):WaitForChild("FrancesS_WW")
+
+local function GetAvailableGears()
+    local list = {}
+    for _, gear in ipairs(GearStocks:GetChildren()) do
+        if gear.Name ~= "NextRestockTime" then
+            table.insert(list, gear.Name)
+        end
+    end
+    return list
+end
+
+AutoBuyTab:CreateInput({
+    Name = "Valor Mínimo para Compra",
+    PlaceholderText = "Ex: 5b, 100t...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        local str = string.lower(tostring(Text))
+        local numStr = string.match(str, "[%d%.]+")
+        local letter = string.match(str, "[a-z]+")
+        local num = tonumber(numStr)
+        
+        if num then
+            local multipliers = {k = 1e3, m = 1e6, b = 1e9, t = 1e12, qd = 1e15, qn = 1e18}
+            if letter and multipliers[letter] then
+                TargetPrice = num * multipliers[letter]
+            else
+                TargetPrice = num
+            end
+        else
+            TargetPrice = 0
+        end
+    end,
+})
+
+AutoBuyTab:CreateToggle({
+    Name = "Ativar Auto Sementes + Roll",
+    CurrentValue = false,
+    Flag = "Toggle_AutoBuy",
+    Callback = function(Value)
+        AutoBuyEnabled = Value
+    end,
+})
+
+local GearDropdown = GearTab:CreateDropdown({
+    Name = "Selecionar Gears",
+    Options = GetAvailableGears(),
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "Dropdown_Gears",
+    Callback = function(Options)
+        SelectedGears = {}
+        for _, v in ipairs(Options) do
+            SelectedGears[v] = true
+        end
+    end,
+})
+
+GearTab:CreateToggle({
+    Name = "Auto Snipe Stock",
+    CurrentValue = false,
+    Flag = "Toggle_AutoGear",
+    Callback = function(Value)
+        AutoGearEnabled = Value
+    end,
+})
+
+local StockLabel = GearTab:CreateLabel("Carregando Estoque...")
+
+task.spawn(function()
+    while task.wait(0.2) do
+        if AutoBuyEnabled and TargetPrice > 0 then
+            for _, obj in ipairs(workspace:GetChildren()) do
+                local fruit = obj:FindFirstChild("Fruit")
+                if fruit then
+                    local seedGui = fruit:FindFirstChild("SeedGui")
+                    if seedGui and seedGui:FindFirstChild("Frame") and seedGui.Frame:FindFirstChild("InfoFrame") and seedGui.Frame.InfoFrame:FindFirstChild("Cost") then
+                        
+                        local costText = seedGui.Frame.InfoFrame.Cost.Text
+                        if costText == "" and seedGui.Frame.InfoFrame.Cost.ContentText ~= "" then
+                            costText = seedGui.Frame.InfoFrame.Cost.ContentText
+                        end
+                        
+                        local cleanStr = string.gsub(costText, "[^%d]", "")
+                        local currentPrice = tonumber(cleanStr) or 0
+                        
+                        if currentPrice >= TargetPrice then
+                            local buyNode = fruit:FindFirstChild("BuySeed")
+                            if buyNode then
+                                local prompt = buyNode:IsA("ProximityPrompt") and buyNode or buyNode:FindFirstChildWhichIsA("ProximityPrompt")
+                                if prompt then
+                                    fireproximityprompt(prompt)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
+    while task.wait() do
+        if AutoBuyEnabled and rollRemote then
+            rollRemote:FireServer()
+        end
+    end
+end)
+
+task.spawn(function()
+    local gearTransaction = Remotes:WaitForChild("Gear", 5):WaitForChild("Transaction", 5)
+    while task.wait(0.2) do
+        local stockText = ""
+        for _, gear in ipairs(GearStocks:GetChildren()) do
+            if gear.Name ~= "NextRestockTime" then
+                local data = gear:FindFirstChild("Data")
+                local stock = data and data.Value or 0
+                
+                stockText = stockText .. gear.Name .. " : stock " .. tostring(stock) .. "\n"
+                
+                if AutoGearEnabled and SelectedGears[gear.Name] and stock > 0 and gearTransaction then
+                    gearTransaction:InvokeServer(gear.Name)
+                end
+            end
+        end
+        StockLabel:Set(stockText)
+    end
+end)
