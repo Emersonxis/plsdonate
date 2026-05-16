@@ -16,6 +16,7 @@ local GearTab = Window:CreateTab("Loja Gears", 4483362458)
 
 local AutoBuyEnabled = false
 local AutoRollEnabled = false
+local AutoSellEnabled = false
 local TargetPrice = 0
 
 local AutoGearEnabled = false
@@ -52,7 +53,7 @@ for _, gear in ipairs(GearStocks:GetChildren()) do
 end
 
 -- ========================================================
--- ABA: AUTO COMPRA (Sementes e Roll)
+-- ABA: AUTO COMPRA (Sementes, Roll e Venda)
 -- ========================================================
 AutoBuyTab:CreateSection("Configuração de Valor")
 
@@ -67,7 +68,6 @@ AutoBuyTab:CreateInput({
         local num = tonumber(numStr)
         
         if num then
-            -- Tabela expandida para números até limites absurdos
             local multipliers = {
                 k = 1e3, m = 1e6, b = 1e9, t = 1e12, 
                 q = 1e15, qd = 1e15, qn = 1e18, 
@@ -102,6 +102,17 @@ AutoBuyTab:CreateToggle({
     Flag = "Toggle_AutoRoll",
     Callback = function(Value)
         AutoRollEnabled = Value
+    end,
+})
+
+AutoBuyTab:CreateSection("Automação de Venda")
+
+AutoBuyTab:CreateToggle({
+    Name = "Ativar Auto Sell (Caixas)",
+    CurrentValue = false,
+    Flag = "Toggle_AutoSell",
+    Callback = function(Value)
+        AutoSellEnabled = Value
     end,
 })
 
@@ -217,7 +228,17 @@ task.spawn(function()
     end
 end)
 
--- Loop 3: Auto Gear Snipe
+-- Loop 3: Auto Sell Caixas
+task.spawn(function()
+    local sellRemote = Remotes:WaitForChild("SellCrates", 5)
+    while task.wait(5) do
+        if AutoSellEnabled and sellRemote then
+            sellRemote:FireServer()
+        end
+    end
+end)
+
+-- Loop 4: Auto Gear Snipe
 task.spawn(function()
     local gearTransaction = Remotes:WaitForChild("Gear", 5):WaitForChild("Transaction", 5)
     while task.wait(0.1) do
@@ -238,7 +259,7 @@ task.spawn(function()
                     BuyingDebounce[gearName] = true
                     task.spawn(function()
                         gearTransaction:InvokeServer(gearName)
-                        task.wait(0.1) -- Pequeno delay para evitar sobrecarga no remote
+                        task.wait(0.1)
                         BuyingDebounce[gearName] = false
                     end)
                 end
