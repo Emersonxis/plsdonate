@@ -15,6 +15,7 @@ local AutoBuyEnabled = false
 local TargetPrice = 0
 local AutoGearEnabled = false
 local SelectedGears = {}
+local StockLabels = {}
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks"):WaitForChild("FrancesS_WW")
@@ -28,6 +29,8 @@ local function GetAvailableGears()
     end
     return list
 end
+
+local gearsOrder = GetAvailableGears()
 
 AutoBuyTab:CreateInput({
     Name = "Valor Mínimo para Compra",
@@ -61,9 +64,9 @@ AutoBuyTab:CreateToggle({
     end,
 })
 
-local GearDropdown = GearTab:CreateDropdown({
+GearTab:CreateDropdown({
     Name = "Selecionar Gears",
-    Options = GetAvailableGears(),
+    Options = gearsOrder,
     CurrentOption = {},
     MultipleOptions = true,
     Flag = "Dropdown_Gears",
@@ -84,7 +87,11 @@ GearTab:CreateToggle({
     end,
 })
 
-local StockLabel = GearTab:CreateLabel("Carregando Estoque...")
+GearTab:CreateSection("Estoque Atual")
+
+for _, gearName in ipairs(gearsOrder) do
+    StockLabels[gearName] = GearTab:CreateLabel(gearName .. " : stock 0")
+end
 
 task.spawn(function()
     while task.wait(0.2) do
@@ -131,19 +138,20 @@ end)
 task.spawn(function()
     local gearTransaction = Remotes:WaitForChild("Gear", 5):WaitForChild("Transaction", 5)
     while task.wait(0.2) do
-        local stockText = ""
-        for _, gear in ipairs(GearStocks:GetChildren()) do
-            if gear.Name ~= "NextRestockTime" then
+        for _, gearName in ipairs(gearsOrder) do
+            local gear = GearStocks:FindFirstChild(gearName)
+            if gear then
                 local data = gear:FindFirstChild("Data")
                 local stock = data and data.Value or 0
                 
-                stockText = stockText .. gear.Name .. " : stock " .. tostring(stock) .. "\n"
+                if StockLabels[gearName] then
+                    StockLabels[gearName]:Set(gearName .. " : stock " .. tostring(stock))
+                end
                 
-                if AutoGearEnabled and SelectedGears[gear.Name] and stock > 0 and gearTransaction then
-                    gearTransaction:InvokeServer(gear.Name)
+                if AutoGearEnabled and SelectedGears[gearName] and stock > 0 and gearTransaction then
+                    gearTransaction:InvokeServer(gearName)
                 end
             end
         end
-        StockLabel:Set(stockText)
     end
 end)
