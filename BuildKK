@@ -27,10 +27,11 @@ local SelectedOthers = {}
 local StockLabels = {}
 local BuyingDebounce = {}
 local SeedDebounce = {}
-local ActiveBuySeeds = {} -- Cache ultra-rápido de sementes na memória
+local ActiveBuySeeds = {} -- Cache na memória
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks"):WaitForChild("FrancesS_WW")
+local LocalPlayer = game:GetService("Players").LocalPlayer
 
 -- ========================================================
 -- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA
@@ -205,7 +206,7 @@ for _, gearName in ipairs(allGearsList) do
 end
 
 -- ========================================================
--- LOGICA DE COMPRA ULTRA-RÁPIDA (DELAY ZERO)
+-- LOGICA DE COMPRA ULTRA-RÁPIDA COM COFRE ANTI-SPAM
 -- ========================================================
 
 local function ProcessBuySeed(buyNode)
@@ -223,8 +224,13 @@ local function ProcessBuySeed(buyNode)
             if costText and costText ~= "" then
                 local currentPrice = ParseTextToNumber(costText)
                 
-                -- Se o valor for o desejado, executa a compra imediata
-                if currentPrice >= TargetPrice then
+                -- Puxa e traduz o seu saldo "Cash" em tempo real
+                local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+                local cashObj = leaderstats and leaderstats:FindFirstChild("Cash")
+                local currentBalance = cashObj and ParseTextToNumber(cashObj.Value) or 0
+                
+                -- CONDIÇÃO ANTI-SPAM: Só avança se o preço passar do alvo E se você tiver saldo pra pagar
+                if currentPrice >= TargetPrice and currentBalance >= currentPrice then
                     local prompt = buyNode:IsA("ProximityPrompt") and buyNode or buyNode:FindFirstChildWhichIsA("ProximityPrompt")
                     if not prompt then
                         prompt = parentNode:FindFirstChildWhichIsA("ProximityPrompt")
@@ -234,7 +240,6 @@ local function ProcessBuySeed(buyNode)
                         SeedDebounce[prompt] = true
                         fireproximityprompt(prompt)
                         
-                        -- Debounce de segurança baixíssimo para máxima velocidade consecutiva
                         task.delay(0.1, function()
                             SeedDebounce[prompt] = nil
                         end)
@@ -245,7 +250,7 @@ local function ProcessBuySeed(buyNode)
     end
 end
 
--- 1. Alimenta o Cache com as sementes já existentes no mapa ao iniciar
+-- 1. Alimenta o Cache com as sementes já existentes
 for _, desc in ipairs(workspace:GetDescendants()) do
     if desc.Name == "BuySeed" then
         table.insert(ActiveBuySeeds, desc)
@@ -257,7 +262,7 @@ workspace.DescendantAdded:Connect(function(desc)
     if desc.Name == "BuySeed" then
         table.insert(ActiveBuySeeds, desc)
         if AutoBuyEnabled and TargetPrice > 0 then
-            task.spawn(ProcessBuySeed, desc) -- Compra no exato frame que surge
+            task.spawn(ProcessBuySeed, desc)
         end
     end
 end)
@@ -268,10 +273,10 @@ workspace.DescendantRemoving:Connect(function(desc)
     end
 end)
 
--- 3. Loop Paralelo Ultra-Rápido (Varre apenas a lista limpa de sementes pendentes)
+-- 3. Loop Paralelo Ultra-Rápido
 task.spawn(function()
     while true do
-        task.wait(0.01) -- Executa 100 vezes por segundo com peso zero de lag
+        task.wait(0.01)
         if AutoBuyEnabled and TargetPrice > 0 then
             for i = 1, #ActiveBuySeeds do
                 local buyNode = ActiveBuySeeds[i]
