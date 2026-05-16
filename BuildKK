@@ -27,6 +27,7 @@ local SelectedOthers = {}
 local StockLabels = {}
 local BuyingDebounce = {}
 local SeedDebounce = {}
+local ActiveBuySeeds = {} -- Cache ultra-rápido de sementes na memória
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks"):WaitForChild("FrancesS_WW")
@@ -35,6 +36,7 @@ local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks
 -- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA
 -- ========================================================
 local function ParseTextToNumber(text)
+    if not text then return 0 end
     local str = string.lower(tostring(text))
     str = string.gsub(str, "[$,]", "") 
     
@@ -55,6 +57,17 @@ local function ParseTextToNumber(text)
         return num
     end
     return 0
+end
+
+-- ========================================================
+-- FUNÇÕES DE GERENCIAMENTO DE CACHE DE SEMENTES
+-- ========================================================
+local function RemoveActiveSeed(item)
+    for i = #ActiveBuySeeds, 1, -1 do
+        if ActiveBuySeeds[i] == item then
+            table.remove(ActiveBuySeeds, i)
+        end
+    end
 end
 
 -- ========================================================
@@ -192,42 +205,37 @@ for _, gearName in ipairs(allGearsList) do
 end
 
 -- ========================================================
--- LOGICA DE COMPRA ULTRA-RÁPIDA (SEM DELAY)
+-- LOGICA DE COMPRA ULTRA-RÁPIDA (DELAY ZERO)
 -- ========================================================
 
-local function ProcessInstance(obj)
-    -- Filtro de Performance: Ignora instantaneamente itens comuns da Workspace que não são sementes
-    if not (obj:IsA("Model") or obj:IsA("Folder")) then return end
-
-    -- Verifica se o item possui o "BuySeed" na sua estrutura interna
-    local buyNode = obj:FindFirstChild("BuySeed", true)
-    if buyNode then
-        -- Se tem BuySeed, localiza o SeedGui que está no mesmo parente (Ex: Union)
-        local parentNode = buyNode.Parent
-        local seedGui = parentNode:FindFirstChild("SeedGui")
+local function ProcessBuySeed(buyNode)
+    if not buyNode or not buyNode.Parent then return end
+    local parentNode = buyNode.Parent
+    local seedGui = parentNode:FindFirstChild("SeedGui")
+    
+    if seedGui then
+        local frame = seedGui:FindFirstChild("Frame")
+        local infoFrame = frame and frame:FindFirstChild("InfoFrame")
+        local costObj = infoFrame and infoFrame:FindFirstChild("Cost")
         
-        if seedGui then
-            local frame = seedGui:FindFirstChild("Frame")
-            local infoFrame = frame and frame:FindFirstChild("InfoFrame")
-            local costObj = infoFrame and infoFrame:FindFirstChild("Cost")
-            
-            if costObj then
-                local costText = costObj.Text == "" and costObj.ContentText or costObj.Text
+        if costObj then
+            local costText = costObj.Text == "" and costObj.ContentText or costObj.Text
+            if costText and costText ~= "" then
                 local currentPrice = ParseTextToNumber(costText)
                 
-                -- Se o valor for igual ou maior que o desejado, executa a compra imediata
+                -- Se o valor for o desejado, executa a compra imediata
                 if currentPrice >= TargetPrice then
                     local prompt = buyNode:IsA("ProximityPrompt") and buyNode or buyNode:FindFirstChildWhichIsA("ProximityPrompt")
                     if not prompt then
-                        prompt = parentNode:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChildWhichIsA("ProximityPrompt")
+                        prompt = parentNode:FindFirstChildWhichIsA("ProximityPrompt")
                     end
                     
                     if prompt and not SeedDebounce[prompt] then
                         SeedDebounce[prompt] = true
                         fireproximityprompt(prompt)
                         
-                        -- Liberação instantânea do debounce específico desse prompt após sumir
-                        task.delay(0.5, function()
+                        -- Debounce de segurança baixíssimo para máxima velocidade consecutiva
+                        task.delay(0.1, function()
                             SeedDebounce[prompt] = nil
                         end)
                     end
@@ -237,19 +245,39 @@ local function ProcessInstance(obj)
     end
 end
 
--- Gatilho Instantâneo: Executa no exato milésimo de segundo que o Auto Roll gera a semente
-workspace.ChildAdded:Connect(function(child)
-    if AutoBuyEnabled and TargetPrice > 0 then
-        ProcessInstance(child)
+-- 1. Alimenta o Cache com as sementes já existentes no mapa ao iniciar
+for _, desc in ipairs(workspace:GetDescendants()) do
+    if desc.Name == "BuySeed" then
+        table.insert(ActiveBuySeeds, desc)
+    end
+end
+
+-- 2. Escuta Global (Pega qualquer spot instantaneamente ao surgir)
+workspace.DescendantAdded:Connect(function(desc)
+    if desc.Name == "BuySeed" then
+        table.insert(ActiveBuySeeds, desc)
+        if AutoBuyEnabled and TargetPrice > 0 then
+            task.spawn(ProcessBuySeed, desc) -- Compra no exato frame que surge
+        end
     end
 end)
 
--- Loop Secundário Otimizado: Apenas para garantir a varredura rápida de sementes já existentes
+workspace.DescendantRemoving:Connect(function(desc)
+    if desc.Name == "BuySeed" then
+        RemoveActiveSeed(desc)
+    end
+end)
+
+-- 3. Loop Paralelo Ultra-Rápido (Varre apenas a lista limpa de sementes pendentes)
 task.spawn(function()
-    while task.wait(0.1) do
+    while true do
+        task.wait(0.01) -- Executa 100 vezes por segundo com peso zero de lag
         if AutoBuyEnabled and TargetPrice > 0 then
-            for _, obj in ipairs(workspace:GetChildren()) do
-                ProcessInstance(obj)
+            for i = 1, #ActiveBuySeeds do
+                local buyNode = ActiveBuySeeds[i]
+                if buyNode then
+                    ProcessBuySeed(buyNode)
+                end
             end
         end
     end
