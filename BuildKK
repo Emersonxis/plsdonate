@@ -27,7 +27,7 @@ local SelectedOthers = {}
 local StockLabels = {}
 local BuyingDebounce = {}
 local SeedDebounce = {}
-local ActiveBuySeeds = {} -- Cache na memória
+local ActiveBuySeeds = {} -- Cache na memória para sementes ativas
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks"):WaitForChild("FrancesS_WW")
@@ -69,6 +69,37 @@ local function RemoveActiveSeed(item)
             table.remove(ActiveBuySeeds, i)
         end
     end
+end
+
+-- Checa se existe alguma semente no mapa que você quer e pode comprar agora
+local function HasTargetSeedOnMap()
+    if TargetPrice <= 0 then return false end
+    
+    -- Puxa o saldo atual do jogador
+    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+    local cashObj = leaderstats and leaderstats:FindFirstChild("Cash")
+    local currentBalance = cashObj and ParseTextToNumber(cashObj.Value) or 0
+
+    for i = 1, #ActiveBuySeeds do
+        local buyNode = ActiveBuySeeds[i]
+        if buyNode and buyNode.Parent then
+            local seedGui = buyNode.Parent:FindFirstChild("SeedGui")
+            local frame = seedGui and seedGui:FindFirstChild("Frame")
+            local infoFrame = frame and frame:FindFirstChild("InfoFrame")
+            local costObj = infoFrame and infoFrame:FindFirstChild("Cost")
+            
+            if costObj then
+                local costText = costObj.Text == "" and costObj.ContentText or costObj.Text
+                local currentPrice = ParseTextToNumber(costText)
+                
+                -- Se a semente atingiu a meta e você tem dinheiro para ela, retorna verdadeiro
+                if currentPrice >= TargetPrice and currentBalance >= currentPrice then
+                    return true
+                end
+            end
+        end
+    end
+    return false
 end
 
 -- ========================================================
@@ -206,7 +237,7 @@ for _, gearName in ipairs(allGearsList) do
 end
 
 -- ========================================================
--- LOGICA DE COMPRA ULTRA-RÁPIDA COM COFRE ANTI-SPAM
+-- MECÂNICA DE AUTO COMPRA DE SEMENTES (0.1s DELAY)
 -- ========================================================
 
 local function ProcessBuySeed(buyNode)
@@ -224,12 +255,11 @@ local function ProcessBuySeed(buyNode)
             if costText and costText ~= "" then
                 local currentPrice = ParseTextToNumber(costText)
                 
-                -- Puxa e traduz o seu saldo "Cash" em tempo real
                 local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
                 local cashObj = leaderstats and leaderstats:FindFirstChild("Cash")
                 local currentBalance = cashObj and ParseTextToNumber(cashObj.Value) or 0
                 
-                -- CONDIÇÃO ANTI-SPAM: Só avança se o preço passar do alvo E se você tiver saldo pra pagar
+                -- Condições: Preço válido E saldo suficiente para evitar compras por Robux
                 if currentPrice >= TargetPrice and currentBalance >= currentPrice then
                     local prompt = buyNode:IsA("ProximityPrompt") and buyNode or buyNode:FindFirstChildWhichIsA("ProximityPrompt")
                     if not prompt then
@@ -240,7 +270,7 @@ local function ProcessBuySeed(buyNode)
                         SeedDebounce[prompt] = true
                         fireproximityprompt(prompt)
                         
-                        task.delay(0.1, function()
+                        task.delay(0.2, function()
                             SeedDebounce[prompt] = nil
                         end)
                     end
@@ -250,20 +280,16 @@ local function ProcessBuySeed(buyNode)
     end
 end
 
--- 1. Alimenta o Cache com as sementes já existentes
+-- Inicialização e escutas de Descendentes para gerenciar a lista de sementes
 for _, desc in ipairs(workspace:GetDescendants()) do
     if desc.Name == "BuySeed" then
         table.insert(ActiveBuySeeds, desc)
     end
 end
 
--- 2. Escuta Global (Pega qualquer spot instantaneamente ao surgir)
 workspace.DescendantAdded:Connect(function(desc)
     if desc.Name == "BuySeed" then
         table.insert(ActiveBuySeeds, desc)
-        if AutoBuyEnabled and TargetPrice > 0 then
-            task.spawn(ProcessBuySeed, desc)
-        end
     end
 end)
 
@@ -273,10 +299,10 @@ workspace.DescendantRemoving:Connect(function(desc)
     end
 end)
 
--- 3. Loop Paralelo Ultra-Rápido
+-- Loop de Compra Suave (0.1 segundos)
 task.spawn(function()
     while true do
-        task.wait(0.01)
+        task.wait(0.1)
         if AutoBuyEnabled and TargetPrice > 0 then
             for i = 1, #ActiveBuySeeds do
                 local buyNode = ActiveBuySeeds[i]
@@ -289,33 +315,43 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- OUTROS LOOPS DE AUTOMAÇÃO
+-- LOOP DE AUTO ROLL INTELIGENTE (0.5s DELAY + ABASTECIMENTO)
 -- ========================================================
-
--- Loop: Auto Roll Sementes
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
-    while task.wait() do
+    while true do
+        task.wait(0.5) -- Delay de segurança solicitado de 0.5s
+        
         if AutoRollEnabled and rollRemote then
-            rollRemote:FireServer()
+            -- SISTEMA INTELIGENTE: Se houver uma semente ideal no mapa esperando compra, congela o Roll.
+            if not (AutoBuyEnabled and HasTargetSeedOnMap()) then
+                rollRemote:FireServer()
+            end
         end
     end
 end)
 
+-- ========================================================
+-- AUTO VENDA E LOJA DE GEARS (1 SEGUNDO DE DELAY)
+-- ========================================================
+
 -- Loop: Auto Sell Caixas
 task.spawn(function()
     local sellRemote = Remotes:WaitForChild("SellCrates", 5)
-    while task.wait(5) do
+    while true do
+        task.wait(5)
         if AutoSellEnabled and sellRemote then
             sellRemote:FireServer()
         end
     end
 end)
 
--- Loop: Auto Gear Snipe
+-- Loop: Auto Gear Snipe (Cadenciado para 1 segundo se houver estoque)
 task.spawn(function()
     local gearTransaction = Remotes:WaitForChild("Gear", 5):WaitForChild("Transaction", 5)
-    while task.wait(0.1) do
+    while true do
+        task.wait(1.0) -- Cadência de 1 segundo para evitar lag e requisições repetidas
+        
         for _, gearName in ipairs(allGearsList) do
             local gear = GearStocks:FindFirstChild(gearName)
             if gear then
@@ -331,7 +367,7 @@ task.spawn(function()
                     BuyingDebounce[gearName] = true
                     task.spawn(function()
                         gearTransaction:InvokeServer(gearName)
-                        task.wait(0.1)
+                        task.wait(0.5) -- Pequeno respiro interno pós-remoto
                         BuyingDebounce[gearName] = false
                     end)
                 end
