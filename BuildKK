@@ -9,7 +9,7 @@ local Window = Rayfield:CreateWindow({
 })
 
 -- ========================================================
--- VARIÁVEIS GERAIS (RESTAURADAS)
+-- VARIÁVEIS GERAIS
 -- ========================================================
 local AutoBuyTab = Window:CreateTab("Auto Compra", 4483362458)
 local AutoSellTab = Window:CreateTab("Auto Venda", 4483362458)
@@ -18,16 +18,17 @@ local EventTab = Window:CreateTab("Eventos", 4483362458)
 
 local AutoBuyEnabled = false
 local AutoRollEnabled = false
-local AutoRollSniperEnabled = false -- Nova função independente
+local AutoRollSniperEnabled = false 
 local AutoSellEnabled = false
 local TargetPrice = 0
 
 local ActiveBuySeeds = {}
 
--- Variáveis de Eventos (Alien)
+-- Variáveis de Eventos (Alien e QueenBee)
 local AutoAlienCollect = false
 local SelectedAlienDrop = nil
 local LastAlienDrops = {}
+local AutoHoneycombCollect = false -- Nova automação
 
 local AutoGearEnabled = false
 local SelectedSprays = {}
@@ -45,7 +46,7 @@ local GearStocksFolder = game:GetService("ReplicatedStorage"):WaitForChild("Gear
 local GearStocks = GearStocksFolder:WaitForChild(LocalPlayer.Name, 10) or GearStocksFolder:FindFirstChildWhichIsA("Folder")
 
 -- ========================================================
--- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA (ORIGINAL)
+-- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA
 -- ========================================================
 local function ParseTextToNumber(text)
     if not text then return 0 end
@@ -72,7 +73,7 @@ local function ParseTextToNumber(text)
 end
 
 -- ========================================================
--- FUNÇÕES AUXILIARES DE VALIDAÇÃO (ORIGINAIS)
+-- FUNÇÕES AUXILIARES DE VALIDAÇÃO
 -- ========================================================
 local function RemoveActiveSeed(item)
     for i = #ActiveBuySeeds, 1, -1 do
@@ -80,6 +81,7 @@ local function RemoveActiveSeed(item)
     end
 end
 
+-- Mantido original com checagem de saldo para a compra automática comum
 local function HasTargetSeedOnMap()
     if TargetPrice <= 0 then return false end
     
@@ -108,14 +110,47 @@ local function HasTargetSeedOnMap()
     return false
 end
 
+-- NOVA FUNÇÃO: Exclusiva do Sniper. Ignora totalmente o saldo do jogador.
+local function SniperCheckSeedOnMap()
+    if TargetPrice <= 0 then return false end
+
+    for i = 1, #ActiveBuySeeds do
+        local buyNode = ActiveBuySeeds[i]
+        if buyNode and buyNode.Parent then
+            local seedGui = buyNode.Parent:FindFirstChild("SeedGui")
+            local frame = seedGui and seedGui:FindFirstChild("Frame")
+            local infoFrame = frame and frame:FindFirstChild("InfoFrame")
+            local costObj = infoFrame and infoFrame:FindFirstChild("Cost")
+            
+            if costObj then
+                local costText = costObj.Text == "" and costObj.ContentText or costObj.Text
+                local currentPrice = ParseTextToNumber(costText)
+                
+                -- Se a semente no mapa atingiu o valor alvo, retorna verdadeiro (pausa o roll)
+                if currentPrice >= TargetPrice then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
 local function GetAlienInvasionFolder()
     local ie = workspace:FindFirstChild("InteractiveEvents")
     if ie and ie:FindFirstChild("AlienInvasion") then return ie.AlienInvasion end
     return workspace:FindFirstChild("AlienInvasion")
 end
 
+local function GetHoneycombsFolder()
+    local ie = workspace:FindFirstChild("InteractiveEvents")
+    local qb = ie and ie:FindFirstChild("QueenBee")
+    if qb then return qb:FindFirstChild("RuntimeHoneycombs") end
+    return nil
+end
+
 -- ========================================================
--- FILTRAGEM DE GEARS (CORRIGIDO)
+-- FILTRAGEM DE GEARS
 -- ========================================================
 local sprayList = {}
 local fertList = {}
@@ -165,7 +200,6 @@ AutoBuyTab:CreateToggle({
 
 AutoBuyTab:CreateSection("Sniper (Pausa Roll)")
 
--- Nova opção solicitada: Roda o roll simples, mas interrompe sem comprar
 AutoBuyTab:CreateToggle({
     Name = "Ativar Auto Roll Sniper",
     CurrentValue = false,
@@ -207,6 +241,16 @@ EventTab:CreateToggle({
     CurrentValue = false,
     Flag = "Toggle_AutoAlien",
     Callback = function(Value) AutoAlienCollect = Value end,
+})
+
+EventTab:CreateSection("Queen Bee")
+
+-- Nova opção solicitada para o evento da Abelha
+EventTab:CreateToggle({
+    Name = "Auto Coletar Honeycomb (Bee)",
+    CurrentValue = false,
+    Flag = "Toggle_AutoHoneycomb",
+    Callback = function(Value) AutoHoneycombCollect = Value end,
 })
 
 -- ========================================================
@@ -289,7 +333,7 @@ task.spawn(function()
     end
 end)
 
--- Loop Auto Roll Sementes Original (0.5s) - TOTALMENTE INTOCADO
+-- Loop Auto Roll Sementes Original (0.5s)
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait(0.5) do
@@ -301,21 +345,48 @@ task.spawn(function()
     end
 end)
 
--- Loop Auto Roll Sniper (0.5s) - FUNÇÃO NOVA, ISOLADA E INDEPENDENTE
+-- Loop Auto Roll Sniper MODIFICADO (0.5s) - Totalmente independente de carteira/dinheiro
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait(0.5) do
         if AutoRollSniperEnabled and rollRemote then
-            -- Apenas executa o Roll se NÃO houver uma semente alvo no mapa (interrompe o roll simples)
-            if not HasTargetSeedOnMap() then
+            -- Interrompe o roll IMEDIATAMENTE se a semente alvo surgir, mesmo que você não tenha dinheiro
+            if not SniperCheckSeedOnMap() then
                 rollRemote:FireServer()
             end
         end
     end
 end)
 
+-- Loop Auto Coletar Honeycomb (Queen Bee) - Velocidade Máxima e Sem Proteção de Distância
+task.spawn(function()
+    while task.wait(0.1) do
+        if AutoHoneycombCollect then
+            local folder = GetHoneycombsFolder()
+            if folder then
+                -- Itera sobre todos os favos de mel gerados dinamicamente
+                for _, honeycomb in ipairs(folder:GetChildren()) do
+                    if honeycomb:IsA("BasePart") or honeycomb:IsA("Model") then
+                        -- Encontra o Prompt de Coleta na hierarquia passada por você (.Honeycomb.CollectPrompt)
+                        local collectPrompt = honeycomb:FindFirstChild("Honeycomb", true) and honeycomb.Honeycomb:FindFirstChild("CollectPrompt")
+                        local targetPart = honeycomb:IsA("BasePart") and honeycomb or honeycomb:FindFirstChildWhichIsA("BasePart")
+                        
+                        if collectPrompt and targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                            -- Teleporta diretamente em cima do favo para burlar a trava de distância
+                            LocalPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 2, 0)
+                            task.wait(0.05) -- Delay mínimo para o motor do jogo reconhecer a nova posição
+                            fireproximityprompt(collectPrompt)
+                            task.wait(0.05) -- Transição super rápida para o próximo favo
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
 -- ========================================================
--- CONTROLE DE EVENTOS, AUTO VENDA E LOJA GEARS
+-- CONTROLE DE EVENTOS (ALIEN), AUTO VENDA E LOJA GEARS
 -- ========================================================
 local function ArraysMatch(a, b)
     if #a ~= #b then return false end
