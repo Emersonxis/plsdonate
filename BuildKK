@@ -9,21 +9,20 @@ local Window = Rayfield:CreateWindow({
 })
 
 -- ========================================================
--- VARIÁVEIS GERAIS
+-- VARIÁVEIS GERAIS (RESTAURADAS)
 -- ========================================================
 local AutoBuyTab = Window:CreateTab("Auto Compra", 4483362458)
 local AutoSellTab = Window:CreateTab("Auto Venda", 4483362458)
 local GearTab = Window:CreateTab("Loja Gears", 4483362458)
-local EventTab = Window:CreateTab("Eventos", 4483362458) -- NOVA ABA
+local EventTab = Window:CreateTab("Eventos", 4483362458)
 
 local AutoBuyEnabled = false
 local AutoRollEnabled = false
+local AutoRollSniperEnabled = false -- Nova função independente
 local AutoSellEnabled = false
 local TargetPrice = 0
 
--- Variáveis Sniper de Pets (Agora usa o TargetPrice)
-local PetRollSniperEnabled = false
-local ActiveBuyPets = {}
+local ActiveBuySeeds = {}
 
 -- Variáveis de Eventos (Alien)
 local AutoAlienCollect = false
@@ -37,7 +36,6 @@ local SelectedOthers = {}
 local StockLabels = {}
 local BuyingDebounce = {}
 local SeedDebounce = {}
-local ActiveBuySeeds = {}
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local LocalPlayer = game:GetService("Players").LocalPlayer
@@ -47,7 +45,7 @@ local GearStocksFolder = game:GetService("ReplicatedStorage"):WaitForChild("Gear
 local GearStocks = GearStocksFolder:WaitForChild(LocalPlayer.Name, 10) or GearStocksFolder:FindFirstChildWhichIsA("Folder")
 
 -- ========================================================
--- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA
+-- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA (ORIGINAL)
 -- ========================================================
 local function ParseTextToNumber(text)
     if not text then return 0 end
@@ -74,17 +72,11 @@ local function ParseTextToNumber(text)
 end
 
 -- ========================================================
--- FUNÇÕES AUXILIARES DE SEMENTES, PETS E EVENTOS
+-- FUNÇÕES AUXILIARES DE VALIDAÇÃO (ORIGINAIS)
 -- ========================================================
 local function RemoveActiveSeed(item)
     for i = #ActiveBuySeeds, 1, -1 do
         if ActiveBuySeeds[i] == item then table.remove(ActiveBuySeeds, i) end
-    end
-end
-
-local function RemoveActivePet(item)
-    for i = #ActiveBuyPets, 1, -1 do
-        if ActiveBuyPets[i] == item then table.remove(ActiveBuyPets, i) end
     end
 end
 
@@ -116,42 +108,14 @@ local function HasTargetSeedOnMap()
     return false
 end
 
--- Checa Pets usando a MESMA variável de preço (TargetPrice)
-local function HasTargetPetOnMap()
-    if TargetPrice <= 0 then return false end
-
-    for i = 1, #ActiveBuyPets do
-        local buyNode = ActiveBuyPets[i]
-        if buyNode and buyNode.Parent then
-            local petGui = buyNode.Parent:FindFirstChild("PetGui") or buyNode.Parent:FindFirstChildWhichIsA("BillboardGui")
-            local frame = petGui and (petGui:FindFirstChild("Frame") or petGui:FindFirstChildWhichIsA("Frame"))
-            local infoFrame = frame and (frame:FindFirstChild("InfoFrame") or frame:FindFirstChild("Frame"))
-            local costObj = infoFrame and (infoFrame:FindFirstChild("Cost") or infoFrame:FindFirstChildWhichIsA("TextLabel"))
-            
-            if costObj then
-                local costText = costObj.Text == "" and costObj.ContentText or costObj.Text
-                local currentPrice = ParseTextToNumber(costText)
-                
-                if currentPrice >= TargetPrice then
-                    return true
-                end
-            end
-        end
-    end
-    return false
-end
-
--- Busca a pasta raiz da invasão Alien
 local function GetAlienInvasionFolder()
     local ie = workspace:FindFirstChild("InteractiveEvents")
-    if ie and ie:FindFirstChild("AlienInvasion") then
-        return ie.AlienInvasion
-    end
+    if ie and ie:FindFirstChild("AlienInvasion") then return ie.AlienInvasion end
     return workspace:FindFirstChild("AlienInvasion")
 end
 
 -- ========================================================
--- FUNÇÕES DE FILTRAGEM DE GEARS
+-- FILTRAGEM DE GEARS (CORRIGIDO)
 -- ========================================================
 local sprayList = {}
 local fertList = {}
@@ -162,25 +126,20 @@ if GearStocks then
     for _, gear in ipairs(GearStocks:GetChildren()) do
         if gear.Name ~= "NextRestockTime" then
             table.insert(allGearsList, gear.Name)
-            
-            if string.match(gear.Name, "Spray$") then
-                table.insert(sprayList, gear.Name)
-            elseif string.match(gear.Name, "Fertilizer$") then
-                table.insert(fertList, gear.Name)
-            else
-                table.insert(otherList, gear.Name)
-            end
+            if string.match(gear.Name, "Spray$") then table.insert(sprayList, gear.Name)
+            elseif string.match(gear.Name, "Fertilizer$") then table.insert(fertList, gear.Name)
+            else table.insert(otherList, gear.Name) end
         end
     end
 end
 
 -- ========================================================
--- ABA: AUTO COMPRA (Sementes, Rolls e Pets)
+-- ABA: AUTO COMPRA 
 -- ========================================================
-AutoBuyTab:CreateSection("Configuração de Valor")
+AutoBuyTab:CreateSection("Configuração de Valor Global")
 
 AutoBuyTab:CreateInput({
-    Name = "Valor Alvo (Sementes e Pets)",
+    Name = "Valor Alvo (Sementes)",
     PlaceholderText = "Ex: 1.5k, 5b, 1.9t...",
     RemoveTextAfterFocusLost = false,
     Callback = function(Text)
@@ -194,34 +153,30 @@ AutoBuyTab:CreateToggle({
     Name = "Ativar Auto Buy Sementes",
     CurrentValue = false,
     Flag = "Toggle_AutoBuy",
-    Callback = function(Value)
-        AutoBuyEnabled = Value
-    end,
+    Callback = function(Value) AutoBuyEnabled = Value end,
 })
 
 AutoBuyTab:CreateToggle({
     Name = "Ativar Auto Roll Sementes",
     CurrentValue = false,
     Flag = "Toggle_AutoRoll",
-    Callback = function(Value)
-        AutoRollEnabled = Value
-    end,
+    Callback = function(Value) AutoRollEnabled = Value end,
 })
 
--- O Pet Sniper agora é apenas um Toggle (usa o input acima)
 AutoBuyTab:CreateSection("Sniper (Pausa Roll)")
 
+-- Nova opção solicitada: Roda o roll simples, mas interrompe sem comprar
 AutoBuyTab:CreateToggle({
-    Name = "Ativar Pet Roll Sniper",
+    Name = "Ativar Auto Roll Sniper",
     CurrentValue = false,
-    Flag = "Toggle_PetRollSniper",
+    Flag = "Toggle_AutoRollSniper",
     Callback = function(Value)
-        PetRollSniperEnabled = Value
+        AutoRollSniperEnabled = Value
     end,
 })
 
 -- ========================================================
--- ABA: EVENTOS (NOVO)
+-- ABA: EVENTOS
 -- ========================================================
 EventTab:CreateSection("Alien Invasion")
 
@@ -231,9 +186,7 @@ local AlienDropdown = EventTab:CreateDropdown({
     CurrentOption = {"Buscando..."},
     MultipleOptions = false,
     Flag = "Dropdown_Alien",
-    Callback = function(Option)
-        SelectedAlienDrop = Option[1]
-    end,
+    Callback = function(Option) SelectedAlienDrop = Option[1] end,
 })
 
 EventTab:CreateButton({
@@ -243,7 +196,6 @@ EventTab:CreateButton({
             local folder = GetAlienInvasionFolder()
             local drop = folder and folder:FindFirstChild(SelectedAlienDrop)
             if drop and drop:IsA("BasePart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                -- Teleporta exatamente em cima do item (bypass de distância)
                 LocalPlayer.Character.HumanoidRootPart.CFrame = drop.CFrame + Vector3.new(0, 3, 0)
             end
         end
@@ -254,27 +206,16 @@ EventTab:CreateToggle({
     Name = "Auto Coletar Drops (Alien)",
     CurrentValue = false,
     Flag = "Toggle_AutoAlien",
-    Callback = function(Value)
-        AutoAlienCollect = Value
-    end,
+    Callback = function(Value) AutoAlienCollect = Value end,
 })
 
 -- ========================================================
--- ABA: AUTO VENDA E LOJA DE GEARS
+-- ABA: AUTO VENDA E GEARS
 -- ========================================================
 AutoSellTab:CreateSection("Venda de Caixas")
-
-AutoSellTab:CreateToggle({
-    Name = "Ativar Auto Sell (Caixas)",
-    CurrentValue = false,
-    Flag = "Toggle_AutoSell",
-    Callback = function(Value)
-        AutoSellEnabled = Value
-    end,
-})
+AutoSellTab:CreateToggle({Name = "Ativar Auto Sell (Caixas)", CurrentValue = false, Flag = "Toggle_AutoSell", Callback = function(Value) AutoSellEnabled = Value end})
 
 GearTab:CreateSection("Seleção de Equipamentos")
-
 if #sprayList > 0 then GearTab:CreateDropdown({Name = "Selecionar Sprays", Options = sprayList, MultipleOptions = true, Flag = "Dropdown_Sprays", Callback = function(Options) SelectedSprays = {} for _, v in ipairs(Options) do SelectedSprays[v] = true end end}) end
 if #fertList > 0 then GearTab:CreateDropdown({Name = "Selecionar Fertilizers", Options = fertList, MultipleOptions = true, Flag = "Dropdown_Fertilizers", Callback = function(Options) SelectedFertilizers = {} for _, v in ipairs(Options) do SelectedFertilizers[v] = true end end}) end
 if #otherList > 0 then GearTab:CreateDropdown({Name = "Selecionar Outros", Options = otherList, MultipleOptions = true, Flag = "Dropdown_Others", Callback = function(Options) SelectedOthers = {} for _, v in ipairs(Options) do SelectedOthers[v] = true end end}) end
@@ -285,7 +226,22 @@ GearTab:CreateSection("Estoque Atual")
 for _, gearName in ipairs(allGearsList) do StockLabels[gearName] = GearTab:CreateLabel(gearName .. " : stock 0") end
 
 -- ========================================================
--- LOOPS DE COMPRA E SNIPER
+-- MONITORAMENTO DE ENTRADA E SAÍDA DE ITENS
+-- ========================================================
+for _, desc in ipairs(workspace:GetDescendants()) do
+    if desc.Name == "BuySeed" then table.insert(ActiveBuySeeds, desc) end
+end
+
+workspace.DescendantAdded:Connect(function(desc)
+    if desc.Name == "BuySeed" then table.insert(ActiveBuySeeds, desc) end
+end)
+
+workspace.DescendantRemoving:Connect(function(desc)
+    if desc.Name == "BuySeed" then RemoveActiveSeed(desc) end
+end)
+
+-- ========================================================
+-- LOOPS PRINCIPAIS
 -- ========================================================
 
 local function ProcessBuySeed(buyNode)
@@ -322,22 +278,7 @@ local function ProcessBuySeed(buyNode)
     end
 end
 
-for _, desc in ipairs(workspace:GetDescendants()) do
-    if desc.Name == "BuySeed" then table.insert(ActiveBuySeeds, desc)
-    elseif desc.Name == "BuyPet" then table.insert(ActiveBuyPets, desc) end
-end
-
-workspace.DescendantAdded:Connect(function(desc)
-    if desc.Name == "BuySeed" then table.insert(ActiveBuySeeds, desc)
-    elseif desc.Name == "BuyPet" then table.insert(ActiveBuyPets, desc) end
-end)
-
-workspace.DescendantRemoving:Connect(function(desc)
-    if desc.Name == "BuySeed" then RemoveActiveSeed(desc)
-    elseif desc.Name == "BuyPet" then RemoveActivePet(desc) end
-end)
-
--- Loop Auto Buy Sementes
+-- Loop Auto Buy Sementes (0.1s)
 task.spawn(function()
     while task.wait(0.1) do
         if AutoBuyEnabled and TargetPrice > 0 then
@@ -348,7 +289,7 @@ task.spawn(function()
     end
 end)
 
--- Loop Auto Roll Sementes
+-- Loop Auto Roll Sementes Original (0.5s) - TOTALMENTE INTOCADO
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait(0.5) do
@@ -360,23 +301,22 @@ task.spawn(function()
     end
 end)
 
--- Loop Auto Roll Pets (Pausa se achar o TargetPrice)
+-- Loop Auto Roll Sniper (0.5s) - FUNÇÃO NOVA, ISOLADA E INDEPENDENTE
 task.spawn(function()
-    local petRollRemote = Remotes:WaitForChild("RollPets", 5) or Remotes:FindFirstChild("RollPet")
+    local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait(0.5) do
-        if PetRollSniperEnabled and petRollRemote then
-            if not HasTargetPetOnMap() then
-                petRollRemote:FireServer()
+        if AutoRollSniperEnabled and rollRemote then
+            -- Apenas executa o Roll se NÃO houver uma semente alvo no mapa (interrompe o roll simples)
+            if not HasTargetSeedOnMap() then
+                rollRemote:FireServer()
             end
         end
     end
 end)
 
 -- ========================================================
--- LOOP DE EVENTOS (ATUALIZAÇÃO DE LISTA E AUTO COLLECT)
+-- CONTROLE DE EVENTOS, AUTO VENDA E LOJA GEARS
 -- ========================================================
-
--- Função simples para checar se duas tabelas são iguais
 local function ArraysMatch(a, b)
     if #a ~= #b then return false end
     for i = 1, #a do if a[i] ~= b[i] then return false end end
@@ -385,42 +325,26 @@ end
 
 task.spawn(function()
     while task.wait(1) do
-        -- 1. Atualiza a lista do Dropdown em tempo real
         local currentDrops = {}
         local folder = GetAlienInvasionFolder()
-        
         if folder then
             for _, drop in ipairs(folder:GetChildren()) do
-                if string.match(drop.Name, "AlienDrop") and drop:IsA("BasePart") then
-                    table.insert(currentDrops, drop.Name)
-                end
+                if string.match(drop.Name, "AlienDrop") and drop:IsA("BasePart") then table.insert(currentDrops, drop.Name) end
             end
         end
-        
         if #currentDrops == 0 then table.insert(currentDrops, "Nenhum") end
-        
-        -- Só atualiza a interface se nascer um drop novo ou um sumir, evitando lag visual
         if not ArraysMatch(LastAlienDrops, currentDrops) then
             LastAlienDrops = currentDrops
             AlienDropdown:Refresh(currentDrops, true)
         end
-        
-        -- 2. Sistema de Auto Collect
         if AutoAlienCollect and folder then
             for _, drop in ipairs(folder:GetChildren()) do
                 if string.match(drop.Name, "AlienDrop") and drop:IsA("BasePart") then
                     local prompt = drop:FindFirstChild("ProximityPrompt")
                     if prompt and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        -- Teleporta
                         LocalPlayer.Character.HumanoidRootPart.CFrame = drop.CFrame + Vector3.new(0, 3, 0)
-                        
-                        -- Aguarda o servidor registrar a nova posição
                         task.wait(0.3)
-                        
-                        -- Coleta a caixa
                         fireproximityprompt(prompt)
-                        
-                        -- Delay para não sair teleportando freneticamente pelo mapa
                         task.wait(0.7)
                     end
                 end
@@ -429,14 +353,9 @@ task.spawn(function()
     end
 end)
 
--- ========================================================
--- AUTO VENDA E LOJA DE GEARS
--- ========================================================
 task.spawn(function()
     local sellRemote = Remotes:WaitForChild("SellCrates", 5)
-    while task.wait(5) do
-        if AutoSellEnabled and sellRemote then sellRemote:FireServer() end
-    end
+    while task.wait(5) do if AutoSellEnabled and sellRemote then sellRemote:FireServer() end end
 end)
 
 task.spawn(function()
@@ -448,7 +367,6 @@ task.spawn(function()
                 if gear then
                     local stock = gear.Value or 0
                     if StockLabels[gearName] then StockLabels[gearName]:Set(gearName .. " : stock " .. tostring(stock)) end
-                    
                     local isSelected = SelectedSprays[gearName] or SelectedFertilizers[gearName] or SelectedOthers[gearName]
                     if AutoGearEnabled and isSelected and stock > 0 and not BuyingDebounce[gearName] and gearTransaction then
                         BuyingDebounce[gearName] = true
