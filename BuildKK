@@ -14,11 +14,21 @@ local Window = Rayfield:CreateWindow({
 local AutoBuyTab = Window:CreateTab("Auto Compra", 4483362458)
 local AutoSellTab = Window:CreateTab("Auto Venda", 4483362458)
 local GearTab = Window:CreateTab("Loja Gears", 4483362458)
+local EventTab = Window:CreateTab("Eventos", 4483362458) -- NOVA ABA
 
 local AutoBuyEnabled = false
 local AutoRollEnabled = false
 local AutoSellEnabled = false
 local TargetPrice = 0
+
+-- Variáveis Sniper de Pets (Agora usa o TargetPrice)
+local PetRollSniperEnabled = false
+local ActiveBuyPets = {}
+
+-- Variáveis de Eventos (Alien)
+local AutoAlienCollect = false
+local SelectedAlienDrop = nil
+local LastAlienDrops = {}
 
 local AutoGearEnabled = false
 local SelectedSprays = {}
@@ -27,12 +37,12 @@ local SelectedOthers = {}
 local StockLabels = {}
 local BuyingDebounce = {}
 local SeedDebounce = {}
-local ActiveBuySeeds = {} -- Cache na memória para sementes ativas
+local ActiveBuySeeds = {}
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
--- CORREÇÃO DA CONTA: Busca a pasta dinâmica com o nome do usuário atual logado
+-- Busca a pasta dinâmica com o nome do usuário atual logado
 local GearStocksFolder = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks")
 local GearStocks = GearStocksFolder:WaitForChild(LocalPlayer.Name, 10) or GearStocksFolder:FindFirstChildWhichIsA("Folder")
 
@@ -64,21 +74,23 @@ local function ParseTextToNumber(text)
 end
 
 -- ========================================================
--- FUNÇÕES DE GERENCIAMENTO DE CACHE DE SEMENTES
+-- FUNÇÕES AUXILIARES DE SEMENTES, PETS E EVENTOS
 -- ========================================================
 local function RemoveActiveSeed(item)
     for i = #ActiveBuySeeds, 1, -1 do
-        if ActiveBuySeeds[i] == item then
-            table.remove(ActiveBuySeeds, i)
-        end
+        if ActiveBuySeeds[i] == item then table.remove(ActiveBuySeeds, i) end
     end
 end
 
--- Checa se existe alguma semente no mapa que você quer e pode comprar agora
+local function RemoveActivePet(item)
+    for i = #ActiveBuyPets, 1, -1 do
+        if ActiveBuyPets[i] == item then table.remove(ActiveBuyPets, i) end
+    end
+end
+
 local function HasTargetSeedOnMap()
     if TargetPrice <= 0 then return false end
     
-    -- Puxa o saldo atual do jogador
     local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
     local cashObj = leaderstats and leaderstats:FindFirstChild("Cash")
     local currentBalance = cashObj and ParseTextToNumber(cashObj.Value) or 0
@@ -95,7 +107,6 @@ local function HasTargetSeedOnMap()
                 local costText = costObj.Text == "" and costObj.ContentText or costObj.Text
                 local currentPrice = ParseTextToNumber(costText)
                 
-                -- Se a semente atingiu a meta e você tem dinheiro para ela, retorna verdadeiro
                 if currentPrice >= TargetPrice and currentBalance >= currentPrice then
                     return true
                 end
@@ -103,6 +114,40 @@ local function HasTargetSeedOnMap()
         end
     end
     return false
+end
+
+-- Checa Pets usando a MESMA variável de preço (TargetPrice)
+local function HasTargetPetOnMap()
+    if TargetPrice <= 0 then return false end
+
+    for i = 1, #ActiveBuyPets do
+        local buyNode = ActiveBuyPets[i]
+        if buyNode and buyNode.Parent then
+            local petGui = buyNode.Parent:FindFirstChild("PetGui") or buyNode.Parent:FindFirstChildWhichIsA("BillboardGui")
+            local frame = petGui and (petGui:FindFirstChild("Frame") or petGui:FindFirstChildWhichIsA("Frame"))
+            local infoFrame = frame and (frame:FindFirstChild("InfoFrame") or frame:FindFirstChild("Frame"))
+            local costObj = infoFrame and (infoFrame:FindFirstChild("Cost") or infoFrame:FindFirstChildWhichIsA("TextLabel"))
+            
+            if costObj then
+                local costText = costObj.Text == "" and costObj.ContentText or costObj.Text
+                local currentPrice = ParseTextToNumber(costText)
+                
+                if currentPrice >= TargetPrice then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- Busca a pasta raiz da invasão Alien
+local function GetAlienInvasionFolder()
+    local ie = workspace:FindFirstChild("InteractiveEvents")
+    if ie and ie:FindFirstChild("AlienInvasion") then
+        return ie.AlienInvasion
+    end
+    return workspace:FindFirstChild("AlienInvasion")
 end
 
 -- ========================================================
@@ -130,12 +175,12 @@ if GearStocks then
 end
 
 -- ========================================================
--- ABA: AUTO COMPRA (Sementes e Roll)
+-- ABA: AUTO COMPRA (Sementes, Rolls e Pets)
 -- ========================================================
 AutoBuyTab:CreateSection("Configuração de Valor")
 
 AutoBuyTab:CreateInput({
-    Name = "Valor Mínimo para Compra",
+    Name = "Valor Alvo (Sementes e Pets)",
     PlaceholderText = "Ex: 1.5k, 5b, 1.9t...",
     RemoveTextAfterFocusLost = false,
     Callback = function(Text)
@@ -143,7 +188,7 @@ AutoBuyTab:CreateInput({
     end,
 })
 
-AutoBuyTab:CreateSection("Automações de Semente")
+AutoBuyTab:CreateSection("Automações")
 
 AutoBuyTab:CreateToggle({
     Name = "Ativar Auto Buy Sementes",
@@ -155,7 +200,7 @@ AutoBuyTab:CreateToggle({
 })
 
 AutoBuyTab:CreateToggle({
-    Name = "Ativar Auto Roll",
+    Name = "Ativar Auto Roll Sementes",
     CurrentValue = false,
     Flag = "Toggle_AutoRoll",
     Callback = function(Value)
@@ -163,8 +208,59 @@ AutoBuyTab:CreateToggle({
     end,
 })
 
+-- O Pet Sniper agora é apenas um Toggle (usa o input acima)
+AutoBuyTab:CreateSection("Sniper (Pausa Roll)")
+
+AutoBuyTab:CreateToggle({
+    Name = "Ativar Pet Roll Sniper",
+    CurrentValue = false,
+    Flag = "Toggle_PetRollSniper",
+    Callback = function(Value)
+        PetRollSniperEnabled = Value
+    end,
+})
+
 -- ========================================================
--- ABA: AUTO VENDA
+-- ABA: EVENTOS (NOVO)
+-- ========================================================
+EventTab:CreateSection("Alien Invasion")
+
+local AlienDropdown = EventTab:CreateDropdown({
+    Name = "Drops Ativos (Alien)",
+    Options = {"Buscando..."},
+    CurrentOption = {"Buscando..."},
+    MultipleOptions = false,
+    Flag = "Dropdown_Alien",
+    Callback = function(Option)
+        SelectedAlienDrop = Option[1]
+    end,
+})
+
+EventTab:CreateButton({
+    Name = "Teleportar para o Drop Selecionado",
+    Callback = function()
+        if SelectedAlienDrop and SelectedAlienDrop ~= "Nenhum" and SelectedAlienDrop ~= "Buscando..." then
+            local folder = GetAlienInvasionFolder()
+            local drop = folder and folder:FindFirstChild(SelectedAlienDrop)
+            if drop and drop:IsA("BasePart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                -- Teleporta exatamente em cima do item (bypass de distância)
+                LocalPlayer.Character.HumanoidRootPart.CFrame = drop.CFrame + Vector3.new(0, 3, 0)
+            end
+        end
+    end,
+})
+
+EventTab:CreateToggle({
+    Name = "Auto Coletar Drops (Alien)",
+    CurrentValue = false,
+    Flag = "Toggle_AutoAlien",
+    Callback = function(Value)
+        AutoAlienCollect = Value
+    end,
+})
+
+-- ========================================================
+-- ABA: AUTO VENDA E LOJA DE GEARS
 -- ========================================================
 AutoSellTab:CreateSection("Venda de Caixas")
 
@@ -177,72 +273,19 @@ AutoSellTab:CreateToggle({
     end,
 })
 
--- ========================================================
--- ABA: LOJA DE GEARS
--- ========================================================
 GearTab:CreateSection("Seleção de Equipamentos")
 
-if #sprayList > 0 then
-    GearTab:CreateDropdown({
-        Name = "Selecionar Sprays",
-        Options = sprayList,
-        CurrentOption = {},
-        MultipleOptions = true,
-        Flag = "Dropdown_Sprays",
-        Callback = function(Options)
-            SelectedSprays = {}
-            for _, v in ipairs(Options) do SelectedSprays[v] = true end
-        end,
-    })
-end
-
-if #fertList > 0 then
-    GearTab:CreateDropdown({
-        Name = "Selecionar Fertilizers",
-        Options = fertList,
-        CurrentOption = {},
-        MultipleOptions = true,
-        Flag = "Dropdown_Fertilizers",
-        Callback = function(Options)
-            SelectedFertilizers = {}
-            for _, v in ipairs(Options) do SelectedFertilizers[v] = true end
-        end,
-    })
-end
-
-if #otherList > 0 then
-    GearTab:CreateDropdown({
-        Name = "Selecionar Outros",
-        Options = otherList,
-        CurrentOption = {},
-        MultipleOptions = true,
-        Flag = "Dropdown_Others",
-        Callback = function(Options)
-            SelectedOthers = {}
-            for _, v in ipairs(Options) do SelectedOthers[v] = true end
-        end,
-    })
-end
+if #sprayList > 0 then GearTab:CreateDropdown({Name = "Selecionar Sprays", Options = sprayList, MultipleOptions = true, Flag = "Dropdown_Sprays", Callback = function(Options) SelectedSprays = {} for _, v in ipairs(Options) do SelectedSprays[v] = true end end}) end
+if #fertList > 0 then GearTab:CreateDropdown({Name = "Selecionar Fertilizers", Options = fertList, MultipleOptions = true, Flag = "Dropdown_Fertilizers", Callback = function(Options) SelectedFertilizers = {} for _, v in ipairs(Options) do SelectedFertilizers[v] = true end end}) end
+if #otherList > 0 then GearTab:CreateDropdown({Name = "Selecionar Outros", Options = otherList, MultipleOptions = true, Flag = "Dropdown_Others", Callback = function(Options) SelectedOthers = {} for _, v in ipairs(Options) do SelectedOthers[v] = true end end}) end
 
 GearTab:CreateSection("Controle de Compra")
-
-GearTab:CreateToggle({
-    Name = "Auto Snipe Stock",
-    CurrentValue = false,
-    Flag = "Toggle_AutoGear",
-    Callback = function(Value)
-        AutoGearEnabled = Value
-    end,
-})
-
+GearTab:CreateToggle({Name = "Auto Snipe Stock", CurrentValue = false, Flag = "Toggle_AutoGear", Callback = function(Value) AutoGearEnabled = Value end})
 GearTab:CreateSection("Estoque Atual")
-
-for _, gearName in ipairs(allGearsList) do
-    StockLabels[gearName] = GearTab:CreateLabel(gearName .. " : stock 0")
-end
+for _, gearName in ipairs(allGearsList) do StockLabels[gearName] = GearTab:CreateLabel(gearName .. " : stock 0") end
 
 -- ========================================================
--- MECÂNICA DE AUTO COMPRA DE SEMENTES (0.1s DELAY)
+-- LOOPS DE COMPRA E SNIPER
 -- ========================================================
 
 local function ProcessBuySeed(buyNode)
@@ -264,20 +307,14 @@ local function ProcessBuySeed(buyNode)
                 local cashObj = leaderstats and leaderstats:FindFirstChild("Cash")
                 local currentBalance = cashObj and ParseTextToNumber(cashObj.Value) or 0
                 
-                -- Condições: Preço válido E saldo suficiente para evitar compras por Robux
                 if currentPrice >= TargetPrice and currentBalance >= currentPrice then
                     local prompt = buyNode:IsA("ProximityPrompt") and buyNode or buyNode:FindFirstChildWhichIsA("ProximityPrompt")
-                    if not prompt then
-                        prompt = parentNode:FindFirstChildWhichIsA("ProximityPrompt")
-                    end
+                    if not prompt then prompt = parentNode:FindFirstChildWhichIsA("ProximityPrompt") end
                     
                     if prompt and not SeedDebounce[prompt] then
                         SeedDebounce[prompt] = true
                         fireproximityprompt(prompt)
-                        
-                        task.delay(0.2, function()
-                            SeedDebounce[prompt] = nil
-                        end)
+                        task.delay(0.2, function() SeedDebounce[prompt] = nil end)
                     end
                 end
             end
@@ -285,50 +322,37 @@ local function ProcessBuySeed(buyNode)
     end
 end
 
--- Inicialização e escutas de Descendentes para gerenciar a lista de sementes
 for _, desc in ipairs(workspace:GetDescendants()) do
-    if desc.Name == "BuySeed" then
-        table.insert(ActiveBuySeeds, desc)
-    end
+    if desc.Name == "BuySeed" then table.insert(ActiveBuySeeds, desc)
+    elseif desc.Name == "BuyPet" then table.insert(ActiveBuyPets, desc) end
 end
 
 workspace.DescendantAdded:Connect(function(desc)
-    if desc.Name == "BuySeed" then
-        table.insert(ActiveBuySeeds, desc)
-    end
+    if desc.Name == "BuySeed" then table.insert(ActiveBuySeeds, desc)
+    elseif desc.Name == "BuyPet" then table.insert(ActiveBuyPets, desc) end
 end)
 
 workspace.DescendantRemoving:Connect(function(desc)
-    if desc.Name == "BuySeed" then
-        RemoveActiveSeed(desc)
-    end
+    if desc.Name == "BuySeed" then RemoveActiveSeed(desc)
+    elseif desc.Name == "BuyPet" then RemoveActivePet(desc) end
 end)
 
--- Loop de Compra Suave (0.1 segundos)
+-- Loop Auto Buy Sementes
 task.spawn(function()
-    while true do
-        task.wait(0.1)
+    while task.wait(0.1) do
         if AutoBuyEnabled and TargetPrice > 0 then
             for i = 1, #ActiveBuySeeds do
-                local buyNode = ActiveBuySeeds[i]
-                if buyNode then
-                    ProcessBuySeed(buyNode)
-                end
+                if ActiveBuySeeds[i] then ProcessBuySeed(ActiveBuySeeds[i]) end
             end
         end
     end
 end)
 
--- ========================================================
--- LOOP DE AUTO ROLL INTELIGENTE (0.5s DELAY + ABASTECIMENTO)
--- ========================================================
+-- Loop Auto Roll Sementes
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
-    while true do
-        task.wait(0.5) -- Delay de segurança solicitado de 0.5s
-        
+    while task.wait(0.5) do
         if AutoRollEnabled and rollRemote then
-            -- SISTEMA INTELIGENTE: Se houver uma semente ideal no mapa esperando compra, congela o Roll.
             if not (AutoBuyEnabled and HasTargetSeedOnMap()) then
                 rollRemote:FireServer()
             end
@@ -336,44 +360,101 @@ task.spawn(function()
     end
 end)
 
--- ========================================================
--- AUTO VENDA E LOJA DE GEARS (1 SEGUNDO DE DELAY)
--- ========================================================
-
--- Loop: Auto Sell Caixas
+-- Loop Auto Roll Pets (Pausa se achar o TargetPrice)
 task.spawn(function()
-    local sellRemote = Remotes:WaitForChild("SellCrates", 5)
-    while true do
-        task.wait(5)
-        if AutoSellEnabled and sellRemote then
-            sellRemote:FireServer()
+    local petRollRemote = Remotes:WaitForChild("RollPets", 5) or Remotes:FindFirstChild("RollPet")
+    while task.wait(0.5) do
+        if PetRollSniperEnabled and petRollRemote then
+            if not HasTargetPetOnMap() then
+                petRollRemote:FireServer()
+            end
         end
     end
 end)
 
--- Loop: Auto Gear Snipe (Cadenciado para 1 segundo se houver estoque)
+-- ========================================================
+-- LOOP DE EVENTOS (ATUALIZAÇÃO DE LISTA E AUTO COLLECT)
+-- ========================================================
+
+-- Função simples para checar se duas tabelas são iguais
+local function ArraysMatch(a, b)
+    if #a ~= #b then return false end
+    for i = 1, #a do if a[i] ~= b[i] then return false end end
+    return true
+end
+
+task.spawn(function()
+    while task.wait(1) do
+        -- 1. Atualiza a lista do Dropdown em tempo real
+        local currentDrops = {}
+        local folder = GetAlienInvasionFolder()
+        
+        if folder then
+            for _, drop in ipairs(folder:GetChildren()) do
+                if string.match(drop.Name, "AlienDrop") and drop:IsA("BasePart") then
+                    table.insert(currentDrops, drop.Name)
+                end
+            end
+        end
+        
+        if #currentDrops == 0 then table.insert(currentDrops, "Nenhum") end
+        
+        -- Só atualiza a interface se nascer um drop novo ou um sumir, evitando lag visual
+        if not ArraysMatch(LastAlienDrops, currentDrops) then
+            LastAlienDrops = currentDrops
+            AlienDropdown:Refresh(currentDrops, true)
+        end
+        
+        -- 2. Sistema de Auto Collect
+        if AutoAlienCollect and folder then
+            for _, drop in ipairs(folder:GetChildren()) do
+                if string.match(drop.Name, "AlienDrop") and drop:IsA("BasePart") then
+                    local prompt = drop:FindFirstChild("ProximityPrompt")
+                    if prompt and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        -- Teleporta
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = drop.CFrame + Vector3.new(0, 3, 0)
+                        
+                        -- Aguarda o servidor registrar a nova posição
+                        task.wait(0.3)
+                        
+                        -- Coleta a caixa
+                        fireproximityprompt(prompt)
+                        
+                        -- Delay para não sair teleportando freneticamente pelo mapa
+                        task.wait(0.7)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ========================================================
+-- AUTO VENDA E LOJA DE GEARS
+-- ========================================================
+task.spawn(function()
+    local sellRemote = Remotes:WaitForChild("SellCrates", 5)
+    while task.wait(5) do
+        if AutoSellEnabled and sellRemote then sellRemote:FireServer() end
+    end
+end)
+
 task.spawn(function()
     local gearTransaction = Remotes:WaitForChild("Gear", 5):WaitForChild("Transaction", 5)
-    while true do
-        task.wait(1.0) -- Cadência de 1 segundo para evitar lag e requisições repetidas
-        
+    while task.wait(1.0) do
         if GearStocks then
             for _, gearName in ipairs(allGearsList) do
                 local gear = GearStocks:FindFirstChild(gearName)
                 if gear then
                     local stock = gear.Value or 0
-                    
-                    if StockLabels[gearName] then
-                        StockLabels[gearName]:Set(gearName .. " : stock " .. tostring(stock))
-                    end
+                    if StockLabels[gearName] then StockLabels[gearName]:Set(gearName .. " : stock " .. tostring(stock)) end
                     
                     local isSelected = SelectedSprays[gearName] or SelectedFertilizers[gearName] or SelectedOthers[gearName]
-                    
                     if AutoGearEnabled and isSelected and stock > 0 and not BuyingDebounce[gearName] and gearTransaction then
                         BuyingDebounce[gearName] = true
                         task.spawn(function()
                             gearTransaction:InvokeServer(gearName)
-                            task.wait(0.5) -- Pequeno respiro interno pós-remoto
+                            task.wait(0.5)
                             BuyingDebounce[gearName] = false
                         end)
                     end
