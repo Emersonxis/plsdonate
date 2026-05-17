@@ -30,8 +30,11 @@ local SeedDebounce = {}
 local ActiveBuySeeds = {} -- Cache na memória para sementes ativas
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
-local GearStocks = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks"):WaitForChild("FrancesS_WW")
 local LocalPlayer = game:GetService("Players").LocalPlayer
+
+-- CORREÇÃO DA CONTA: Busca a pasta dinâmica com o nome do usuário atual logado
+local GearStocksFolder = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks")
+local GearStocks = GearStocksFolder:WaitForChild(LocalPlayer.Name, 10) or GearStocksFolder:FindFirstChildWhichIsA("Folder")
 
 -- ========================================================
 -- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA
@@ -110,16 +113,18 @@ local fertList = {}
 local otherList = {}
 local allGearsList = {}
 
-for _, gear in ipairs(GearStocks:GetChildren()) do
-    if gear.Name ~= "NextRestockTime" then
-        table.insert(allGearsList, gear.Name)
-        
-        if string.match(gear.Name, "Spray$") then
-            table.insert(sprayList, gear.Name)
-        elseif string.match(gear.Name, "Fertilizer$") then
-            table.insert(fertList, gear.Name)
-        else
-            table.insert(otherList, gear.Name)
+if GearStocks then
+    for _, gear in ipairs(GearStocks:GetChildren()) do
+        if gear.Name ~= "NextRestockTime" then
+            table.insert(allGearsList, gear.Name)
+            
+            if string.match(gear.Name, "Spray$") then
+                table.insert(sprayList, gear.Name)
+            elseif string.match(gear.Name, "Fertilizer$") then
+                table.insert(fertList, gear.Name)
+            else
+                table.insert(otherList, gear.Name)
+            end
         end
     end
 end
@@ -352,24 +357,26 @@ task.spawn(function()
     while true do
         task.wait(1.0) -- Cadência de 1 segundo para evitar lag e requisições repetidas
         
-        for _, gearName in ipairs(allGearsList) do
-            local gear = GearStocks:FindFirstChild(gearName)
-            if gear then
-                local stock = gear.Value or 0
-                
-                if StockLabels[gearName] then
-                    StockLabels[gearName]:Set(gearName .. " : stock " .. tostring(stock))
-                end
-                
-                local isSelected = SelectedSprays[gearName] or SelectedFertilizers[gearName] or SelectedOthers[gearName]
-                
-                if AutoGearEnabled and isSelected and stock > 0 and not BuyingDebounce[gearName] and gearTransaction then
-                    BuyingDebounce[gearName] = true
-                    task.spawn(function()
-                        gearTransaction:InvokeServer(gearName)
-                        task.wait(0.5) -- Pequeno respiro interno pós-remoto
-                        BuyingDebounce[gearName] = false
-                    end)
+        if GearStocks then
+            for _, gearName in ipairs(allGearsList) do
+                local gear = GearStocks:FindFirstChild(gearName)
+                if gear then
+                    local stock = gear.Value or 0
+                    
+                    if StockLabels[gearName] then
+                        StockLabels[gearName]:Set(gearName .. " : stock " .. tostring(stock))
+                    end
+                    
+                    local isSelected = SelectedSprays[gearName] or SelectedFertilizers[gearName] or SelectedOthers[gearName]
+                    
+                    if AutoGearEnabled and isSelected and stock > 0 and not BuyingDebounce[gearName] and gearTransaction then
+                        BuyingDebounce[gearName] = true
+                        task.spawn(function()
+                            gearTransaction:InvokeServer(gearName)
+                            task.wait(0.5) -- Pequeno respiro interno pós-remoto
+                            BuyingDebounce[gearName] = false
+                        end)
+                    end
                 end
             end
         end
