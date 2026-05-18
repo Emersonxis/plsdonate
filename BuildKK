@@ -28,13 +28,11 @@ local TargetPrice = 0
 
 local ActiveBuySeeds = {}
 
--- Variáveis de Eventos (Alien, QueenBee, Trucker)
+-- Variáveis de Eventos (Alien e QueenBee)
 local AutoAlienCollect = false
 local SelectedAlienDrop = nil
 local LastAlienDrops = {}
 local AutoHoneycombCollect = false 
-local AutoRejoinTrucker = false
-local TruckerWasPresent = false
 
 -- Variáveis da Máquina de Mel
 local AutoDepositTokens = false
@@ -306,19 +304,6 @@ EventTab:CreateToggle({
     Callback = function(Value) AutoDepositTokens = Value end,
 })
 
-EventTab:CreateSection("Trucker Experimental")
-EventTab:CreateToggle({
-    Name = "Auto Rejoin (Trucker Event)",
-    CurrentValue = false,
-    Flag = "Toggle_AutoRejoinTrucker",
-    Callback = function(Value) 
-        AutoRejoinTrucker = Value 
-        if Value then
-            TruckerWasPresent = (workspace:FindFirstChild("Trucker") ~= nil)
-        end
-    end,
-})
-
 -- ========================================================
 -- ABA: AUTO VENDA E GEARS
 -- ========================================================
@@ -559,23 +544,8 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- REJOIN TRUCKER & AUTO SELL / GEARS
+-- AUTO VENDA E GEARS
 -- ========================================================
-task.spawn(function()
-    while task.wait(2) do
-        if AutoRejoinTrucker then
-            local truckerExists = workspace:FindFirstChild("Trucker") ~= nil
-            if truckerExists then
-                TruckerWasPresent = true
-            elseif TruckerWasPresent and not truckerExists then
-                TruckerWasPresent = false 
-                TeleportService:Teleport(game.PlaceId, LocalPlayer)
-                task.wait(10) 
-            end
-        end
-    end
-end)
-
 task.spawn(function()
     local sellRemote = Remotes:WaitForChild("SellCrates", 5)
     while task.wait(5) do if AutoSellEnabled and sellRemote then sellRemote:FireServer() end end
