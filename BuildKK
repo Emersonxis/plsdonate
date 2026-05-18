@@ -36,7 +36,7 @@ local AutoHoneycombCollect = false
 local AutoRejoinTrucker = false
 local TruckerWasPresent = false
 
--- Novas Variáveis da Máquina de Mel
+-- Variáveis da Máquina de Mel
 local AutoDepositTokens = false
 local DepositThreshold = 10
 
@@ -151,28 +151,22 @@ local function GetHoneycombsFolder()
     return nil
 end
 
--- Função para verificar se a máquina de depósito está no mapa e retornar seu Prompt
 local function GetHoneyJarMachinePrompt()
     local ie = workspace:FindFirstChild("InteractiveEvents")
     local qb = ie and ie:FindFirstChild("QueenBee")
     local hjm = qb and qb:FindFirstChild("HoneyJarMachine")
     local machine = hjm and hjm:FindFirstChild("Honey Jar Machine")
-    return machine and machine:FindFirstChild("InsertPrompt")
+    return machine and machine:FindFirstChildWhichIsA("ProximityPrompt", true)
 end
 
--- Função Inteligente para Ler e Contar a quantidade exata de Honey Tokens na mochila
 local function GetHoneyTokenCount()
     local total = 0
-    
-    -- Varre a mochila do jogador
     for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
         if string.find(item.Name, "Honey Token") then
             local stackNum = string.match(item.Name, "%(x(%d+)%)")
             if stackNum then total = total + tonumber(stackNum) else total = total + 1 end
         end
     end
-    
-    -- Varre o personagem (caso já esteja equipado na mão)
     if LocalPlayer.Character then
         for _, item in ipairs(LocalPlayer.Character:GetChildren()) do
             if item:IsA("Tool") and string.find(item.Name, "Honey Token") then
@@ -181,11 +175,9 @@ local function GetHoneyTokenCount()
             end
         end
     end
-    
     return total
 end
 
--- Função para equipar o Token automaticamente na mão do personagem
 local function EquipHoneyToken()
     local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
     if humanoid then
@@ -270,8 +262,11 @@ EventTab:CreateButton({
         if SelectedAlienDrop and SelectedAlienDrop ~= "Nenhum" and SelectedAlienDrop ~= "Buscando..." then
             local folder = GetAlienInvasionFolder()
             local drop = folder and folder:FindFirstChild(SelectedAlienDrop)
-            if drop and drop:IsA("BasePart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                LocalPlayer.Character.HumanoidRootPart.CFrame = drop.CFrame + Vector3.new(0, 3, 0)
+            if drop and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local targetPart = drop:IsA("BasePart") and drop or drop:FindFirstChildWhichIsA("BasePart", true)
+                if targetPart then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+                end
             end
         end
     end,
@@ -292,7 +287,6 @@ EventTab:CreateToggle({
     Callback = function(Value) AutoHoneycombCollect = Value end,
 })
 
--- NOVA SEÇÃO: Controle da máquina de depósito Honey Jar Machine
 EventTab:CreateSection("Queen Bee - Honey Jar Machine")
 EventTab:CreateInput({
     Name = "Mínimo de Tokens para Depositar",
@@ -430,7 +424,7 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- SISTEMA DE FILA COM VERIFICAÇÃO ATIVA (QUEEN BEE)
+-- QUEEN BEE: FILA CORRIGIDA (BUSCA RECURSIVA COLETAPROMPT)
 -- ========================================================
 task.spawn(function()
     while task.wait(0.1) do
@@ -441,9 +435,10 @@ task.spawn(function()
                 for _, honeycomb in ipairs(items) do
                     if not AutoHoneycombCollect then break end
                     
-                    if honeycomb and honeycomb.Parent and (honeycomb:IsA("BasePart") or honeycomb:IsA("Model")) then
-                        local collectPrompt = honeycomb:FindFirstChild("Honeycomb", true) and honeycomb.Honeycomb:FindFirstChild("CollectPrompt")
-                        local targetPart = honeycomb:IsA("BasePart") and honeycomb or honeycomb:FindFirstChildWhichIsA("BasePart")
+                    if honeycomb and honeycomb.Parent then
+                        -- Correção: Acha o Prompt e a parte física independentemente da hierarquia interna
+                        local collectPrompt = honeycomb:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        local targetPart = honeycomb:IsA("BasePart") and honeycomb or honeycomb:FindFirstChildWhichIsA("BasePart", true)
                         
                         if collectPrompt and targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                             local hrp = LocalPlayer.Character.HumanoidRootPart
@@ -474,31 +469,30 @@ end)
 task.spawn(function()
     while task.wait(0.5) do
         if AutoDepositTokens then
-            -- Verifica se atingiu a meta estipulada na interface e se tem itens
             local totalTokens = GetHoneyTokenCount()
             if totalTokens >= DepositThreshold then
                 local insertPrompt = GetHoneyJarMachinePrompt()
                 
-                -- Se a máquina estiver ativa no Workspace, inicia o processo de descarregar os itens
-                if insertPrompt and insertPrompt.Parent and insertPrompt.Parent:IsA("BasePart") then
-                    while AutoDepositTokens and GetHoneyTokenCount() > 0 do
-                        local activePrompt = GetHoneyJarMachinePrompt()
-                        if not activePrompt or not activePrompt.Parent then break end
-                        
-                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                            -- Teleporta com precisão até a máquina
-                            LocalPlayer.Character.HumanoidRootPart.CFrame = activePrompt.Parent.CFrame + Vector3.new(0, 2, 0)
-                            task.wait(0.1)
+                if insertPrompt and insertPrompt.Parent then
+                    local machinePart = insertPrompt.Parent:IsA("BasePart") and insertPrompt.Parent or insertPrompt.Parent:FindFirstChildWhichIsA("BasePart", true)
+                    
+                    if machinePart then
+                        while AutoDepositTokens and GetHoneyTokenCount() > 0 do
+                            local activePrompt = GetHoneyJarMachinePrompt()
+                            if not activePrompt or not activePrompt.Parent then break end
                             
-                            -- Garante que o item está equipado na mão para poder interagir
-                            EquipHoneyToken()
-                            task.wait(0.1)
-                            
-                            -- Executa a inserção
-                            fireproximityprompt(activePrompt)
-                            task.wait(0.3) -- Pequena pausa estável pro servidor computar a redução do item
-                        else
-                            break
+                            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                                LocalPlayer.Character.HumanoidRootPart.CFrame = machinePart.CFrame + Vector3.new(0, 2, 0)
+                                task.wait(0.1)
+                                
+                                EquipHoneyToken()
+                                task.wait(0.1)
+                                
+                                fireproximityprompt(activePrompt)
+                                task.wait(0.3) 
+                            else
+                                break
+                            end
                         end
                     end
                 end
@@ -508,7 +502,7 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- SISTEMA DE FILA COM VERIFICAÇÃO ATIVA (ALIEN INVASION)
+-- ALIEN INVASION: FILA CORRIGIDA (BUSCA RECURSIVA PROXIMITYPROMPT)
 -- ========================================================
 task.spawn(function()
     while task.wait(0.5) do
@@ -516,7 +510,8 @@ task.spawn(function()
         local folder = GetAlienInvasionFolder()
         if folder then
             for _, drop in ipairs(folder:GetChildren()) do
-                if string.match(drop.Name, "AlienDrop") and drop:IsA("BasePart") then 
+                -- Correção: Agora aceita qualquer item com "AlienDrop" no nome (Modelos ou Parts)
+                if string.find(drop.Name, "AlienDrop") then 
                     table.insert(currentDrops, drop.Name) 
                 end
             end
@@ -539,12 +534,15 @@ task.spawn(function()
             for _, drop in ipairs(items) do
                 if not AutoAlienCollect then break end
                 
-                if drop and drop.Parent and string.match(drop.Name, "AlienDrop") and drop:IsA("BasePart") then
-                    local prompt = drop:FindFirstChild("ProximityPrompt")
-                    if prompt and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                if drop and drop.Parent and string.find(drop.Name, "AlienDrop") then
+                    -- Correção: Varredura profunda interna para achar o prompt e o local do TP
+                    local prompt = drop:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    local targetPart = drop:IsA("BasePart") and drop or drop:FindFirstChildWhichIsA("BasePart", true)
+                    
+                    if prompt and targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                         local hrp = LocalPlayer.Character.HumanoidRootPart
                         
-                        hrp.CFrame = drop.CFrame + Vector3.new(0, 3, 0)
+                        hrp.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
                         task.wait(0.1)
                         fireproximityprompt(prompt)
                         
