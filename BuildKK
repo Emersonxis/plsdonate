@@ -4,7 +4,12 @@ local Window = Rayfield:CreateWindow({
     Name = "FrancesS Tools",
     LoadingTitle = "FrancesS Tools",
     LoadingSubtitle = "Auto Systems",
-    ConfigurationSaving = { Enabled = false },
+    -- SISTEMA DE SAVE ATIVADO!
+    ConfigurationSaving = { 
+        Enabled = true,
+        FolderName = "FrancesS_Config",
+        FileName = "Save_01"
+    },
     KeySystem = false
 })
 
@@ -24,11 +29,13 @@ local TargetPrice = 0
 
 local ActiveBuySeeds = {}
 
--- Variáveis de Eventos (Alien e QueenBee)
+-- Variáveis de Eventos (Alien, QueenBee, Trucker)
 local AutoAlienCollect = false
 local SelectedAlienDrop = nil
 local LastAlienDrops = {}
-local AutoHoneycombCollect = false -- Nova automação
+local AutoHoneycombCollect = false 
+local AutoRejoinTrucker = false
+local TruckerWasPresent = false
 
 local AutoGearEnabled = false
 local SelectedSprays = {}
@@ -40,13 +47,14 @@ local SeedDebounce = {}
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local LocalPlayer = game:GetService("Players").LocalPlayer
+local TeleportService = game:GetService("TeleportService")
 
 -- Busca a pasta dinâmica com o nome do usuário atual logado
 local GearStocksFolder = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks")
 local GearStocks = GearStocksFolder:WaitForChild(LocalPlayer.Name, 10) or GearStocksFolder:FindFirstChildWhichIsA("Folder")
 
 -- ========================================================
--- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA
+-- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA (Suporta "270t" e mais)
 -- ========================================================
 local function ParseTextToNumber(text)
     if not text then return 0 end
@@ -75,13 +83,6 @@ end
 -- ========================================================
 -- FUNÇÕES AUXILIARES DE VALIDAÇÃO
 -- ========================================================
-local function RemoveActiveSeed(item)
-    for i = #ActiveBuySeeds, 1, -1 do
-        if ActiveBuySeeds[i] == item then table.remove(ActiveBuySeeds, i) end
-    end
-end
-
--- Mantido original com checagem de saldo para a compra automática comum
 local function HasTargetSeedOnMap()
     if TargetPrice <= 0 then return false end
     
@@ -110,7 +111,6 @@ local function HasTargetSeedOnMap()
     return false
 end
 
--- NOVA FUNÇÃO: Exclusiva do Sniper. Ignora totalmente o saldo do jogador.
 local function SniperCheckSeedOnMap()
     if TargetPrice <= 0 then return false end
 
@@ -126,7 +126,6 @@ local function SniperCheckSeedOnMap()
                 local costText = costObj.Text == "" and costObj.ContentText or costObj.Text
                 local currentPrice = ParseTextToNumber(costText)
                 
-                -- Se a semente no mapa atingiu o valor alvo, retorna verdadeiro (pausa o roll)
                 if currentPrice >= TargetPrice then
                     return true
                 end
@@ -172,25 +171,21 @@ end
 -- ABA: AUTO COMPRA 
 -- ========================================================
 AutoBuyTab:CreateSection("Configuração de Valor Global")
-
 AutoBuyTab:CreateInput({
     Name = "Valor Alvo (Sementes)",
-    PlaceholderText = "Ex: 1.5k, 5b, 1.9t...",
+    PlaceholderText = "Ex: 1.5k, 5b, 270t...",
     RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        TargetPrice = ParseTextToNumber(Text)
-    end,
+    Flag = "Input_TargetPrice",
+    Callback = function(Text) TargetPrice = ParseTextToNumber(Text) end,
 })
 
 AutoBuyTab:CreateSection("Automações")
-
 AutoBuyTab:CreateToggle({
     Name = "Ativar Auto Buy Sementes",
     CurrentValue = false,
     Flag = "Toggle_AutoBuy",
     Callback = function(Value) AutoBuyEnabled = Value end,
 })
-
 AutoBuyTab:CreateToggle({
     Name = "Ativar Auto Roll Sementes",
     CurrentValue = false,
@@ -199,21 +194,17 @@ AutoBuyTab:CreateToggle({
 })
 
 AutoBuyTab:CreateSection("Sniper (Pausa Roll)")
-
 AutoBuyTab:CreateToggle({
     Name = "Ativar Auto Roll Sniper",
     CurrentValue = false,
     Flag = "Toggle_AutoRollSniper",
-    Callback = function(Value)
-        AutoRollSniperEnabled = Value
-    end,
+    Callback = function(Value) AutoRollSniperEnabled = Value end,
 })
 
 -- ========================================================
 -- ABA: EVENTOS
 -- ========================================================
 EventTab:CreateSection("Alien Invasion")
-
 local AlienDropdown = EventTab:CreateDropdown({
     Name = "Drops Ativos (Alien)",
     Options = {"Buscando..."},
@@ -244,13 +235,25 @@ EventTab:CreateToggle({
 })
 
 EventTab:CreateSection("Queen Bee")
-
--- Nova opção solicitada para o evento da Abelha
 EventTab:CreateToggle({
     Name = "Auto Coletar Honeycomb (Bee)",
     CurrentValue = false,
     Flag = "Toggle_AutoHoneycomb",
     Callback = function(Value) AutoHoneycombCollect = Value end,
+})
+
+EventTab:CreateSection("Trucker Experimental")
+EventTab:CreateToggle({
+    Name = "Auto Rejoin (Trucker Event)",
+    CurrentValue = false,
+    Flag = "Toggle_AutoRejoinTrucker",
+    Callback = function(Value) 
+        AutoRejoinTrucker = Value 
+        -- Quando ativado, registra o estado inicial do Trucker para evitar loops infinitos
+        if Value then
+            TruckerWasPresent = (workspace:FindFirstChild("Trucker") ~= nil)
+        end
+    end,
 })
 
 -- ========================================================
@@ -270,22 +273,25 @@ GearTab:CreateSection("Estoque Atual")
 for _, gearName in ipairs(allGearsList) do StockLabels[gearName] = GearTab:CreateLabel(gearName .. " : stock 0") end
 
 -- ========================================================
--- MONITORAMENTO DE ENTRADA E SAÍDA DE ITENS
+-- SISTEMA DE DETECÇÃO ANTI-LAG E LIMPEZA DE MEMÓRIA
 -- ========================================================
+-- Popula a tabela inicial
 for _, desc in ipairs(workspace:GetDescendants()) do
     if desc.Name == "BuySeed" then table.insert(ActiveBuySeeds, desc) end
 end
 
+-- Detecção mais limpa para evitar loops pesados em DescendantAdded
 workspace.DescendantAdded:Connect(function(desc)
-    if desc.Name == "BuySeed" then table.insert(ActiveBuySeeds, desc) end
-end)
-
-workspace.DescendantRemoving:Connect(function(desc)
-    if desc.Name == "BuySeed" then RemoveActiveSeed(desc) end
+    if desc.Name == "BuySeed" then 
+        -- Evita duplicações na tabela
+        if not table.find(ActiveBuySeeds, desc) then
+            table.insert(ActiveBuySeeds, desc) 
+        end
+    end
 end)
 
 -- ========================================================
--- LOOPS PRINCIPAIS
+-- LOOPS PRINCIPAIS E REJOIN DO TRUCKER
 -- ========================================================
 
 local function ProcessBuySeed(buyNode)
@@ -322,9 +328,16 @@ local function ProcessBuySeed(buyNode)
     end
 end
 
--- Loop Auto Buy Sementes (0.1s)
+-- Loop Auto Buy Sementes e Coletor de Lixo (Limpeza de Memória Anti-Lag)
 task.spawn(function()
     while task.wait(0.1) do
+        -- Lixeiro virtual: Remove itens deletados que causariam vazamento de memória e lag
+        for i = #ActiveBuySeeds, 1, -1 do
+            if not ActiveBuySeeds[i] or not ActiveBuySeeds[i].Parent then
+                table.remove(ActiveBuySeeds, i)
+            end
+        end
+
         if AutoBuyEnabled and TargetPrice > 0 then
             for i = 1, #ActiveBuySeeds do
                 if ActiveBuySeeds[i] then ProcessBuySeed(ActiveBuySeeds[i]) end
@@ -333,7 +346,7 @@ task.spawn(function()
     end
 end)
 
--- Loop Auto Roll Sementes Original (0.5s)
+-- Auto Roll Sementes Original
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait(0.5) do
@@ -345,12 +358,11 @@ task.spawn(function()
     end
 end)
 
--- Loop Auto Roll Sniper MODIFICADO (0.5s) - Totalmente independente de carteira/dinheiro
+-- Auto Roll Sniper Independente
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait(0.5) do
         if AutoRollSniperEnabled and rollRemote then
-            -- Interrompe o roll IMEDIATAMENTE se a semente alvo surgir, mesmo que você não tenha dinheiro
             if not SniperCheckSeedOnMap() then
                 rollRemote:FireServer()
             end
@@ -358,28 +370,44 @@ task.spawn(function()
     end
 end)
 
--- Loop Auto Coletar Honeycomb (Queen Bee) - Velocidade Máxima e Sem Proteção de Distância
+-- Loop Auto Coletar Honeycomb (Queen Bee)
 task.spawn(function()
     while task.wait(0.1) do
         if AutoHoneycombCollect then
             local folder = GetHoneycombsFolder()
             if folder then
-                -- Itera sobre todos os favos de mel gerados dinamicamente
                 for _, honeycomb in ipairs(folder:GetChildren()) do
                     if honeycomb:IsA("BasePart") or honeycomb:IsA("Model") then
-                        -- Encontra o Prompt de Coleta na hierarquia passada por você (.Honeycomb.CollectPrompt)
                         local collectPrompt = honeycomb:FindFirstChild("Honeycomb", true) and honeycomb.Honeycomb:FindFirstChild("CollectPrompt")
                         local targetPart = honeycomb:IsA("BasePart") and honeycomb or honeycomb:FindFirstChildWhichIsA("BasePart")
                         
                         if collectPrompt and targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                            -- Teleporta diretamente em cima do favo para burlar a trava de distância
                             LocalPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 2, 0)
-                            task.wait(0.05) -- Delay mínimo para o motor do jogo reconhecer a nova posição
+                            task.wait(0.05) 
                             fireproximityprompt(collectPrompt)
-                            task.wait(0.05) -- Transição super rápida para o próximo favo
+                            task.wait(0.05) 
                         end
                     end
                 end
+            end
+        end
+    end
+end)
+
+-- Loop do Evento Trucker (Rejoin Automático)
+task.spawn(function()
+    while task.wait(2) do
+        if AutoRejoinTrucker then
+            local truckerExists = workspace:FindFirstChild("Trucker") ~= nil
+            
+            if truckerExists then
+                TruckerWasPresent = true
+            elseif TruckerWasPresent and not truckerExists then
+                -- O Trucker estava lá, mas sumiu! Hora de reconectar.
+                TruckerWasPresent = false 
+                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                -- Pausa longa para impedir chamadas duplicadas enquanto carrega a tela
+                task.wait(10) 
             end
         end
     end
