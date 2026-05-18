@@ -4,7 +4,6 @@ local Window = Rayfield:CreateWindow({
     Name = "FrancesS Tools",
     LoadingTitle = "FrancesS Tools",
     LoadingSubtitle = "Auto Systems",
-    -- SISTEMA DE SAVE ATIVADO!
     ConfigurationSaving = { 
         Enabled = true,
         FolderName = "FrancesS_Config",
@@ -54,7 +53,7 @@ local GearStocksFolder = game:GetService("ReplicatedStorage"):WaitForChild("Gear
 local GearStocks = GearStocksFolder:WaitForChild(LocalPlayer.Name, 10) or GearStocksFolder:FindFirstChildWhichIsA("Folder")
 
 -- ========================================================
--- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA (Suporta "270t" e mais)
+-- FUNÇÃO UNIVERSAL DE CONVERSÃO MATEMÁTICA
 -- ========================================================
 local function ParseTextToNumber(text)
     if not text then return 0 end
@@ -249,7 +248,6 @@ EventTab:CreateToggle({
     Flag = "Toggle_AutoRejoinTrucker",
     Callback = function(Value) 
         AutoRejoinTrucker = Value 
-        -- Quando ativado, registra o estado inicial do Trucker para evitar loops infinitos
         if Value then
             TruckerWasPresent = (workspace:FindFirstChild("Trucker") ~= nil)
         end
@@ -273,17 +271,14 @@ GearTab:CreateSection("Estoque Atual")
 for _, gearName in ipairs(allGearsList) do StockLabels[gearName] = GearTab:CreateLabel(gearName .. " : stock 0") end
 
 -- ========================================================
--- SISTEMA DE DETECÇÃO ANTI-LAG E LIMPEZA DE MEMÓRIA
+-- MONITORAMENTO AUTOMÁTICO DE SEMENTES (ANTI-LAG)
 -- ========================================================
--- Popula a tabela inicial
 for _, desc in ipairs(workspace:GetDescendants()) do
     if desc.Name == "BuySeed" then table.insert(ActiveBuySeeds, desc) end
 end
 
--- Detecção mais limpa para evitar loops pesados em DescendantAdded
 workspace.DescendantAdded:Connect(function(desc)
     if desc.Name == "BuySeed" then 
-        -- Evita duplicações na tabela
         if not table.find(ActiveBuySeeds, desc) then
             table.insert(ActiveBuySeeds, desc) 
         end
@@ -291,9 +286,8 @@ workspace.DescendantAdded:Connect(function(desc)
 end)
 
 -- ========================================================
--- LOOPS PRINCIPAIS E REJOIN DO TRUCKER
+-- LOOPS DE COMPRA E ROLL
 -- ========================================================
-
 local function ProcessBuySeed(buyNode)
     if not buyNode or not buyNode.Parent then return end
     local parentNode = buyNode.Parent
@@ -308,7 +302,6 @@ local function ProcessBuySeed(buyNode)
             local costText = costObj.Text == "" and costObj.ContentText or costObj.Text
             if costText and costText ~= "" then
                 local currentPrice = ParseTextToNumber(costText)
-                
                 local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
                 local cashObj = leaderstats and leaderstats:FindFirstChild("Cash")
                 local currentBalance = cashObj and ParseTextToNumber(cashObj.Value) or 0
@@ -328,16 +321,13 @@ local function ProcessBuySeed(buyNode)
     end
 end
 
--- Loop Auto Buy Sementes e Coletor de Lixo (Limpeza de Memória Anti-Lag)
 task.spawn(function()
     while task.wait(0.1) do
-        -- Lixeiro virtual: Remove itens deletados que causariam vazamento de memória e lag
         for i = #ActiveBuySeeds, 1, -1 do
             if not ActiveBuySeeds[i] or not ActiveBuySeeds[i].Parent then
                 table.remove(ActiveBuySeeds, i)
             end
         end
-
         if AutoBuyEnabled and TargetPrice > 0 then
             for i = 1, #ActiveBuySeeds do
                 if ActiveBuySeeds[i] then ProcessBuySeed(ActiveBuySeeds[i]) end
@@ -346,7 +336,6 @@ task.spawn(function()
     end
 end)
 
--- Auto Roll Sementes Original
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait(0.5) do
@@ -358,7 +347,6 @@ task.spawn(function()
     end
 end)
 
--- Auto Roll Sniper Independente
 task.spawn(function()
     local rollRemote = Remotes:WaitForChild("RollSeeds", 5)
     while task.wait(0.5) do
@@ -370,22 +358,41 @@ task.spawn(function()
     end
 end)
 
--- Loop Auto Coletar Honeycomb (Queen Bee)
+-- ========================================================
+-- SISTEMA DE FILA COM VERIFICAÇÃO ATIVA (QUEEN BEE)
+-- ========================================================
 task.spawn(function()
     while task.wait(0.1) do
         if AutoHoneycombCollect then
             local folder = GetHoneycombsFolder()
             if folder then
-                for _, honeycomb in ipairs(folder:GetChildren()) do
-                    if honeycomb:IsA("BasePart") or honeycomb:IsA("Model") then
+                local items = folder:GetChildren()
+                for _, honeycomb in ipairs(items) do
+                    -- Se a automação foi desligada no meio do processo, interrompe a fila imediatamente
+                    if not AutoHoneycombCollect then break end
+                    
+                    if honeycomb and honeycomb.Parent and (honeycomb:IsA("BasePart") or honeycomb:IsA("Model")) then
                         local collectPrompt = honeycomb:FindFirstChild("Honeycomb", true) and honeycomb.Honeycomb:FindFirstChild("CollectPrompt")
                         local targetPart = honeycomb:IsA("BasePart") and honeycomb or honeycomb:FindFirstChildWhichIsA("BasePart")
                         
                         if collectPrompt and targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                            LocalPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 2, 0)
-                            task.wait(0.05) 
+                            local hrp = LocalPlayer.Character.HumanoidRootPart
+                            
+                            -- Teleporta e tenta coletar
+                            hrp.CFrame = targetPart.CFrame + Vector3.new(0, 2, 0)
+                            task.wait(0.1)
                             fireproximityprompt(collectPrompt)
-                            task.wait(0.05) 
+                            
+                            -- SISTEMA DE FILA: Espera o item sumir do mapa antes de continuar o loop
+                            local timeout = 0
+                            while honeycomb and honeycomb.Parent and timeout < 15 do
+                                task.wait(0.05)
+                                timeout = timeout + 1
+                                -- Força o clique novamente caso o jogo dê uma leve travada
+                                if timeout % 4 == 0 and honeycomb and honeycomb.Parent then
+                                    fireproximityprompt(collectPrompt)
+                                end
+                            end
                         end
                     end
                 end
@@ -394,59 +401,77 @@ task.spawn(function()
     end
 end)
 
--- Loop do Evento Trucker (Rejoin Automático)
+-- ========================================================
+-- SISTEMA DE FILA COM VERIFICAÇÃO ATIVA (ALIEN INVASION)
+-- ========================================================
 task.spawn(function()
-    while task.wait(2) do
-        if AutoRejoinTrucker then
-            local truckerExists = workspace:FindFirstChild("Trucker") ~= nil
-            
-            if truckerExists then
-                TruckerWasPresent = true
-            elseif TruckerWasPresent and not truckerExists then
-                -- O Trucker estava lá, mas sumiu! Hora de reconectar.
-                TruckerWasPresent = false 
-                TeleportService:Teleport(game.PlaceId, LocalPlayer)
-                -- Pausa longa para impedir chamadas duplicadas enquanto carrega a tela
-                task.wait(10) 
+    while task.wait(0.5) do
+        local currentDrops = {}
+        local folder = GetAlienInvasionFolder()
+        if folder then
+            for _, drop in ipairs(folder:GetChildren()) do
+                if string.match(drop.Name, "AlienDrop") and drop:IsA("BasePart") then 
+                    table.insert(currentDrops, drop.Name) 
+                end
+            end
+        end
+        if #currentDrops == 0 then table.insert(currentDrops, "Nenhum") end
+        
+        local function ArraysMatch(a, b)
+            if #a ~= #b then return false end
+            for i = 1, #a do if a[i] ~= b[i] then return false end end
+            return true
+        end
+        
+        if not ArraysMatch(LastAlienDrops, currentDrops) then
+            LastAlienDrops = currentDrops
+            AlienDropdown:Refresh(currentDrops, true)
+        end
+        
+        -- Execução da Coleta com Fila
+        if AutoAlienCollect and folder then
+            local items = folder:GetChildren()
+            for _, drop in ipairs(items) do
+                if not AutoAlienCollect then break end
+                
+                if drop and drop.Parent and string.match(drop.Name, "AlienDrop") and drop:IsA("BasePart") then
+                    local prompt = drop:FindFirstChild("ProximityPrompt")
+                    if prompt and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        local hrp = LocalPlayer.Character.HumanoidRootPart
+                        
+                        hrp.CFrame = drop.CFrame + Vector3.new(0, 3, 0)
+                        task.wait(0.1)
+                        fireproximityprompt(prompt)
+                        
+                        -- SISTEMA DE FILA: Segura o script até que este drop específico suma
+                        local timeout = 0
+                        while drop and drop.Parent and timeout < 20 do
+                            task.wait(0.05)
+                            timeout = timeout + 1
+                            if timeout % 5 == 0 and drop and drop.Parent then
+                                fireproximityprompt(prompt)
+                            end
+                        end
+                    end
+                end
             end
         end
     end
 end)
 
 -- ========================================================
--- CONTROLE DE EVENTOS (ALIEN), AUTO VENDA E LOJA GEARS
+-- REJOIN TRUCKER & AUTO SELL / GEARS
 -- ========================================================
-local function ArraysMatch(a, b)
-    if #a ~= #b then return false end
-    for i = 1, #a do if a[i] ~= b[i] then return false end end
-    return true
-end
-
 task.spawn(function()
-    while task.wait(1) do
-        local currentDrops = {}
-        local folder = GetAlienInvasionFolder()
-        if folder then
-            for _, drop in ipairs(folder:GetChildren()) do
-                if string.match(drop.Name, "AlienDrop") and drop:IsA("BasePart") then table.insert(currentDrops, drop.Name) end
-            end
-        end
-        if #currentDrops == 0 then table.insert(currentDrops, "Nenhum") end
-        if not ArraysMatch(LastAlienDrops, currentDrops) then
-            LastAlienDrops = currentDrops
-            AlienDropdown:Refresh(currentDrops, true)
-        end
-        if AutoAlienCollect and folder then
-            for _, drop in ipairs(folder:GetChildren()) do
-                if string.match(drop.Name, "AlienDrop") and drop:IsA("BasePart") then
-                    local prompt = drop:FindFirstChild("ProximityPrompt")
-                    if prompt and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        LocalPlayer.Character.HumanoidRootPart.CFrame = drop.CFrame + Vector3.new(0, 3, 0)
-                        task.wait(0.3)
-                        fireproximityprompt(prompt)
-                        task.wait(0.7)
-                    end
-                end
+    while task.wait(2) do
+        if AutoRejoinTrucker then
+            local truckerExists = workspace:FindFirstChild("Trucker") ~= nil
+            if truckerExists then
+                TruckerWasPresent = true
+            elseif TruckerWasPresent and not truckerExists then
+                TruckerWasPresent = false 
+                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                task.wait(10) 
             end
         end
     end
