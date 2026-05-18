@@ -436,7 +436,6 @@ task.spawn(function()
                     if not AutoHoneycombCollect then break end
                     
                     if honeycomb and honeycomb.Parent then
-                        -- Correção: Acha o Prompt e a parte física independentemente da hierarquia interna
                         local collectPrompt = honeycomb:FindFirstChildWhichIsA("ProximityPrompt", true)
                         local targetPart = honeycomb:IsA("BasePart") and honeycomb or honeycomb:FindFirstChildWhichIsA("BasePart", true)
                         
@@ -510,7 +509,6 @@ task.spawn(function()
         local folder = GetAlienInvasionFolder()
         if folder then
             for _, drop in ipairs(folder:GetChildren()) do
-                -- Correção: Agora aceita qualquer item com "AlienDrop" no nome (Modelos ou Parts)
                 if string.find(drop.Name, "AlienDrop") then 
                     table.insert(currentDrops, drop.Name) 
                 end
@@ -535,7 +533,6 @@ task.spawn(function()
                 if not AutoAlienCollect then break end
                 
                 if drop and drop.Parent and string.find(drop.Name, "AlienDrop") then
-                    -- Correção: Varredura profunda interna para achar o prompt e o local do TP
                     local prompt = drop:FindFirstChildWhichIsA("ProximityPrompt", true)
                     local targetPart = drop:IsA("BasePart") and drop or drop:FindFirstChildWhichIsA("BasePart", true)
                     
@@ -607,3 +604,8 @@ task.spawn(function()
         end
     end
 end)
+
+-- ========================================================
+-- FINALIZAÇÃO: CARREGAR CONFIGURAÇÃO AUTOMATICAMENTE
+-- ========================================================
+Rayfield:LoadConfiguration()
