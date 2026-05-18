@@ -36,6 +36,10 @@ local AutoHoneycombCollect = false
 local AutoRejoinTrucker = false
 local TruckerWasPresent = false
 
+-- Novas Variáveis da Máquina de Mel
+local AutoDepositTokens = false
+local DepositThreshold = 10
+
 local AutoGearEnabled = false
 local SelectedSprays = {}
 local SelectedFertilizers = {}
@@ -80,7 +84,7 @@ local function ParseTextToNumber(text)
 end
 
 -- ========================================================
--- FUNÇÕES AUXILIARES DE VALIDAÇÃO
+-- FUNÇÕES AUXILIARES DE VALIDAÇÃO E DETECÇÃO DE TOKENS
 -- ========================================================
 local function HasTargetSeedOnMap()
     if TargetPrice <= 0 then return false end
@@ -145,6 +149,53 @@ local function GetHoneycombsFolder()
     local qb = ie and ie:FindFirstChild("QueenBee")
     if qb then return qb:FindFirstChild("RuntimeHoneycombs") end
     return nil
+end
+
+-- Função para verificar se a máquina de depósito está no mapa e retornar seu Prompt
+local function GetHoneyJarMachinePrompt()
+    local ie = workspace:FindFirstChild("InteractiveEvents")
+    local qb = ie and ie:FindFirstChild("QueenBee")
+    local hjm = qb and qb:FindFirstChild("HoneyJarMachine")
+    local machine = hjm and hjm:FindFirstChild("Honey Jar Machine")
+    return machine and machine:FindFirstChild("InsertPrompt")
+end
+
+-- Função Inteligente para Ler e Contar a quantidade exata de Honey Tokens na mochila
+local function GetHoneyTokenCount()
+    local total = 0
+    
+    -- Varre a mochila do jogador
+    for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
+        if string.find(item.Name, "Honey Token") then
+            local stackNum = string.match(item.Name, "%(x(%d+)%)")
+            if stackNum then total = total + tonumber(stackNum) else total = total + 1 end
+        end
+    end
+    
+    -- Varre o personagem (caso já esteja equipado na mão)
+    if LocalPlayer.Character then
+        for _, item in ipairs(LocalPlayer.Character:GetChildren()) do
+            if item:IsA("Tool") and string.find(item.Name, "Honey Token") then
+                local stackNum = string.match(item.Name, "%(x(%d+)%)")
+                if stackNum then total = total + tonumber(stackNum) else total = total + 1 end
+            end
+        end
+    end
+    
+    return total
+end
+
+-- Função para equipar o Token automaticamente na mão do personagem
+local function EquipHoneyToken()
+    local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
+            if string.find(item.Name, "Honey Token") then
+                humanoid:EquipTool(item)
+                break
+            end
+        end
+    end
 end
 
 -- ========================================================
@@ -239,6 +290,26 @@ EventTab:CreateToggle({
     CurrentValue = false,
     Flag = "Toggle_AutoHoneycomb",
     Callback = function(Value) AutoHoneycombCollect = Value end,
+})
+
+-- NOVA SEÇÃO: Controle da máquina de depósito Honey Jar Machine
+EventTab:CreateSection("Queen Bee - Honey Jar Machine")
+EventTab:CreateInput({
+    Name = "Mínimo de Tokens para Depositar",
+    PlaceholderText = "Ex: 10, 20, 50...",
+    RemoveTextAfterFocusLost = false,
+    Flag = "Input_DepositThreshold",
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if num then DepositThreshold = num end
+    end,
+})
+
+EventTab:CreateToggle({
+    Name = "Auto Depositar Honey Tokens",
+    CurrentValue = false,
+    Flag = "Toggle_AutoDepositTokens",
+    Callback = function(Value) AutoDepositTokens = Value end,
 })
 
 EventTab:CreateSection("Trucker Experimental")
@@ -368,7 +439,6 @@ task.spawn(function()
             if folder then
                 local items = folder:GetChildren()
                 for _, honeycomb in ipairs(items) do
-                    -- Se a automação foi desligada no meio do processo, interrompe a fila imediatamente
                     if not AutoHoneycombCollect then break end
                     
                     if honeycomb and honeycomb.Parent and (honeycomb:IsA("BasePart") or honeycomb:IsA("Model")) then
@@ -378,21 +448,57 @@ task.spawn(function()
                         if collectPrompt and targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                             local hrp = LocalPlayer.Character.HumanoidRootPart
                             
-                            -- Teleporta e tenta coletar
                             hrp.CFrame = targetPart.CFrame + Vector3.new(0, 2, 0)
                             task.wait(0.1)
                             fireproximityprompt(collectPrompt)
                             
-                            -- SISTEMA DE FILA: Espera o item sumir do mapa antes de continuar o loop
                             local timeout = 0
                             while honeycomb and honeycomb.Parent and timeout < 15 do
                                 task.wait(0.05)
                                 timeout = timeout + 1
-                                -- Força o clique novamente caso o jogo dê uma leve travada
                                 if timeout % 4 == 0 and honeycomb and honeycomb.Parent then
                                     fireproximityprompt(collectPrompt)
                                 end
                             end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ========================================================
+-- LOOP DE DEPÓSITO AUTOMÁTICO: HONEY JAR MACHINE
+-- ========================================================
+task.spawn(function()
+    while task.wait(0.5) do
+        if AutoDepositTokens then
+            -- Verifica se atingiu a meta estipulada na interface e se tem itens
+            local totalTokens = GetHoneyTokenCount()
+            if totalTokens >= DepositThreshold then
+                local insertPrompt = GetHoneyJarMachinePrompt()
+                
+                -- Se a máquina estiver ativa no Workspace, inicia o processo de descarregar os itens
+                if insertPrompt and insertPrompt.Parent and insertPrompt.Parent:IsA("BasePart") then
+                    while AutoDepositTokens and GetHoneyTokenCount() > 0 do
+                        local activePrompt = GetHoneyJarMachinePrompt()
+                        if not activePrompt or not activePrompt.Parent then break end
+                        
+                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                            -- Teleporta com precisão até a máquina
+                            LocalPlayer.Character.HumanoidRootPart.CFrame = activePrompt.Parent.CFrame + Vector3.new(0, 2, 0)
+                            task.wait(0.1)
+                            
+                            -- Garante que o item está equipado na mão para poder interagir
+                            EquipHoneyToken()
+                            task.wait(0.1)
+                            
+                            -- Executa a inserção
+                            fireproximityprompt(activePrompt)
+                            task.wait(0.3) -- Pequena pausa estável pro servidor computar a redução do item
+                        else
+                            break
                         end
                     end
                 end
@@ -428,7 +534,6 @@ task.spawn(function()
             AlienDropdown:Refresh(currentDrops, true)
         end
         
-        -- Execução da Coleta com Fila
         if AutoAlienCollect and folder then
             local items = folder:GetChildren()
             for _, drop in ipairs(items) do
@@ -443,7 +548,6 @@ task.spawn(function()
                         task.wait(0.1)
                         fireproximityprompt(prompt)
                         
-                        -- SISTEMA DE FILA: Segura o script até que este drop específico suma
                         local timeout = 0
                         while drop and drop.Parent and timeout < 20 do
                             task.wait(0.05)
