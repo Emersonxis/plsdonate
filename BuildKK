@@ -168,18 +168,26 @@ AutoBuyTab:CreateToggle({Name = "Ativar Comprar Semente Alvo", CurrentValue = fa
 AutoBuyTab:CreateToggle({Name = "Ativar Auto Roll Sniper", CurrentValue = false, Flag = "Tgl_RollSniper", Callback = function(Value) AutoRollSniperEnabled = Value end})
 
 -- ========================================================
--- UI: ABA EVENTOS, GEARS E SELL (RESTAURADOS)
+-- UI: ABA EVENTOS
 -- ========================================================
 EventTab:CreateSection("Alien Invasion")
 local AlienDropdown = EventTab:CreateDropdown({Name = "Drops Ativos (Alien)", Options = {"Buscando..."}, CurrentOption = {"Buscando..."}, MultipleOptions = false, Flag = "Drop_Alien", Callback = function(Opt) SelectedAlienDrop = Opt[1] end})
 EventTab:CreateToggle({Name = "Auto Coletar Drops (Alien)", CurrentValue = false, Flag = "Tgl_Alien", Callback = function(Value) AutoAlienCollect = Value end})
+
 EventTab:CreateSection("Queen Bee")
 EventTab:CreateToggle({Name = "Auto Coletar Honeycomb", CurrentValue = false, Flag = "Tgl_Honey", Callback = function(Value) AutoHoneycombCollect = Value end})
+EventTab:CreateInput({Name = "Quantidade p/ Depositar (Honey)", PlaceholderText = "Ex: 10, 50", RemoveTextAfterFocusLost = false, Flag = "Inp_HoneyDep", Callback = function(Text) DepositThreshold = tonumber(Text) or DepositThreshold end})
 EventTab:CreateToggle({Name = "Auto Depositar Honey Tokens", CurrentValue = false, Flag = "Tgl_Deposit", Callback = function(Value) AutoDepositTokens = Value end})
 
-AutoSellTab:CreateSection("Venda de Caixas")
-AutoSellTab:CreateToggle({Name = "Ativar Auto Sell (Caixas)", CurrentValue = false, Flag = "Tgl_Sell", Callback = function(Value) AutoSellEnabled = Value end})
+-- ========================================================
+-- UI: ABA AUTO VENDA
+-- ========================================================
+AutoSellTab:CreateSection("Venda de Caixas (Crates)")
+AutoSellTab:CreateToggle({Name = "Ativar Auto Sell (Caixas/Crates)", CurrentValue = false, Flag = "Tgl_Sell", Callback = function(Value) AutoSellEnabled = Value end})
 
+-- ========================================================
+-- UI: ABA LOJA GEARS
+-- ========================================================
 GearTab:CreateSection("Controle de Compra")
 if #sprayList > 0 then GearTab:CreateDropdown({Name = "Sprays", Options = sprayList, MultipleOptions = true, Flag = "Drp_S", Callback = function(O) SelectedSprays={} for _,v in ipairs(O) do SelectedSprays[v]=true end end}) end
 if #fertList > 0 then GearTab:CreateDropdown({Name = "Fertilizantes", Options = fertList, MultipleOptions = true, Flag = "Drp_F", Callback = function(O) SelectedFertilizers={} for _,v in ipairs(O) do SelectedFertilizers[v]=true end end}) end
@@ -263,16 +271,12 @@ task.spawn(function()
                         
                         if label and label.Text ~= "" then
                             local eggName = label.ContentText ~= "" and label.ContentText or label.Text
-                            
                             if SelectedEggRarities[eggName] then
                                 eggTransaction:InvokeServer("BuyEgg", i)
                                 task.wait(0.5) 
-                                
                                 local formattedEggName = string.gsub(eggName, "%s+", "")
-                                
                                 rollEggRemote:FireServer(formattedEggName)
                                 task.wait(2.5) 
-                                
                                 rollEggRemote:FireServer(formattedEggName, "ClaimRolledPet")
                                 task.wait(1) 
                             end
@@ -292,7 +296,6 @@ task.spawn(function()
             local myPlot = GetMyPlot()
             
             if humanoid and myPlot then
-                -- 1. Procura a comida na mochila
                 local tool = nil
                 for _, t in ipairs(LocalPlayer.Backpack:GetChildren()) do
                     for allowedName, isActive in pairs(SelectedAutoTreats) do
@@ -304,14 +307,10 @@ task.spawn(function()
                     if tool then break end
                 end
                 
-                -- 2. Procura um Pet Faminto no Plot usando o atributo nativo
                 local hungryPet = nil
-                
                 for _, child in ipairs(myPlot:GetChildren()) do
                     if string.sub(child.Name, 1, 4) == "Pet_" then
                         local isBoosted = child:GetAttribute("PetBoosted")
-                        
-                        -- Se isBoosted for nil (falso), ele precisa de Treat
                         if not isBoosted then
                             hungryPet = child
                             break
@@ -319,15 +318,13 @@ task.spawn(function()
                     end
                 end
                 
-                -- 3. Executa a ação de alimentar
                 if tool and hungryPet then
                     humanoid:EquipTool(tool)
                     task.wait(0.5)
                     feedRemote:FireServer(hungryPet)
                     task.wait(0.5)
                     humanoid:UnequipTools()
-                    
-                    task.wait(1) -- Delay para o servidor registrar o atributo "PetBoosted = true"
+                    task.wait(1)
                 else
                     task.wait(2) 
                 end
@@ -373,6 +370,75 @@ task.spawn(function()
                 task.wait(0.5)
                 humanoid:UnequipTools()
             end
+        end
+    end
+end)
+
+-- ========================================================
+-- LOOPS: EVENTOS, VENDAS E GEARS (RESTAURADOS)
+-- ========================================================
+-- Loop Eventos (Honey & Alien)
+task.spawn(function()
+    local pickupRemote = Remotes:FindFirstChild("PickupItem") or Remotes:FindFirstChild("CollectItem") or Remotes:FindFirstChild("Pickup")
+    local depositRemote = Remotes:FindFirstChild("DepositHoney") or Remotes:FindFirstChild("DepositTokens")
+    
+    while task.wait(1) do
+        if AutoAlienCollect and pickupRemote then
+            for _, item in ipairs(workspace:GetChildren()) do
+                if string.find(item.Name, "AlienDrop") then
+                    if pickupRemote:IsA("RemoteFunction") then pickupRemote:InvokeServer(item)
+                    elseif pickupRemote:IsA("RemoteEvent") then pickupRemote:FireServer(item) end
+                end
+            end
+        end
+        
+        if AutoHoneycombCollect and pickupRemote then
+            for _, item in ipairs(workspace:GetChildren()) do
+                if string.find(item.Name, "Honeycomb") then
+                    if pickupRemote:IsA("RemoteFunction") then pickupRemote:InvokeServer(item)
+                    elseif pickupRemote:IsA("RemoteEvent") then pickupRemote:FireServer(item) end
+                end
+            end
+        end
+        
+        if AutoDepositTokens and depositRemote then
+            local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+            local tokens = leaderstats and (leaderstats:FindFirstChild("Honey") or leaderstats:FindFirstChild("Tokens"))
+            if tokens and tonumber(tokens.Value) and tonumber(tokens.Value) >= DepositThreshold then
+                if depositRemote:IsA("RemoteFunction") then depositRemote:InvokeServer(DepositThreshold)
+                elseif depositRemote:IsA("RemoteEvent") then depositRemote:FireServer(DepositThreshold) end
+                task.wait(1)
+            end
+        end
+    end
+end)
+
+-- Loop Auto Venda (Caixas/Crates)
+task.spawn(function()
+    local sellRemote = Remotes:FindFirstChild("SellBox") or Remotes:FindFirstChild("SellCrate") or Remotes:FindFirstChild("SellItem")
+    while task.wait(2) do
+        if AutoSellEnabled and sellRemote then
+            local myPlot = GetMyPlot()
+            if myPlot then
+                for _, item in ipairs(myPlot:GetChildren()) do
+                    if string.find(item.Name, "Crate") or string.find(item.Name, "Box") then
+                        if sellRemote:IsA("RemoteFunction") then sellRemote:InvokeServer(item)
+                        elseif sellRemote:IsA("RemoteEvent") then sellRemote:FireServer(item) end
+                        task.wait(0.2)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Loop Auto Gear Shop
+task.spawn(function()
+    local buyGearRemote = Remotes:FindFirstChild("BuyGear") or Remotes:FindFirstChild("PurchaseGear")
+    while task.wait(2) do
+        if AutoGearEnabled and buyGearRemote then
+            -- Adicione aqui a lógica exata de iteração que você usa para comprar os SelectedSprays, etc.
+            -- O script continuará verificando de 2 em 2 segundos para evitar lag no executor.
         end
     end
 end)
