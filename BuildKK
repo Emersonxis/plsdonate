@@ -48,12 +48,15 @@ local AutoFeedPetsEnabled = false
 local SelectedAutoTreats = {}
 local TREAT_OPTIONS = {"Normal Pet Treat", "Strong Pet Treat", "Super Pet Treat"}
 
--- Variáveis de Eventos e Gears
+-- Variáveis de Eventos (RESTAURADAS DO ORIGINAL)
 local AutoAlienCollect = false
 local SelectedAlienDrop = nil
+local LastAlienDrops = {}
 local AutoHoneycombCollect = false 
 local AutoDepositTokens = false
 local DepositThreshold = 10
+
+-- Variáveis de Vendas e Gears
 local AutoSellCratesEnabled = false
 local AutoGearEnabled = false
 local SelectedSprays, SelectedFertilizers, SelectedOthers = {}, {}, {}
@@ -120,6 +123,61 @@ local function getUnfertilizedDirt()
 end
 
 -- ========================================================
+-- FUNÇÕES DE EVENTOS (RESTAURADAS DO ORIGINAL)
+-- ========================================================
+local function GetAlienInvasionFolder()
+    local ie = workspace:FindFirstChild("InteractiveEvents")
+    if ie and ie:FindFirstChild("AlienInvasion") then return ie.AlienInvasion end
+    return workspace:FindFirstChild("AlienInvasion")
+end
+
+local function GetHoneycombsFolder()
+    local ie = workspace:FindFirstChild("InteractiveEvents")
+    local qb = ie and ie:FindFirstChild("QueenBee")
+    if qb then return qb:FindFirstChild("RuntimeHoneycombs") end
+    return nil
+end
+
+local function GetHoneyJarMachinePrompt()
+    local ie = workspace:FindFirstChild("InteractiveEvents")
+    local qb = ie and ie:FindFirstChild("QueenBee")
+    local hjm = qb and qb:FindFirstChild("HoneyJarMachine")
+    local machine = hjm and hjm:FindFirstChild("Honey Jar Machine")
+    return machine and machine:FindFirstChildWhichIsA("ProximityPrompt", true)
+end
+
+local function GetHoneyTokenCount()
+    local total = 0
+    for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
+        if string.find(item.Name, "Honey Token") then
+            local stackNum = string.match(item.Name, "%(x(%d+)%)")
+            if stackNum then total = total + tonumber(stackNum) else total = total + 1 end
+        end
+    end
+    if LocalPlayer.Character then
+        for _, item in ipairs(LocalPlayer.Character:GetChildren()) do
+            if item:IsA("Tool") and string.find(item.Name, "Honey Token") then
+                local stackNum = string.match(item.Name, "%(x(%d+)%)")
+                if stackNum then total = total + tonumber(stackNum) else total = total + 1 end
+            end
+        end
+    end
+    return total
+end
+
+local function EquipHoneyToken()
+    local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
+            if string.find(item.Name, "Honey Token") then
+                humanoid:EquipTool(item)
+                break
+            end
+        end
+    end
+end
+
+-- ========================================================
 -- FILTRAGEM DE GEARS
 -- ========================================================
 local sprayList, fertList, otherList, allGearsList = {}, {}, {}, {}
@@ -166,16 +224,51 @@ AutoBuyTab:CreateToggle({Name = "Ativar Comprar Semente Alvo", CurrentValue = fa
 AutoBuyTab:CreateToggle({Name = "Ativar Auto Roll Sniper", CurrentValue = false, Flag = "Tgl_RollSniper", Callback = function(Value) AutoRollSniperEnabled = Value end})
 
 -- ========================================================
--- UI: ABA EVENTOS
+-- UI: ABA EVENTOS (RESTAURADA DO ORIGINAL)
 -- ========================================================
 EventTab:CreateSection("Alien Invasion")
-local AlienDropdown = EventTab:CreateDropdown({Name = "Drops Ativos (Alien)", Options = {"Buscando..."}, CurrentOption = {"Buscando..."}, MultipleOptions = false, Flag = "Drop_Alien", Callback = function(Opt) SelectedAlienDrop = Opt[1] end})
-EventTab:CreateToggle({Name = "Auto Coletar Drops (Alien)", CurrentValue = false, Flag = "Tgl_Alien", Callback = function(Value) AutoAlienCollect = Value end})
+local AlienDropdown = EventTab:CreateDropdown({
+    Name = "Drops Ativos (Alien)",
+    Options = {"Buscando..."},
+    CurrentOption = {"Buscando..."},
+    MultipleOptions = false,
+    Flag = "Dropdown_Alien",
+    Callback = function(Option) SelectedAlienDrop = Option[1] end,
+})
+
+EventTab:CreateButton({
+    Name = "Teleportar para o Drop Selecionado",
+    Callback = function()
+        if SelectedAlienDrop and SelectedAlienDrop ~= "Nenhum" and SelectedAlienDrop ~= "Buscando..." then
+            local folder = GetAlienInvasionFolder()
+            local drop = folder and folder:FindFirstChild(SelectedAlienDrop)
+            if drop and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local targetPart = drop:IsA("BasePart") and drop or drop:FindFirstChildWhichIsA("BasePart", true)
+                if targetPart then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+                end
+            end
+        end
+    end,
+})
+
+EventTab:CreateToggle({Name = "Auto Coletar Drops (Alien)", CurrentValue = false, Flag = "Toggle_AutoAlien", Callback = function(Value) AutoAlienCollect = Value end})
 
 EventTab:CreateSection("Queen Bee")
-EventTab:CreateToggle({Name = "Auto Coletar Honeycomb", CurrentValue = false, Flag = "Tgl_Honey", Callback = function(Value) AutoHoneycombCollect = Value end})
-EventTab:CreateInput({Name = "Quantidade p/ Depositar (Honey)", PlaceholderText = "Ex: 10, 50", RemoveTextAfterFocusLost = false, Flag = "Inp_HoneyDep", Callback = function(Text) DepositThreshold = tonumber(Text) or DepositThreshold end})
-EventTab:CreateToggle({Name = "Auto Depositar Honey Tokens", CurrentValue = false, Flag = "Tgl_Deposit", Callback = function(Value) AutoDepositTokens = Value end})
+EventTab:CreateToggle({Name = "Auto Coletar Honeycomb (Bee)", CurrentValue = false, Flag = "Toggle_AutoHoneycomb", Callback = function(Value) AutoHoneycombCollect = Value end})
+
+EventTab:CreateSection("Queen Bee - Honey Jar Machine")
+EventTab:CreateInput({
+    Name = "Mínimo de Tokens para Depositar",
+    PlaceholderText = "Ex: 10, 20, 50...",
+    RemoveTextAfterFocusLost = false,
+    Flag = "Input_DepositThreshold",
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if num then DepositThreshold = num end
+    end,
+})
+EventTab:CreateToggle({Name = "Auto Depositar Honey Tokens", CurrentValue = false, Flag = "Toggle_AutoDepositTokens", Callback = function(Value) AutoDepositTokens = Value end})
 
 -- ========================================================
 -- UI: ABA AUTO VENDA
@@ -297,7 +390,7 @@ task.spawn(function()
                 local tool = nil
                 for _, t in ipairs(LocalPlayer.Backpack:GetChildren()) do
                     for allowedName, isActive in pairs(SelectedAutoTreats) do
-                        if isActive and string.find(t.Name, allowedName, 1, true) then -- FIX: Removido a string intrusa daqui
+                        if isActive and string.find(t.Name, allowedName, 1, true) then
                             tool = t
                             break
                         end
@@ -332,7 +425,7 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- LOOPS: FAZENDA (OTIMIZADO ULTRA RÁPIDO)
+-- LOOPS: FAZENDA (COM LOTEAMENTO ANTI-LAG)
 -- ========================================================
 task.spawn(function()
     local upgradeRemote, fertRemote = Remotes:WaitForChild("UpgradePlant", 5), Remotes:WaitForChild("UseFertilizer", 5)
@@ -356,12 +449,13 @@ task.spawn(function()
                 return a.level < b.level
             end)
             
-            for _, item in ipairs(dirtsToUpgrade) do
+            -- Sistema de Lotes para evitar Lag (Envia 5 por vez)
+            for i, item in ipairs(dirtsToUpgrade) do
                 if not AutoUpgradeEnabled then break end
                 task.spawn(function()
                     upgradeRemote:InvokeServer(item.instance)
                 end)
-                task.wait(0.02) 
+                if i % 5 == 0 then task.wait(0.1) end
             end
         end
         
@@ -388,36 +482,119 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- LOOPS: EVENTOS, VENDAS E GEARS
+-- LOOPS: EVENTOS (RESTAURADOS DO ORIGINAL)
 -- ========================================================
-
--- Loop Eventos (Queen Bee)
 task.spawn(function()
-    local pickupHoneycombRemote = Remotes:WaitForChild("PickupHoneycomb", 5)
-    local depositHoneyRemote = Remotes:WaitForChild("DepositHoneyTokens", 5)
-    
-    while task.wait(1) do
-        if AutoHoneycombCollect and pickupHoneycombRemote then
-            for _, item in ipairs(workspace:GetChildren()) do
-                if item.Name == "Honeycomb" then
-                    pickupHoneycombRemote:FireServer(item)
+    while task.wait(0.1) do
+        if AutoHoneycombCollect then
+            local folder = GetHoneycombsFolder()
+            if folder then
+                for _, honeycomb in ipairs(folder:GetChildren()) do
+                    if not AutoHoneycombCollect then break end
+                    if honeycomb and honeycomb.Parent then
+                        local collectPrompt = honeycomb:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        local targetPart = honeycomb:IsA("BasePart") and honeycomb or honeycomb:FindFirstChildWhichIsA("BasePart", true)
+                        
+                        if collectPrompt and targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                            LocalPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 2, 0)
+                            task.wait(0.1)
+                            fireproximityprompt(collectPrompt)
+                            
+                            local timeout = 0
+                            while honeycomb and honeycomb.Parent and timeout < 15 do
+                                task.wait(0.05)
+                                timeout = timeout + 1
+                                if timeout % 4 == 0 and honeycomb and honeycomb.Parent then fireproximityprompt(collectPrompt) end
+                            end
+                        end
+                    end
                 end
-            end
-        end
-        
-        if AutoDepositTokens and depositHoneyRemote then
-            local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
-            local honeyTokens = leaderstats and leaderstats:FindFirstChild("HoneyTokens")
-            
-            if honeyTokens and tonumber(honeyTokens.Value) >= DepositThreshold then
-                depositHoneyRemote:FireServer(DepositThreshold)
-                task.wait(2) 
             end
         end
     end
 end)
 
--- Loop Auto Venda (Caixas/Crates)
+task.spawn(function()
+    while task.wait(0.5) do
+        if AutoDepositTokens then
+            local totalTokens = GetHoneyTokenCount()
+            if totalTokens >= DepositThreshold then
+                local insertPrompt = GetHoneyJarMachinePrompt()
+                if insertPrompt and insertPrompt.Parent then
+                    local machinePart = insertPrompt.Parent:IsA("BasePart") and insertPrompt.Parent or insertPrompt.Parent:FindFirstChildWhichIsA("BasePart", true)
+                    if machinePart then
+                        while AutoDepositTokens and GetHoneyTokenCount() > 0 do
+                            local activePrompt = GetHoneyJarMachinePrompt()
+                            if not activePrompt or not activePrompt.Parent then break end
+                            
+                            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                                LocalPlayer.Character.HumanoidRootPart.CFrame = machinePart.CFrame + Vector3.new(0, 2, 0)
+                                task.wait(0.1)
+                                EquipHoneyToken()
+                                task.wait(0.1)
+                                fireproximityprompt(activePrompt)
+                                task.wait(0.3) 
+                            else
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        local currentDrops = {}
+        local folder = GetAlienInvasionFolder()
+        if folder then
+            for _, drop in ipairs(folder:GetChildren()) do
+                if string.find(drop.Name, "AlienDrop") then table.insert(currentDrops, drop.Name) end
+            end
+        end
+        if #currentDrops == 0 then table.insert(currentDrops, "Nenhum") end
+        
+        local function ArraysMatch(a, b)
+            if #a ~= #b then return false end
+            for i = 1, #a do if a[i] ~= b[i] then return false end end
+            return true
+        end
+        
+        if not ArraysMatch(LastAlienDrops, currentDrops) then
+            LastAlienDrops = currentDrops
+            AlienDropdown:Refresh(currentDrops, true)
+        end
+        
+        if AutoAlienCollect and folder then
+            for _, drop in ipairs(folder:GetChildren()) do
+                if not AutoAlienCollect then break end
+                if drop and drop.Parent and string.find(drop.Name, "AlienDrop") then
+                    local prompt = drop:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    local targetPart = drop:IsA("BasePart") and drop or drop:FindFirstChildWhichIsA("BasePart", true)
+                    
+                    if prompt and targetPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+                        task.wait(0.1)
+                        fireproximityprompt(prompt)
+                        
+                        local timeout = 0
+                        while drop and drop.Parent and timeout < 20 do
+                            task.wait(0.05)
+                            timeout = timeout + 1
+                            if timeout % 5 == 0 and drop and drop.Parent then fireproximityprompt(prompt) end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ========================================================
+-- LOOPS: VENDA (CAIXAS) E GEARS
+-- ========================================================
 task.spawn(function()
     local sellCratesRemote = Remotes:WaitForChild("SellCrates", 5)
     
@@ -428,12 +605,11 @@ task.spawn(function()
     end
 end)
 
--- Loop Auto Gear Shop
 task.spawn(function()
     local buyGearRemote = Remotes:FindFirstChild("BuyGear") or Remotes:FindFirstChild("PurchaseGear")
     while task.wait(2) do
         if AutoGearEnabled and buyGearRemote then
-            -- Espaço reservado para ações de Gears
+            -- Suas rotinas personalizadas da loja rodam aqui se ativo.
         end
     end
 end)
