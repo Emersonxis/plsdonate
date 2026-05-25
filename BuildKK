@@ -55,7 +55,7 @@ local LastAlienDrops = {}
 local AutoHoneycombCollect = false 
 local AutoDepositTokens = false
 local DepositThreshold = 10
-local AutoSellEnabled = false
+local AutoSellCratesEnabled = false
 local AutoGearEnabled = false
 local SelectedSprays, SelectedFertilizers, SelectedOthers = {}, {}, {}
 local StockLabels, BuyingDebounce = {}, {}
@@ -183,7 +183,7 @@ EventTab:CreateToggle({Name = "Auto Depositar Honey Tokens", CurrentValue = fals
 -- UI: ABA AUTO VENDA
 -- ========================================================
 AutoSellTab:CreateSection("Venda de Caixas (Crates)")
-AutoSellTab:CreateToggle({Name = "Ativar Auto Sell (Caixas/Crates)", CurrentValue = false, Flag = "Tgl_Sell", Callback = function(Value) AutoSellEnabled = Value end})
+AutoSellTab:CreateToggle({Name = "Ativar Auto Sell (Caixas/Crates)", CurrentValue = false, Flag = "Tgl_SellCrates", Callback = function(Value) AutoSellCratesEnabled = Value end})
 
 -- ========================================================
 -- UI: ABA LOJA GEARS
@@ -375,39 +375,33 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- LOOPS: EVENTOS, VENDAS E GEARS (RESTAURADOS)
+-- LOOPS: EVENTOS, VENDAS E GEARS (CORRIGIDOS)
 -- ========================================================
--- Loop Eventos (Honey & Alien)
+
+-- Loop Eventos (Queen Bee)
 task.spawn(function()
-    local pickupRemote = Remotes:FindFirstChild("PickupItem") or Remotes:FindFirstChild("CollectItem") or Remotes:FindFirstChild("Pickup")
-    local depositRemote = Remotes:FindFirstChild("DepositHoney") or Remotes:FindFirstChild("DepositTokens")
+    local pickupHoneycombRemote = Remotes:WaitForChild("PickupHoneycomb", 5)
+    local depositHoneyRemote = Remotes:WaitForChild("DepositHoneyTokens", 5)
     
     while task.wait(1) do
-        if AutoAlienCollect and pickupRemote then
-            for _, item in ipairs(workspace:GetChildren()) do
-                if string.find(item.Name, "AlienDrop") then
-                    if pickupRemote:IsA("RemoteFunction") then pickupRemote:InvokeServer(item)
-                    elseif pickupRemote:IsA("RemoteEvent") then pickupRemote:FireServer(item) end
+        if AutoHoneycombCollect and pickupHoneycombRemote then
+            local myPlot = GetMyPlot()
+            if myPlot then
+                for _, item in ipairs(myPlot:GetDescendants()) do
+                    if item.Name == "Honeycomb" then
+                        pickupHoneycombRemote:FireServer(item)
+                    end
                 end
             end
         end
         
-        if AutoHoneycombCollect and pickupRemote then
-            for _, item in ipairs(workspace:GetChildren()) do
-                if string.find(item.Name, "Honeycomb") then
-                    if pickupRemote:IsA("RemoteFunction") then pickupRemote:InvokeServer(item)
-                    elseif pickupRemote:IsA("RemoteEvent") then pickupRemote:FireServer(item) end
-                end
-            end
-        end
-        
-        if AutoDepositTokens and depositRemote then
+        if AutoDepositTokens and depositHoneyRemote then
             local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
-            local tokens = leaderstats and (leaderstats:FindFirstChild("Honey") or leaderstats:FindFirstChild("Tokens"))
-            if tokens and tonumber(tokens.Value) and tonumber(tokens.Value) >= DepositThreshold then
-                if depositRemote:IsA("RemoteFunction") then depositRemote:InvokeServer(DepositThreshold)
-                elseif depositRemote:IsA("RemoteEvent") then depositRemote:FireServer(DepositThreshold) end
-                task.wait(1)
+            local honeyTokens = leaderstats and leaderstats:FindFirstChild("HoneyTokens")
+            
+            if honeyTokens and tonumber(honeyTokens.Value) >= DepositThreshold then
+                depositHoneyRemote:FireServer(DepositThreshold)
+                task.wait(2) -- Delay para evitar spam de deposito
             end
         end
     end
@@ -415,16 +409,16 @@ end)
 
 -- Loop Auto Venda (Caixas/Crates)
 task.spawn(function()
-    local sellRemote = Remotes:FindFirstChild("SellBox") or Remotes:FindFirstChild("SellCrate") or Remotes:FindFirstChild("SellItem")
+    local sellCrateRemote = Remotes:WaitForChild("SellCrate", 5)
+    
     while task.wait(2) do
-        if AutoSellEnabled and sellRemote then
+        if AutoSellCratesEnabled and sellCrateRemote then
             local myPlot = GetMyPlot()
             if myPlot then
-                for _, item in ipairs(myPlot:GetChildren()) do
-                    if string.find(item.Name, "Crate") or string.find(item.Name, "Box") then
-                        if sellRemote:IsA("RemoteFunction") then sellRemote:InvokeServer(item)
-                        elseif sellRemote:IsA("RemoteEvent") then sellRemote:FireServer(item) end
-                        task.wait(0.2)
+                for _, crate in ipairs(myPlot:GetDescendants()) do
+                    if string.match(crate.Name, "Crate") then
+                        sellCrateRemote:InvokeServer(crate)
+                        task.wait(0.1)
                     end
                 end
             end
@@ -432,13 +426,12 @@ task.spawn(function()
     end
 end)
 
--- Loop Auto Gear Shop
+-- Loop Auto Gear Shop (Mantido como estava)
 task.spawn(function()
     local buyGearRemote = Remotes:FindFirstChild("BuyGear") or Remotes:FindFirstChild("PurchaseGear")
     while task.wait(2) do
         if AutoGearEnabled and buyGearRemote then
-            -- Adicione aqui a lógica exata de iteração que você usa para comprar os SelectedSprays, etc.
-            -- O script continuará verificando de 2 em 2 segundos para evitar lag no executor.
+            -- A lógica de compra de Gears deve ir aqui.
         end
     end
 end)
