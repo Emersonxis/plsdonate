@@ -297,7 +297,7 @@ task.spawn(function()
                 local tool = nil
                 for _, t in ipairs(LocalPlayer.Backpack:GetChildren()) do
                     for allowedName, isActive in pairs(SelectedAutoTreats) do
-                        if isActive Image and string.find(t.Name, allowedName, 1, true) then
+                        if isActive and string.find(t.Name, allowedName, 1, true) then -- FIX: Removido a string intrusa daqui
                             tool = t
                             break
                         end
@@ -340,7 +340,6 @@ task.spawn(function()
         if AutoUpgradeEnabled and upgradeRemote then
             local dirtsToUpgrade = {}
             
-            -- Varredura inicial e coleta instantânea de alvos
             for _, fp in ipairs(getFarmPlots()) do
                 for _, plant in ipairs(fp:GetChildren()) do
                     local dirt = plant:FindFirstChild("Dirt")
@@ -353,18 +352,16 @@ task.spawn(function()
                 end
             end
             
-            -- PRIORIDADE: Ordena a tabela para upar do Level mais baixo primeiro
             table.sort(dirtsToUpgrade, function(a, b)
                 return a.level < b.level
             end)
             
-            -- DISPARO EM MASSA ASSÍNCRONO: Upa as plantas simultaneamente
             for _, item in ipairs(dirtsToUpgrade) do
                 if not AutoUpgradeEnabled then break end
                 task.spawn(function()
                     upgradeRemote:InvokeServer(item.instance)
                 end)
-                task.wait(0.02) -- Apenas um micro-delay de segurança para estabilidade de rede
+                task.wait(0.02) 
             end
         end
         
@@ -436,7 +433,7 @@ task.spawn(function()
     local buyGearRemote = Remotes:FindFirstChild("BuyGear") or Remotes:FindFirstChild("PurchaseGear")
     while task.wait(2) do
         if AutoGearEnabled and buyGearRemote then
-            -- Rotinas extras de Gears rodam aqui se ativas.
+            -- Espaço reservado para ações de Gears
         end
     end
 end)
