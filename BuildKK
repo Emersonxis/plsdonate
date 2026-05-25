@@ -39,7 +39,7 @@ local AutoFertilizerEnabled = false
 local FERTILIZER_OPTIONS = {"Normal Fertilizer", "Strong Fertilizer", "Super Fertilizer"}
 local SelectedAutoFertilizers = {} 
 
--- Variáveis de Pets e Ovos (MANTIDAS INTOCADAS)
+-- Variáveis de Pets e Ovos
 local AutoBuyEggsEnabled = false
 local SelectedEggRarities = {}
 local EGG_RARITIES = {"Common Egg", "Uncommon Egg", "Rare Egg", "Epic Egg", "Legendary Egg", "Secret Egg", "Prismatic Egg", "Divine Egg"}
@@ -146,7 +146,7 @@ FarmTab:CreateDropdown({Name = "Fertilizantes Permitidos", Options = FERTILIZER_
 FarmTab:CreateToggle({Name = "Ativar Auto Fertilizer", CurrentValue = false, Flag = "Tgl_Fert", Callback = function(Value) AutoFertilizerEnabled = Value end})
 
 -- ========================================================
--- UI: ABA PETS E OVOS (MANTIDA)
+-- UI: ABA PETS E OVOS
 -- ========================================================
 PetTab:CreateSection("Sniper de Ovos (Merchant)")
 PetTab:CreateDropdown({Name = "Raridades Alvo (Ovos)", Options = EGG_RARITIES, MultipleOptions = true, Flag = "Drop_EggRarity", Callback = function(Opt) SelectedEggRarities = {} for _, v in ipairs(Opt) do SelectedEggRarities[v] = true end end})
@@ -251,7 +251,7 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- LOOPS: PETS E OVOS (MANTIDAS 100% OPERACIONAIS)
+-- LOOPS: PETS E OVOS
 -- ========================================================
 task.spawn(function()
     local eggTransaction = Remotes:WaitForChild("EggShop", 5) and Remotes.EggShop:WaitForChild("Transaction", 5)
@@ -297,7 +297,7 @@ task.spawn(function()
                 local tool = nil
                 for _, t in ipairs(LocalPlayer.Backpack:GetChildren()) do
                     for allowedName, isActive in pairs(SelectedAutoTreats) do
-                        if isActive and string.find(t.Name, allowedName, 1, true) then
+                        if isActive Image and string.find(t.Name, allowedName, 1, true) then
                             tool = t
                             break
                         end
@@ -332,24 +332,42 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- LOOPS: FAZENDA 
+-- LOOPS: FAZENDA (OTIMIZADO ULTRA RÁPIDO)
 -- ========================================================
 task.spawn(function()
     local upgradeRemote, fertRemote = Remotes:WaitForChild("UpgradePlant", 5), Remotes:WaitForChild("UseFertilizer", 5)
-    while task.wait(1) do
+    while task.wait(0.5) do
         if AutoUpgradeEnabled and upgradeRemote then
+            local dirtsToUpgrade = {}
+            
+            -- Varredura inicial e coleta instantânea de alvos
             for _, fp in ipairs(getFarmPlots()) do
-                if not AutoUpgradeEnabled then break end
                 for _, plant in ipairs(fp:GetChildren()) do
-                    if not AutoUpgradeEnabled then break end
                     local dirt = plant:FindFirstChild("Dirt")
-                    if dirt and (dirt:GetAttribute("PlantLevel") or 0) < TargetUpgradeLevel then
-                        upgradeRemote:InvokeServer(dirt)
-                        task.wait(0.2)
+                    if dirt then
+                        local currentLvl = dirt:GetAttribute("PlantLevel") or 0
+                        if currentLvl < TargetUpgradeLevel then
+                            table.insert(dirtsToUpgrade, {instance = dirt, level = currentLvl})
+                        end
                     end
                 end
             end
+            
+            -- PRIORIDADE: Ordena a tabela para upar do Level mais baixo primeiro
+            table.sort(dirtsToUpgrade, function(a, b)
+                return a.level < b.level
+            end)
+            
+            -- DISPARO EM MASSA ASSÍNCRONO: Upa as plantas simultaneamente
+            for _, item in ipairs(dirtsToUpgrade) do
+                if not AutoUpgradeEnabled then break end
+                task.spawn(function()
+                    upgradeRemote:InvokeServer(item.instance)
+                end)
+                task.wait(0.02) -- Apenas um micro-delay de segurança para estabilidade de rede
+            end
         end
+        
         if AutoFertilizerEnabled and fertRemote then
             local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
             local tool, dirt = nil, getUnfertilizedDirt()
@@ -363,9 +381,9 @@ task.spawn(function()
             
             if tool and dirt and humanoid then
                 humanoid:EquipTool(tool)
-                task.wait(0.5)
+                task.wait(0.3)
                 fertRemote:FireServer(dirt)
-                task.wait(0.5)
+                task.wait(0.3)
                 humanoid:UnequipTools()
             end
         end
@@ -373,10 +391,10 @@ task.spawn(function()
 end)
 
 -- ========================================================
--- LOOPS: EVENTOS, VENDAS E GEARS (CORRIGIDOS E SIMPLIFICADOS)
+-- LOOPS: EVENTOS, VENDAS E GEARS
 -- ========================================================
 
--- Loop Eventos (Queen Bee) - Corrigido procurando no Workspace geral
+-- Loop Eventos (Queen Bee)
 task.spawn(function()
     local pickupHoneycombRemote = Remotes:WaitForChild("PickupHoneycomb", 5)
     local depositHoneyRemote = Remotes:WaitForChild("DepositHoneyTokens", 5)
@@ -402,7 +420,7 @@ task.spawn(function()
     end
 end)
 
--- Loop Auto Venda (Caixas/Crates) - CORRIGIDO PARA A VERSÃO ULTRA SIMPLES ORIGINAL
+-- Loop Auto Venda (Caixas/Crates)
 task.spawn(function()
     local sellCratesRemote = Remotes:WaitForChild("SellCrates", 5)
     
@@ -418,13 +436,13 @@ task.spawn(function()
     local buyGearRemote = Remotes:FindFirstChild("BuyGear") or Remotes:FindFirstChild("PurchaseGear")
     while task.wait(2) do
         if AutoGearEnabled and buyGearRemote then
-            -- Suas rotinas personalizadas da loja rodam aqui se ativo.
+            -- Rotinas extras de Gears rodam aqui se ativas.
         end
     end
 end)
 
 -- ========================================================
--- SISTEMA ANTI-AFK SEGURO (MANTIDO)
+-- SISTEMA ANTI-AFK SEGURO
 -- ========================================================
 local VirtualInputManager = game:GetService("VirtualInputManager")
 LocalPlayer.Idled:Connect(function()
