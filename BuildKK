@@ -25,7 +25,20 @@ local AutoGearEnabled, SelectedSprays, SelectedFertilizers, SelectedOthers = fal
 local AutoComposter = false
 
 local GearStocksFolder = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks")
-local GearStocks = GearStocksFolder:WaitForChild(LocalPlayer.Name, 10) or GearStocksFolder:FindFirstChildWhichIsA("Folder")
+local GearStocks = GearStocksFolder:WaitForChild(LocalPlayer.Name, 20)
+
+local sprayList, fertList, otherList = {}, {}, {}
+if GearStocks then
+    local startWait = tick()
+    while #GearStocks:GetChildren() <= 1 and (tick() - startWait) < 5 do task.wait(0.5) end
+    for _, gear in ipairs(GearStocks:GetChildren()) do
+        if gear.Name ~= "NextRestockTime" then
+            if string.match(gear.Name, "Spray$") then table.insert(sprayList, gear.Name)
+            elseif string.match(gear.Name, "Fertilizer$") then table.insert(fertList, gear.Name)
+            else table.insert(otherList, gear.Name) end
+        end
+    end
+end
 
 local function ParseTextToNumber(text)
     if not text then return 0 end
@@ -125,17 +138,6 @@ local function GetBackpackStock(plantName)
         end
     end
     return total
-end
-
-local sprayList, fertList, otherList = {}, {}, {}
-if GearStocks then
-    for _, gear in ipairs(GearStocks:GetChildren()) do
-        if gear.Name ~= "NextRestockTime" then
-            if string.match(gear.Name, "Spray$") then table.insert(sprayList, gear.Name)
-            elseif string.match(gear.Name, "Fertilizer$") then table.insert(fertList, gear.Name)
-            else table.insert(otherList, gear.Name) end
-        end
-    end
 end
 
 AutoBuyTab:CreateInput({Name = "Valor Alvo (Sementes)", PlaceholderText = "Ex: 1.5k, 5b", RemoveTextAfterFocusLost = false, Flag = "Inp_Target", Callback = function(Text) TargetPrice = ParseTextToNumber(Text) end})
@@ -417,6 +419,28 @@ task.spawn(function()
                 
                 pcall(function() pullLever:InvokeServer(3) end)
                 task.wait(5)
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    local buyGearRemote = Remotes:WaitForChild("BuyGear", 3) or Remotes:WaitForChild("GearShop", 3)
+    while true do
+        task.wait(1)
+        if AutoGearEnabled and buyGearRemote and GearStocks then
+            for _, gear in ipairs(GearStocks:GetChildren()) do
+                if gear.Name ~= "NextRestockTime" then
+                    if SelectedSprays[gear.Name] or SelectedFertilizers[gear.Name] or SelectedOthers[gear.Name] then
+                        pcall(function()
+                            if buyGearRemote:IsA("RemoteFunction") then
+                                buyGearRemote:InvokeServer(gear.Name)
+                            else
+                                buyGearRemote:FireServer(gear.Name)
+                            end
+                        end)
+                    end
+                end
             end
         end
     end
