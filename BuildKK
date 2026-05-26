@@ -19,6 +19,7 @@ local LocalPlayer = game:GetService("Players").LocalPlayer
 
 local AutoBuyEnabled, AutoRollSniperEnabled, TargetPrice, ActiveBuySeeds, SeedDebounce = false, false, 0, {}, {}
 local TargetUpgradeLevel, AutoUpgradeEnabled, AutoFertilizerEnabled, SelectedAutoFertilizers = 10, false, false, {}
+local BlacklistedDirt, currentTargetDirt = {}, nil
 local AutoBuyEggsEnabled, SelectedEggRarities, AutoFeedPetsEnabled, SelectedAutoTreats = false, {}, false, {}
 local AutoAlienCollect, SelectedAlienDrop, LastAlienDrops, AutoHoneycombCollect, AutoDepositTokens, DepositThreshold = false, nil, {}, false, false, 10
 local AutoGearEnabled, SelectedSprays, SelectedFertilizers, SelectedOthers = false, {}, {}, {}
@@ -182,7 +183,17 @@ EventTab:CreateToggle({Name = "Auto Coletar Honeycomb (Bee)", CurrentValue = fal
 EventTab:CreateInput({Name = "Mínimo de Tokens para Depositar", PlaceholderText = "Ex: 10", RemoveTextAfterFocusLost = false, Flag = "Input_DepositThreshold", Callback = function(T) DepositThreshold = tonumber(T) or DepositThreshold end})
 EventTab:CreateToggle({Name = "Auto Depositar Honey Tokens", CurrentValue = false, Flag = "Toggle_AutoDepositTokens", Callback = function(V) AutoDepositTokens = V end})
 
-FarmTab:CreateInput({Name = "Nível Alvo (Upgrade)", PlaceholderText = "Ex: 10", RemoveTextAfterFocusLost = false, Flag = "Inp_UpgrLvl", Callback = function(T) TargetUpgradeLevel = tonumber(T) or TargetUpgradeLevel end})
+FarmTab:CreateInput({
+    Name = "Nível Alvo (Upgrade)", 
+    PlaceholderText = "Ex: 10", 
+    RemoveTextAfterFocusLost = false, 
+    Flag = "Inp_UpgrLvl", 
+    Callback = function(T) 
+        TargetUpgradeLevel = tonumber(T) or TargetUpgradeLevel 
+        BlacklistedDirt = {}
+        currentTargetDirt = nil
+    end
+})
 FarmTab:CreateToggle({Name = "Ativar Auto Upgrade", CurrentValue = false, Flag = "Tgl_Upgr", Callback = function(V) AutoUpgradeEnabled = V end})
 FarmTab:CreateDropdown({Name = "Fertilizantes Permitidos", Options = {"Normal Fertilizer", "Strong Fertilizer", "Super Fertilizer"}, MultipleOptions = true, Flag = "Drop_Fert", Callback = function(Opt) SelectedAutoFertilizers = {} for _, v in ipairs(Opt) do SelectedAutoFertilizers[v] = true end end})
 FarmTab:CreateToggle({Name = "Ativar Auto Fertilizer", CurrentValue = false, Flag = "Tgl_Fert", Callback = function(V) AutoFertilizerEnabled = V end})
@@ -273,34 +284,55 @@ local UpgradeDebounceTimes = {}
 task.spawn(function()
     local upRemote = Remotes:WaitForChild("UpgradePlant", 5)
     local fertRemote = Remotes:WaitForChild("UseFertilizer", 5)
-    while task.wait(0.5) do
+    local lastFertilizerCheck = 0
+    
+    while task.wait(0.1) do
         if AutoUpgradeEnabled and upRemote then
-            for _, fp in ipairs(getFarmPlots()) do
-                if not AutoUpgradeEnabled then break end
-                for _, plant in ipairs(fp:GetChildren()) do
-                    if not AutoUpgradeEnabled then break end
-                    local dirt = plant:FindFirstChild("Dirt")
-                    if dirt and (dirt:GetAttribute("PlantLevel") or 0) < TargetUpgradeLevel then
-                        if tick() - (UpgradeDebounceTimes[dirt] or 0) > 1.5 then
-                            UpgradeDebounceTimes[dirt] = tick()
-                            task.spawn(function() pcall(function() upRemote:InvokeServer(dirt) end) end)
-                            task.wait(0.08)
+            if not currentTargetDirt or not currentTargetDirt.Parent or BlacklistedDirt[currentTargetDirt] or (currentTargetDirt:GetAttribute("PlantLevel") or 0) >= TargetUpgradeLevel then
+                if currentTargetDirt and currentTargetDirt.Parent and (currentTargetDirt:GetAttribute("PlantLevel") or 0) >= TargetUpgradeLevel then
+                    BlacklistedDirt[currentTargetDirt] = true
+                end
+                currentTargetDirt = nil
+                
+                for _, fp in ipairs(getFarmPlots()) do
+                    for _, plant in ipairs(fp:GetChildren()) do
+                        local dirt = plant:FindFirstChild("Dirt")
+                        if dirt and dirt:GetAttribute("PlantLevel") ~= nil and not BlacklistedDirt[dirt] then
+                            local lvl = dirt:GetAttribute("PlantLevel") or 0
+                            if lvl < TargetUpgradeLevel then
+                                currentTargetDirt = dirt
+                                break
+                            else
+                                BlacklistedDirt[dirt] = true
+                            end
                         end
                     end
+                    if currentTargetDirt then break end
+                end
+            end
+            
+            if currentTargetDirt then
+                if tick() - (UpgradeDebounceTimes[currentTargetDirt] or 0) > 1.5 then
+                    UpgradeDebounceTimes[currentTargetDirt] = tick()
+                    task.spawn(function() pcall(function() upRemote:InvokeServer(currentTargetDirt) end) end)
                 end
             end
         end
-        if AutoFertilizerEnabled and fertRemote then
-            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            local tool, dirt = nil, getUnfertilizedDirt()
-            for _, t in ipairs(LocalPlayer.Backpack:GetChildren()) do
-                for allowed, active in pairs(SelectedAutoFertilizers) do
-                    if active and string.find(t.Name, allowed, 1, true) then tool = t break end
+        
+        if tick() - lastFertilizerCheck >= 0.5 then
+            lastFertilizerCheck = tick()
+            if AutoFertilizerEnabled and fertRemote then
+                local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                local tool, dirt = nil, getUnfertilizedDirt()
+                for _, t in ipairs(LocalPlayer.Backpack:GetChildren()) do
+                    for allowed, active in pairs(SelectedAutoFertilizers) do
+                        if active and string.find(t.Name, allowed, 1, true) then tool = t break end
+                    end
+                    if tool then break end
                 end
-                if tool then break end
-            end
-            if tool and dirt and hum then
-                hum:EquipTool(tool) task.wait(0.3) fertRemote:FireServer(dirt) task.wait(0.3) hum:UnequipTools()
+                if tool and dirt and hum then
+                    hum:EquipTool(tool) task.wait(0.3) fertRemote:FireServer(dirt) task.wait(0.3) hum:UnequipTools()
+                end
             end
         end
     end
