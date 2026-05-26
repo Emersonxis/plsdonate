@@ -13,7 +13,6 @@ local AutoSellTab = Window:CreateTab("Auto Venda", 4483362458)
 local GearTab = Window:CreateTab("Loja Gears", 4483362458)
 local EventTab = Window:CreateTab("Eventos", 4483362458)
 local FarmTab = Window:CreateTab("Fazenda (Auto)", 4483362458)
-local ExperimentalTab = Window:CreateTab("Experimental", 4483362458)
 
 local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes")
 local LocalPlayer = game:GetService("Players").LocalPlayer
@@ -22,8 +21,8 @@ local AutoBuyEnabled, AutoRollSniperEnabled, TargetPrice, ActiveBuySeeds, SeedDe
 local TargetUpgradeLevel, AutoUpgradeEnabled, AutoFertilizerEnabled, SelectedAutoFertilizers = 10, false, false, {}
 local AutoBuyEggsEnabled, SelectedEggRarities, AutoFeedPetsEnabled, SelectedAutoTreats = false, {}, false, {}
 local AutoAlienCollect, SelectedAlienDrop, LastAlienDrops, AutoHoneycombCollect, AutoDepositTokens, DepositThreshold = false, nil, {}, false, false, 10
-local AutoSellCratesEnabled, AutoGearEnabled, SelectedSprays, SelectedFertilizers, SelectedOthers = false, false, {}, {}, {}
-local AutoPlantRush, PlantRushSpawnProtection, PlantRushShootSpeed, PlantRushMaxTargets, TrackedPlants = false, 2.0, 0.5, 5, {}
+local AutoGearEnabled, SelectedSprays, SelectedFertilizers, SelectedOthers = false, {}, {}, {}
+local AutoComposter = false
 
 local GearStocksFolder = game:GetService("ReplicatedStorage"):WaitForChild("GearStocks")
 local GearStocks = GearStocksFolder:WaitForChild(LocalPlayer.Name, 10) or GearStocksFolder:FindFirstChildWhichIsA("Folder")
@@ -117,6 +116,17 @@ local function EquipHoneyToken()
     end
 end
 
+local function GetBackpackStock(plantName)
+    local total = 0
+    for _, item in ipairs(LocalPlayer.Backpack:GetChildren()) do
+        if string.find(item.Name, plantName, 1, true) and string.find(item.Name, "Seed", 1, true) then
+            local countStr = string.match(item.Name, "%(x(%d+)%)")
+            total = total + (countStr and tonumber(countStr) or 1)
+        end
+    end
+    return total
+end
+
 local sprayList, fertList, otherList = {}, {}, {}
 if GearStocks then
     for _, gear in ipairs(GearStocks:GetChildren()) do
@@ -137,7 +147,7 @@ PetTab:CreateToggle({Name = "Ativar Auto Comprar Ovos", CurrentValue = false, Fl
 PetTab:CreateDropdown({Name = "Treats Permitidas", Options = {"Normal Pet Treat", "Strong Pet Treat", "Super Pet Treat"}, MultipleOptions = true, Flag = "Drop_PetTreat", Callback = function(Opt) SelectedAutoTreats = {} for _, v in ipairs(Opt) do SelectedAutoTreats[v] = true end end})
 PetTab:CreateToggle({Name = "Ativar Auto Feed Pets", CurrentValue = false, Flag = "Tgl_AutoFeed", Callback = function(Value) AutoFeedPetsEnabled = Value end})
 
-AutoSellTab:CreateToggle({Name = "Ativar Auto Sell (Caixas/Crates)", CurrentValue = false, Flag = "Tgl_SellCrates", Callback = function(Value) AutoSellCratesEnabled = Value end})
+AutoSellTab:CreateToggle({Name = "Ativar Composteira Automática", CurrentValue = false, Flag = "Tgl_Composter", Callback = function(Value) AutoComposter = Value end})
 
 GearTab:CreateDropdown({Name = "Sprays", Options = sprayList, MultipleOptions = true, Flag = "Drp_S", Callback = function(O) SelectedSprays={} for _,v in ipairs(O) do SelectedSprays[v]=true end end})
 GearTab:CreateDropdown({Name = "Fertilizantes", Options = fertList, MultipleOptions = true, Flag = "Drp_F", Callback = function(O) SelectedFertilizers={} for _,v in ipairs(O) do SelectedFertilizers[v]=true end end})
@@ -174,11 +184,6 @@ FarmTab:CreateInput({Name = "Nível Alvo (Upgrade)", PlaceholderText = "Ex: 10",
 FarmTab:CreateToggle({Name = "Ativar Auto Upgrade", CurrentValue = false, Flag = "Tgl_Upgr", Callback = function(V) AutoUpgradeEnabled = V end})
 FarmTab:CreateDropdown({Name = "Fertilizantes Permitidos", Options = {"Normal Fertilizer", "Strong Fertilizer", "Super Fertilizer"}, MultipleOptions = true, Flag = "Drop_Fert", Callback = function(Opt) SelectedAutoFertilizers = {} for _, v in ipairs(Opt) do SelectedAutoFertilizers[v] = true end end})
 FarmTab:CreateToggle({Name = "Ativar Auto Fertilizer", CurrentValue = false, Flag = "Tgl_Fert", Callback = function(V) AutoFertilizerEnabled = V end})
-
-ExperimentalTab:CreateToggle({Name = "Auto Shoot - Plant Rush (Insta-Kill)", CurrentValue = false, Flag = "Tgl_PlantRush", Callback = function(V) AutoPlantRush = V end})
-ExperimentalTab:CreateInput({Name = "Spawn Protection (Segundos)", PlaceholderText = "2.0", RemoveTextAfterFocusLost = false, Flag = "Inp_PRSpawn", Callback = function(T) PlantRushSpawnProtection = tonumber(T) or PlantRushSpawnProtection end})
-ExperimentalTab:CreateInput({Name = "Velocidade do Tiro (Segundos)", PlaceholderText = "0.5", RemoveTextAfterFocusLost = false, Flag = "Inp_PRSpeed", Callback = function(T) PlantRushShootSpeed = tonumber(T) or PlantRushShootSpeed end})
-ExperimentalTab:CreateInput({Name = "Máximo de Alvos por Vez", PlaceholderText = "5", RemoveTextAfterFocusLost = false, Flag = "Inp_PRMax", Callback = function(T) PlantRushMaxTargets = tonumber(T) or PlantRushMaxTargets end})
 
 for _, desc in ipairs(workspace:GetDescendants()) do if desc.Name == "BuySeed" then table.insert(ActiveBuySeeds, desc) end end
 workspace.DescendantAdded:Connect(function(desc) if desc.Name == "BuySeed" and not table.find(ActiveBuySeeds, desc) then table.insert(ActiveBuySeeds, desc) end end)
@@ -370,30 +375,48 @@ end)
 
 task.spawn(function()
     local sellRemote = Remotes:WaitForChild("SellCrates", 5)
-    while task.wait(5) do if AutoSellCratesEnabled and sellRemote then sellRemote:FireServer() end end
+    while true do
+        task.wait(5)
+        if sellRemote then pcall(function() sellRemote:FireServer() end) end
+    end
 end)
 
 task.spawn(function()
-    local shootRemote = Remotes:WaitForChild("PlantRush", 5) and Remotes.PlantRush:WaitForChild("Shoot", 5)
+    local composterFolder = Remotes:WaitForChild("Composter", 5)
+    local insertSeed = composterFolder and composterFolder:WaitForChild("InsertSeed", 5)
+    local requestState = composterFolder and composterFolder:WaitForChild("RequestState", 5)
+    local pullLever = composterFolder and composterFolder:WaitForChild("PullLever", 5)
+
     while true do
-        task.wait(PlantRushShootSpeed)
-        local pr = workspace:FindFirstChild("InteractiveEvents") and workspace.InteractiveEvents:FindFirstChild("PlantRush")
-        local rt = pr and pr:FindFirstChild("Runtime")
-        if AutoPlantRush and shootRemote and rt and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local origin, fired, plants, currentMap = LocalPlayer.Character.HumanoidRootPart.Position, 0, rt:GetChildren(), {}
-            for _, p in ipairs(plants) do currentMap[p] = true if not TrackedPlants[p] then TrackedPlants[p] = tick() end end
-            for p, _ in pairs(TrackedPlants) do if not currentMap[p] then TrackedPlants[p] = nil end end
-            for _, p in ipairs(plants) do
-                if not AutoPlantRush or fired >= PlantRushMaxTargets then break end
-                local spawn = TrackedPlants[p]
-                if spawn and (tick() - spawn) >= PlantRushSpawnProtection then
-                    local pPart = p:IsA("BasePart") and p or p:FindFirstChildWhichIsA("BasePart", true)
-                    if pPart then
-                        local pos = pPart.Position
-                        task.spawn(function() shootRemote:FireServer(origin, (pos - origin).Unit, pos) end)
-                        fired = fired + 1
+        task.wait(1)
+        if AutoComposter and insertSeed and requestState and pullLever then
+            local targetFruit, reqCount = nil, 0
+            
+            if GetBackpackStock("Void Fruit") >= 2 then
+                targetFruit = "Void Fruit"
+                reqCount = 2
+            else
+                local singlePlants = {"Ghost Pepper", "Papaya", "Durian", "Garden Devourer"}
+                for _, p in ipairs(singlePlants) do
+                    if GetBackpackStock(p) >= 1 then
+                        targetFruit = p
+                        reqCount = 1
+                        break
                     end
                 end
+            end
+
+            if targetFruit then
+                local seedParamName = targetFruit .. "_1_Normal"
+                
+                pcall(function() insertSeed:InvokeServer(3, seedParamName, reqCount) end)
+                task.wait(0.5)
+                
+                pcall(function() requestState:InvokeServer(3) end)
+                task.wait(0.5)
+                
+                pcall(function() pullLever:InvokeServer(3) end)
+                task.wait(5)
             end
         end
     end
