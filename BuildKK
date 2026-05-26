@@ -425,20 +425,20 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    local buyGearRemote = Remotes:WaitForChild("BuyGear", 3) or Remotes:WaitForChild("GearShop", 3)
+    local gearFolder = Remotes:WaitForChild("Gear", 5)
+    local buyGearRemote = gearFolder and gearFolder:WaitForChild("Transaction", 5)
+    
     while true do
-        task.wait(1)
+        task.wait(0.5)
         if AutoGearEnabled and buyGearRemote and GearStocks then
             for _, gear in ipairs(GearStocks:GetChildren()) do
                 if gear.Name ~= "NextRestockTime" then
                     if SelectedSprays[gear.Name] or SelectedFertilizers[gear.Name] or SelectedOthers[gear.Name] then
-                        pcall(function()
-                            if buyGearRemote:IsA("RemoteFunction") then
-                                buyGearRemote:InvokeServer(gear.Name)
-                            else
-                                buyGearRemote:FireServer(gear.Name)
-                            end
-                        end)
+                        local stock = gear:FindFirstChild("Data") and gear.Data.Value or (gear:IsA("ValueBase") and gear.Value or 1)
+                        if stock > 0 then
+                            pcall(function() buyGearRemote:InvokeServer(gear.Name) end)
+                            task.wait(0.1)
+                        end
                     end
                 end
             end
