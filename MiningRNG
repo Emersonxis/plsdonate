@@ -1,0 +1,255 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+
+-- Remotes
+local RollRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("RollPickaxe")
+
+-- Chão da Zona 9
+local GroundPart = workspace:WaitForChild("Zones"):WaitForChild("9"):WaitForChild("Nature"):WaitForChild("Ground")
+
+-- Anti-AFK
+LocalPlayer.Idled:Connect(function()
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+    task.wait(0.1)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+end)
+
+-- Tabela fixa baseada no módulo do jogo
+local OreBaseHealth = {
+	["Stone"] = 50,
+	["Coal"] = 150,
+	["Copper"] = 350,
+	["Iron"] = 600,
+	["Gold"] = 1000,
+	["Diamond"] = 4000,
+	["Emerald"] = 6000,
+	["Ruby"] = 9000,
+	["Topaz"] = 14000,
+	["Amethyst"] = 22000,
+	["Sapphire"] = 35000,
+	["Obsidian"] = 55000,
+	["Opal"] = 80000,
+	["Crimsonite"] = 110000,
+	["Aetherite"] = 150000,
+	["Galaxite"] = 200000,
+	["Meteor"] = 500000,
+	["Mirrorite"] = 10000
+}
+
+local PresetOresList = {
+	"Todos", "Stone", "Coal", "Copper", "Iron", "Gold", "Diamond", 
+	"Emerald", "Ruby", "Topaz", "Amethyst", "Sapphire", 
+	"Obsidian", "Opal", "Crimsonite", "Aetherite", "Galaxite", 
+	"Meteor", "Mirrorite"
+}
+
+-- Variáveis de Controle
+local selectedOres = {}
+local priorityMode = "Menor Vida"
+local autoTpActive = false
+local autoRollActive = false
+
+-- Sistema de Fila Dinâmica
+local targetQueue = {}
+
+local function getOreHealth(ore)
+    return ore:GetAttribute("Health") or OreBaseHealth[ore.Name] or 0
+end
+
+-- Verifica posicionamento estrito na Zona 9
+local function isOreOnZone9(ore)
+    if not GroundPart then return false end
+    local orePosition = ore:GetPivot().Position
+    local localPos = GroundPart.CFrame:PointToObjectSpace(orePosition)
+    local size = GroundPart.Size
+    
+    local insideX = math.abs(localPos.X) <= (size.X / 2)
+    local insideZ = math.abs(localPos.Z) <= (size.Z / 2)
+    local aboveY = localPos.Y >= -(size.Y / 2)
+    
+    return insideX and insideZ and aboveY
+end
+
+-- Validador de Alvo com base na Regra Geográfica de Tiers
+local function isValidTarget(ore)
+    local isSelected = table.find(selectedOres, "Todos") or table.find(selectedOres, ore.Name)
+    if not isSelected or getOreHealth(ore) <= 0 then return false end
+    
+    local baseHealth = OreBaseHealth[ore.Name] or 0
+    
+    -- Se for Diamante (4000 HP) ou superior, libera para o mapa inteiro
+    if baseHealth >= 4000 then
+        return true
+    else
+        -- Se for inferior (Stone, Coal, Copper, Iron, Gold), restringe apenas à Área 9
+        return isOreOnZone9(ore)
+    end
+end
+
+local function updateQueue()
+    -- Filtra e valida os elementos que já estão na fila
+    for i = #targetQueue, 1, -1 do
+        local ore = targetQueue[i]
+        if not ore or ore.Parent ~= workspace.Ores or not isValidTarget(ore) then
+            table.remove(targetQueue, i)
+        end
+    end
+
+    if #targetQueue >= 2 then return end
+
+    -- Busca novos alvos válidos pelo Workspace de acordo com as regras de tier
+    local validOres = {}
+    for _, ore in ipairs(workspace.Ores:GetChildren()) do
+        if isValidTarget(ore) and not table.find(targetQueue, ore) then
+            table.insert(validOres, ore)
+        end
+    end
+
+    -- Ordenação de prioridade (Maior ou Menor Vida)
+    if priorityMode == "Maior Vida" then
+        table.sort(validOres, function(a, b)
+            return getOreHealth(a) > getOreHealth(b)
+        end)
+    else
+        table.sort(validOres, function(a, b)
+            return getOreHealth(a) < getOreHealth(b)
+        end)
+    end
+
+    -- Abastece as vagas prioritárias
+    for i = 1, #validOres do
+        if #targetQueue >= 2 then break end
+        table.insert(targetQueue, validOres[i])
+    end
+end
+
+-- Loop de Teleporte (Fila Dinâmica + Damage Check de 2s + Altura de 10 Studs)
+local lastTrackedTarget = nil
+local lastTeleportTime = 0
+local initialHealth = 0
+local checkedDamage = false
+
+task.spawn(function()
+    while task.wait(0.05) do
+        if autoTpActive and #selectedOres > 0 then
+            updateQueue()
+            
+            local currentTarget = targetQueue[1]
+            local character = LocalPlayer.Character
+            local hrp = character and character:FindFirstChild("HumanoidRootPart")
+            
+            if hrp and currentTarget then
+                if currentTarget ~= lastTrackedTarget then
+                    lastTrackedTarget = currentTarget
+                    hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
+                    lastTeleportTime = os.clock()
+                    initialHealth = getOreHealth(currentTarget)
+                    checkedDamage = false
+                end
+                
+                if os.clock() - lastTeleportTime >= 2 and not checkedDamage then
+                    local currentHealth = getOreHealth(currentTarget)
+                    if currentHealth >= initialHealth then
+                        hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
+                        lastTeleportTime = os.clock()
+                        initialHealth = currentHealth
+                    else
+                        checkedDamage = true
+                    end
+                end
+                
+                local distance = (hrp.Position - currentTarget:GetPivot().Position).Magnitude
+                if distance > 25 then
+                    hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
+                end
+            else
+                lastTrackedTarget = nil
+            end
+        else
+            lastTrackedTarget = nil
+            table.clear(targetQueue)
+        end
+    end
+end)
+
+-- Loop de Auto Roll Ultra Rápido
+task.spawn(function()
+    while true do
+        if autoRollActive then
+            task.spawn(function()
+                RollRemote:InvokeServer()
+            end)
+            task.wait(0.01)
+        else
+            task.wait(0.5)
+        end
+    end
+end)
+
+-- Inicialização da Interface Rayfield com Salvamento de Configurações ativo
+local Window = Rayfield:CreateWindow({
+   Name = "FrancesS Tools",
+   LoadingTitle = "Carregando Scripts...",
+   LoadingSubtitle = "by Frances",
+   ConfigurationSaving = {
+       Enabled = true,
+       FolderName = "FrancesSTools",
+       FileName = "FarmConfig"
+   },
+   KeySystem = false
+})
+
+local FarmTab = Window:CreateTab("Auto Farm", 4483362458)
+local RollTab = Window:CreateTab("Auto Roll", 4483362458)
+
+-- Interface: Auto Farm
+FarmTab:CreateDropdown({
+   Name = "Selecione os Minérios",
+   Options = PresetOresList,
+   CurrentOption = {},
+   MultipleOptions = true,
+   Flag = "OreSelectFlag",
+   Callback = function(Options)
+       selectedOres = Options
+       table.clear(targetQueue)
+       lastTrackedTarget = nil
+   end,
+})
+
+FarmTab:CreateDropdown({
+   Name = "Prioridade de Foco",
+   Options = {"Menor Vida", "Maior Vida"},
+   CurrentOption = {"Menor Vida"},
+   MultipleOptions = false,
+   Flag = "PrioritySelectFlag",
+   Callback = function(Option)
+       priorityMode = Option[1] or "Menor Vida"
+       table.clear(targetQueue)
+       lastTrackedTarget = nil
+   end,
+})
+
+FarmTab:CreateToggle({
+   Name = "Auto TP Ativo",
+   CurrentValue = false,
+   Flag = "AutoTpToggleFlag",
+   Callback = function(Value)
+       autoTpActive = Value
+   end,
+})
+
+-- Interface: Auto Roll
+RollTab:CreateToggle({
+   Name = "Auto Roll Ativo (Spam Rápido)",
+   CurrentValue = false,
+   Flag = "AutoRollToggleFlag",
+   Callback = function(Value)
+       autoRollActive = Value
+   end,
+})
+
+-- Força a interface a ler o arquivo salvo na inicialização
+Rayfield:LoadConfiguration()
