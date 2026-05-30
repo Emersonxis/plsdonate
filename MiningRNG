@@ -10,6 +10,18 @@ local RollRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("RollP
 -- Chão da Zona 9
 local GroundPart = workspace:WaitForChild("Zones"):WaitForChild("9"):WaitForChild("Nature"):WaitForChild("Ground")
 
+-- Desativador de Ragdoll Nativo do Humanoid (Anti-Queda)
+local function antiRagdoll(character)
+    local humanoid = character:WaitForChild("Humanoid", 10)
+    if humanoid then
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStand, false)
+    end
+end
+
+if LocalPlayer.Character then antiRagdoll(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(antiRagdoll)
+
 -- Anti-AFK
 LocalPlayer.Idled:Connect(function()
     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
@@ -17,7 +29,7 @@ LocalPlayer.Idled:Connect(function()
     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
 end)
 
--- Tabela fixa baseada no módulo do jogo[cite: 1]
+-- Tabela fixa baseada no módulo do jogo
 local OreBaseHealth = {
 	["Stone"] = 50,
 	["Coal"] = 150,
@@ -120,29 +132,7 @@ local function updateQueue()
     end
 end
 
--- Função Segura de Teleporte (Anti-Ragdoll & Anti-Spin)
-local function safeTeleport(targetCFrame)
-    local character = LocalPlayer.Character
-    local hrp = character and character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-    
-    if hrp then
-        -- Desativa inércia de física para evitar capotamentos e giros infinitos
-        hrp.AssemblyLinearVelocity = Vector3.zero
-        hrp.AssemblyAngularVelocity = Vector3.zero
-        
-        -- Executa a movimentação com elevação de 10 studs
-        hrp.CFrame = targetCFrame + Vector3.new(0, 10, 0)
-        
-        -- Força o boneco a permanecer erguido e ativo
-        if humanoid then
-            humanoid.PlatformStand = false
-            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-        end
-    end
-end
-
--- Loop de Teleporte (Fila Dinâmica + Correções Anti-Ragdoll)
+-- Loop de Teleporte Estilo Fly (Bypass Total de Ragdoll por Ancoragem)
 local lastTrackedTarget = nil
 local lastTeleportTime = 0
 local initialHealth = 0
@@ -150,17 +140,23 @@ local checkedDamage = false
 
 task.spawn(function()
     while task.wait(0.05) do
+        local character = LocalPlayer.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        
         if autoTpActive and #selectedOres > 0 then
             updateQueue()
             
             local currentTarget = targetQueue[1]
-            local character = LocalPlayer.Character
-            local hrp = character and character:FindFirstChild("HumanoidRootPart")
             
             if hrp and currentTarget then
+                -- Ativa o modo "Fly" travando a gravidade e forças físicas externas
+                hrp.Anchored = true
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                hrp.AssemblyAngularVelocity = Vector3.zero
+                
                 if currentTarget ~= lastTrackedTarget then
                     lastTrackedTarget = currentTarget
-                    safeTeleport(currentTarget:GetPivot())
+                    hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
                     lastTeleportTime = os.clock()
                     initialHealth = getOreHealth(currentTarget)
                     checkedDamage = false
@@ -169,7 +165,7 @@ task.spawn(function()
                 if os.clock() - lastTeleportTime >= 2 and not checkedDamage then
                     local currentHealth = getOreHealth(currentTarget)
                     if currentHealth >= initialHealth then
-                        safeTeleport(currentTarget:GetPivot())
+                        hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
                         lastTeleportTime = os.clock()
                         initialHealth = currentHealth
                     else
@@ -179,14 +175,16 @@ task.spawn(function()
                 
                 local distance = (hrp.Position - currentTarget:GetPivot().Position).Magnitude
                 if distance > 25 then
-                    safeTeleport(currentTarget:GetPivot())
+                    hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
                 end
             else
                 lastTrackedTarget = nil
+                if hrp then hrp.Anchored = false end
             end
         else
             lastTrackedTarget = nil
             table.clear(targetQueue)
+            if hrp then hrp.Anchored = false end -- Devolve a física normal ao jogador
         end
     end
 end)
