@@ -17,7 +17,7 @@ LocalPlayer.Idled:Connect(function()
     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
 end)
 
--- Tabela fixa baseada no módulo do jogo
+-- Tabela fixa baseada no módulo do jogo[cite: 1]
 local OreBaseHealth = {
 	["Stone"] = 50,
 	["Coal"] = 150,
@@ -80,17 +80,14 @@ local function isValidTarget(ore)
     
     local baseHealth = OreBaseHealth[ore.Name] or 0
     
-    -- Se for Diamante (4000 HP) ou superior, libera para o mapa inteiro
     if baseHealth >= 4000 then
         return true
     else
-        -- Se for inferior (Stone, Coal, Copper, Iron, Gold), restringe apenas à Área 9
         return isOreOnZone9(ore)
     end
 end
 
 local function updateQueue()
-    -- Filtra e valida os elementos que já estão na fila
     for i = #targetQueue, 1, -1 do
         local ore = targetQueue[i]
         if not ore or ore.Parent ~= workspace.Ores or not isValidTarget(ore) then
@@ -100,7 +97,6 @@ local function updateQueue()
 
     if #targetQueue >= 2 then return end
 
-    -- Busca novos alvos válidos pelo Workspace de acordo com as regras de tier
     local validOres = {}
     for _, ore in ipairs(workspace.Ores:GetChildren()) do
         if isValidTarget(ore) and not table.find(targetQueue, ore) then
@@ -108,7 +104,6 @@ local function updateQueue()
         end
     end
 
-    -- Ordenação de prioridade (Maior ou Menor Vida)
     if priorityMode == "Maior Vida" then
         table.sort(validOres, function(a, b)
             return getOreHealth(a) > getOreHealth(b)
@@ -119,14 +114,35 @@ local function updateQueue()
         end)
     end
 
-    -- Abastece as vagas prioritárias
     for i = 1, #validOres do
         if #targetQueue >= 2 then break end
         table.insert(targetQueue, validOres[i])
     end
 end
 
--- Loop de Teleporte (Fila Dinâmica + Damage Check de 2s + Altura de 10 Studs)
+-- Função Segura de Teleporte (Anti-Ragdoll & Anti-Spin)
+local function safeTeleport(targetCFrame)
+    local character = LocalPlayer.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    
+    if hrp then
+        -- Desativa inércia de física para evitar capotamentos e giros infinitos
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        
+        -- Executa a movimentação com elevação de 10 studs
+        hrp.CFrame = targetCFrame + Vector3.new(0, 10, 0)
+        
+        -- Força o boneco a permanecer erguido e ativo
+        if humanoid then
+            humanoid.PlatformStand = false
+            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
+    end
+end
+
+-- Loop de Teleporte (Fila Dinâmica + Correções Anti-Ragdoll)
 local lastTrackedTarget = nil
 local lastTeleportTime = 0
 local initialHealth = 0
@@ -144,7 +160,7 @@ task.spawn(function()
             if hrp and currentTarget then
                 if currentTarget ~= lastTrackedTarget then
                     lastTrackedTarget = currentTarget
-                    hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
+                    safeTeleport(currentTarget:GetPivot())
                     lastTeleportTime = os.clock()
                     initialHealth = getOreHealth(currentTarget)
                     checkedDamage = false
@@ -153,7 +169,7 @@ task.spawn(function()
                 if os.clock() - lastTeleportTime >= 2 and not checkedDamage then
                     local currentHealth = getOreHealth(currentTarget)
                     if currentHealth >= initialHealth then
-                        hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
+                        safeTeleport(currentTarget:GetPivot())
                         lastTeleportTime = os.clock()
                         initialHealth = currentHealth
                     else
@@ -163,7 +179,7 @@ task.spawn(function()
                 
                 local distance = (hrp.Position - currentTarget:GetPivot().Position).Magnitude
                 if distance > 25 then
-                    hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
+                    safeTeleport(currentTarget:GetPivot())
                 end
             else
                 lastTrackedTarget = nil
@@ -189,7 +205,7 @@ task.spawn(function()
     end
 end)
 
--- Inicialização da Interface Rayfield com Salvamento de Configurações ativo
+-- Inicialização da Interface Rayfield com Auto-Salvar
 local Window = Rayfield:CreateWindow({
    Name = "FrancesS Tools",
    LoadingTitle = "Carregando Scripts...",
@@ -251,5 +267,4 @@ RollTab:CreateToggle({
    end,
 })
 
--- Força a interface a ler o arquivo salvo na inicialização
 Rayfield:LoadConfiguration()
