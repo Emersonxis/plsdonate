@@ -2,6 +2,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 -- Remotes
@@ -10,12 +11,17 @@ local RollRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("RollP
 -- Chão da Zona 9
 local GroundPart = workspace:WaitForChild("Zones"):WaitForChild("9"):WaitForChild("Nature"):WaitForChild("Ground")
 
--- Desativador de Ragdoll Nativo do Humanoid (Anti-Queda)
+-- Nome do arquivo de configuração personalizada para o Delta
+local configFileName = "FrancesSTools_Config.json"
+
+-- Anti-Ragdoll Nativo Corrigido
 local function antiRagdoll(character)
     local humanoid = character:WaitForChild("Humanoid", 10)
     if humanoid then
         humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStand, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+        humanoid.PlatformStand = false
     end
 end
 
@@ -29,7 +35,7 @@ LocalPlayer.Idled:Connect(function()
     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
 end)
 
--- Tabela fixa baseada no módulo do jogo
+-- Tabela fixa de Minérios
 local OreBaseHealth = {
 	["Stone"] = 50,
 	["Coal"] = 150,
@@ -64,6 +70,20 @@ local priorityMode = "Menor Vida"
 local autoTpActive = false
 local autoRollActive = false
 
+-- Função para Ancorar/Desancorar o corpo INTEIRO (Evita membros caindo ou girando)
+local function setCharacterAnchored(character, state)
+    if not character then return end
+    for _, part in ipairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            part.Anchored = state
+            if state then
+                part.AssemblyLinearVelocity = Vector3.zero
+                part.AssemblyAngularVelocity = Vector3.zero
+            end
+        end
+    end
+end
+
 -- Sistema de Fila Dinâmica
 local targetQueue = {}
 
@@ -71,7 +91,6 @@ local function getOreHealth(ore)
     return ore:GetAttribute("Health") or OreBaseHealth[ore.Name] or 0
 end
 
--- Verifica posicionamento estrito na Zona 9
 local function isOreOnZone9(ore)
     if not GroundPart then return false end
     local orePosition = ore:GetPivot().Position
@@ -85,13 +104,11 @@ local function isOreOnZone9(ore)
     return insideX and insideZ and aboveY
 end
 
--- Validador de Alvo com base na Regra Geográfica de Tiers
 local function isValidTarget(ore)
     local isSelected = table.find(selectedOres, "Todos") or table.find(selectedOres, ore.Name)
     if not isSelected or getOreHealth(ore) <= 0 then return false end
     
     local baseHealth = OreBaseHealth[ore.Name] or 0
-    
     if baseHealth >= 4000 then
         return true
     else
@@ -132,7 +149,7 @@ local function updateQueue()
     end
 end
 
--- Loop de Teleporte Estilo Fly (Bypass Total de Ragdoll por Ancoragem)
+-- Loop de Teleporte com proteção total de física por congelamento completo de membros
 local lastTrackedTarget = nil
 local lastTeleportTime = 0
 local initialHealth = 0
@@ -145,14 +162,11 @@ task.spawn(function()
         
         if autoTpActive and #selectedOres > 0 then
             updateQueue()
-            
             local currentTarget = targetQueue[1]
             
             if hrp and currentTarget then
-                -- Ativa o modo "Fly" travando a gravidade e forças físicas externas
-                hrp.Anchored = true
-                hrp.AssemblyLinearVelocity = Vector3.zero
-                hrp.AssemblyAngularVelocity = Vector3.zero
+                -- Congela o corpo inteiro no ar para impossibilitar quedas ou capotamentos
+                setCharacterAnchored(character, true)
                 
                 if currentTarget ~= lastTrackedTarget then
                     lastTrackedTarget = currentTarget
@@ -179,12 +193,12 @@ task.spawn(function()
                 end
             else
                 lastTrackedTarget = nil
-                if hrp then hrp.Anchored = false end
+                setCharacterAnchored(character, false)
             end
         else
             lastTrackedTarget = nil
             table.clear(targetQueue)
-            if hrp then hrp.Anchored = false end -- Devolve a física normal ao jogador
+            setCharacterAnchored(character, false) -- Libera o boneco para andar normalmente
         end
     end
 end)
@@ -203,66 +217,106 @@ task.spawn(function()
     end
 end)
 
--- Inicialização da Interface Rayfield com Auto-Salvar
+-- Sistema Customizado de Salvamento JSON (Bypass de erros do Executor)
+local function saveCustomConfig()
+    local data = {
+        selectedOres = selectedOres,
+        priorityMode = priorityMode,
+        autoTpActive = autoTpActive,
+        autoRollActive = autoRollActive
+    }
+    local success, str = pcall(function() return HttpService:JSONEncode(data) end)
+    if success then
+        writefile(configFileName, str)
+    end
+end
+
+-- Inicialização Limpa da Janela Rayfield
 local Window = Rayfield:CreateWindow({
    Name = "FrancesS Tools",
    LoadingTitle = "Carregando Scripts...",
    LoadingSubtitle = "by Frances",
-   ConfigurationSaving = {
-       Enabled = true,
-       FolderName = "FrancesSTools",
-       FileName = "FarmConfig"
-   },
+   ConfigurationSaving = { Enabled = false }, -- Desativado o nativo para sumir com o erro do print!
    KeySystem = false
 })
 
 local FarmTab = Window:CreateTab("Auto Farm", 4483362458)
 local RollTab = Window:CreateTab("Auto Roll", 4483362458)
 
--- Interface: Auto Farm
-FarmTab:CreateDropdown({
+-- Criação dos Elementos salvando referências para o carregador
+local OreDropdown = FarmTab:CreateDropdown({
    Name = "Selecione os Minérios",
    Options = PresetOresList,
    CurrentOption = {},
    MultipleOptions = true,
-   Flag = "OreSelectFlag",
+   Flag = "Manual_OreSelect",
    Callback = function(Options)
        selectedOres = Options
        table.clear(targetQueue)
        lastTrackedTarget = nil
+       saveCustomConfig()
    end,
 })
 
-FarmTab:CreateDropdown({
+local PriorityDropdown = FarmTab:CreateDropdown({
    Name = "Prioridade de Foco",
    Options = {"Menor Vida", "Maior Vida"},
    CurrentOption = {"Menor Vida"},
    MultipleOptions = false,
-   Flag = "PrioritySelectFlag",
+   Flag = "Manual_Priority",
    Callback = function(Option)
        priorityMode = Option[1] or "Menor Vida"
        table.clear(targetQueue)
        lastTrackedTarget = nil
+       saveCustomConfig()
    end,
 })
 
-FarmTab:CreateToggle({
+local TpToggle = FarmTab:CreateToggle({
    Name = "Auto TP Ativo",
    CurrentValue = false,
-   Flag = "AutoTpToggleFlag",
+   Flag = "Manual_Tp",
    Callback = function(Value)
        autoTpActive = Value
+       saveCustomConfig()
    end,
 })
 
--- Interface: Auto Roll
-RollTab:CreateToggle({
+local RollToggle = RollTab:CreateToggle({
    Name = "Auto Roll Ativo (Spam Rápido)",
    CurrentValue = false,
-   Flag = "AutoRollToggleFlag",
+   Flag = "Manual_Roll",
    Callback = function(Value)
        autoRollActive = Value
+       saveCustomConfig()
    end,
 })
 
-Rayfield:LoadConfiguration()
+-- Função Estável para Carregar Dados Salpos pelo Delta
+local function loadCustomConfig()
+    if isfile(configFileName) then
+        local content = readfile(configFileName)
+        local success, data = pcall(function() return HttpService:JSONDecode(content) end)
+        if success and data then
+            if data.selectedOres then 
+                selectedOres = data.selectedOres 
+                OreDropdown:Set(selectedOres)
+            end
+            if data.priorityMode then 
+                priorityMode = data.priorityMode 
+                PriorityDropdown:Set({priorityMode})
+            end
+            if data.autoTpActive ~= nil then 
+                autoTpActive = data.autoTpActive 
+                TpToggle:Set(autoTpActive)
+            end
+            if data.autoRollActive ~= nil then 
+                autoRollActive = data.autoRollActive 
+                RollToggle:Set(autoRollActive)
+            end
+        end
+    end
+end
+
+-- Executa a leitura dos dados salvos após renderizar a UI
+task.spawn(loadCustomConfig)
