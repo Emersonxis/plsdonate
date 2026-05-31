@@ -8,25 +8,8 @@ local LocalPlayer = Players.LocalPlayer
 -- Remotes
 local RollRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("RollPickaxe")
 
--- Chão da Zona 9
-local GroundPart = workspace:WaitForChild("Zones"):WaitForChild("9"):WaitForChild("Nature"):WaitForChild("Ground")
-
--- Nome do arquivo de configuração personalizada para o Delta
+-- Arquivo de Configuração Customizada JSON
 local configFileName = "FrancesSTools_Config.json"
-
--- Anti-Ragdoll Nativo Corrigido
-local function antiRagdoll(character)
-    local humanoid = character:WaitForChild("Humanoid", 10)
-    if humanoid then
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
-        humanoid.PlatformStand = false
-    end
-end
-
-if LocalPlayer.Character then antiRagdoll(LocalPlayer.Character) end
-LocalPlayer.CharacterAdded:Connect(antiRagdoll)
 
 -- Anti-AFK
 LocalPlayer.Idled:Connect(function()
@@ -70,18 +53,27 @@ local priorityMode = "Menor Vida"
 local autoTpActive = false
 local autoRollActive = false
 
--- Função para Ancorar/Desancorar o corpo INTEIRO (Evita membros caindo ou girando)
-local function setCharacterAnchored(character, state)
-    if not character then return end
-    for _, part in ipairs(character:GetChildren()) do
-        if part:IsA("BasePart") then
-            part.Anchored = state
-            if state then
-                part.AssemblyLinearVelocity = Vector3.zero
-                part.AssemblyAngularVelocity = Vector3.zero
-            end
-        end
+-- Sistema de Voo Estilo Infinite Yield (BodyObjects)
+local flyBV, flyBG
+
+local function startInfiniteYieldFly(hrp)
+    if not flyBV or not flyBV.Parent then
+        flyBV = Instance.new("BodyVelocity")
+        flyBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        flyBV.Velocity = Vector3.new(0, 0, 0)
+        flyBV.Parent = hrp
     end
+    if not flyBG or not flyBG.Parent then
+        flyBG = Instance.new("BodyGyro")
+        flyBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        flyBG.CFrame = hrp.CFrame
+        flyBG.Parent = hrp
+    end
+end
+
+local function stopInfiniteYieldFly()
+    if flyBV then flyBV:Destroy() flyBV = nil end
+    if flyBG then flyBG:Destroy() flyBG = nil end
 end
 
 -- Sistema de Fila Dinâmica
@@ -91,8 +83,15 @@ local function getOreHealth(ore)
     return ore:GetAttribute("Health") or OreBaseHealth[ore.Name] or 0
 end
 
+-- Busca o chão de forma dinâmica para NÃO travar o script por StreamingEnabled
 local function isOreOnZone9(ore)
-    if not GroundPart then return false end
+    local Zones = workspace:FindFirstChild("Zones")
+    local Zone9 = Zones and Zones:FindFirstChild("9")
+    local Nature = Zone9 and Zone9:FindFirstChild("Nature")
+    local GroundPart = Nature and Nature:FindFirstChild("Ground")
+    
+    if not GroundPart then return false end -- Se a área 9 não estiver carregada fisicamente no mapa, ignora
+    
     local orePosition = ore:GetPivot().Position
     local localPos = GroundPart.CFrame:PointToObjectSpace(orePosition)
     local size = GroundPart.Size
@@ -149,7 +148,7 @@ local function updateQueue()
     end
 end
 
--- Loop de Teleporte com proteção total de física por congelamento completo de membros
+-- Loop de Teleporte (Fila Dinâmica + IY Fly fixado)
 local lastTrackedTarget = nil
 local lastTeleportTime = 0
 local initialHealth = 0
@@ -165,12 +164,12 @@ task.spawn(function()
             local currentTarget = targetQueue[1]
             
             if hrp and currentTarget then
-                -- Congela o corpo inteiro no ar para impossibilitar quedas ou capotamentos
-                setCharacterAnchored(character, true)
+                startInfiniteYieldFly(hrp)
                 
                 if currentTarget ~= lastTrackedTarget then
                     lastTrackedTarget = currentTarget
                     hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
+                    if flyBG then flyBG.CFrame = hrp.CFrame end
                     lastTeleportTime = os.clock()
                     initialHealth = getOreHealth(currentTarget)
                     checkedDamage = false
@@ -180,6 +179,7 @@ task.spawn(function()
                     local currentHealth = getOreHealth(currentTarget)
                     if currentHealth >= initialHealth then
                         hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
+                        if flyBG then flyBG.CFrame = hrp.CFrame end
                         lastTeleportTime = os.clock()
                         initialHealth = currentHealth
                     else
@@ -190,15 +190,16 @@ task.spawn(function()
                 local distance = (hrp.Position - currentTarget:GetPivot().Position).Magnitude
                 if distance > 25 then
                     hrp.CFrame = currentTarget:GetPivot() + Vector3.new(0, 10, 0)
+                    if flyBG then flyBG.CFrame = hrp.CFrame end
                 end
             else
                 lastTrackedTarget = nil
-                setCharacterAnchored(character, false)
+                stopInfiniteYieldFly()
             end
         else
             lastTrackedTarget = nil
             table.clear(targetQueue)
-            setCharacterAnchored(character, false) -- Libera o boneco para andar normalmente
+            stopInfiniteYieldFly()
         end
     end
 end)
@@ -217,7 +218,7 @@ task.spawn(function()
     end
 end)
 
--- Sistema Customizado de Salvamento JSON (Bypass de erros do Executor)
+-- Sistema Customizado de Salvamento JSON para o Delta
 local function saveCustomConfig()
     local data = {
         selectedOres = selectedOres,
@@ -231,19 +232,18 @@ local function saveCustomConfig()
     end
 end
 
--- Inicialização Limpa da Janela Rayfield
+-- Inicialização Limpa da Interface Rayfield
 local Window = Rayfield:CreateWindow({
    Name = "FrancesS Tools",
    LoadingTitle = "Carregando Scripts...",
    LoadingSubtitle = "by Frances",
-   ConfigurationSaving = { Enabled = false }, -- Desativado o nativo para sumir com o erro do print!
+   ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
 
 local FarmTab = Window:CreateTab("Auto Farm", 4483362458)
 local RollTab = Window:CreateTab("Auto Roll", 4483362458)
 
--- Criação dos Elementos salvando referências para o carregador
 local OreDropdown = FarmTab:CreateDropdown({
    Name = "Selecione os Minérios",
    Options = PresetOresList,
@@ -292,7 +292,7 @@ local RollToggle = RollTab:CreateToggle({
    end,
 })
 
--- Função Estável para Carregar Dados Salpos pelo Delta
+-- Carregador Estável JSON
 local function loadCustomConfig()
     if isfile(configFileName) then
         local content = readfile(configFileName)
@@ -318,5 +318,4 @@ local function loadCustomConfig()
     end
 end
 
--- Executa a leitura dos dados salvos após renderizar a UI
 task.spawn(loadCustomConfig)
