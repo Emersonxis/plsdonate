@@ -58,12 +58,15 @@ local ClickSettings = {
     MaxBreakables = 1,    
 }
 
+-- Configurações de Teleporte + Variáveis de Automação Intertravada
 local TeleportSettings = {
     Enabled = false,
     Home = nil,
     Points = {}, 
     SelectedPoint = nil
 }
+local wasEggActiveBeforeRoute = false -- Memória inteligente do estado do Egg
+local EggToggle = nil                  -- Referência para controle direto da UI
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -197,7 +200,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: GERENCIADOR DE TELEPORTE (LISTA DE ROTA + HOME LOOP)
+-- LÓGICA INTERNA: GERENCIADOR DE TELEPORTE + AUTOMAÇÃO DO AUTO EGG
 -- ============================================================================
 local function MonitorarTempoParado()
     local character = Players.LocalPlayer.Character
@@ -233,6 +236,13 @@ end
 task.spawn(function()
     while true do
         if TeleportSettings.Enabled and #TeleportSettings.Points > 0 and TeleportSettings.Home then
+            -- [AUTOMAÇÃO] Desativa o Auto Egg de forma inteligente ao iniciar a rota
+            if _G.AutoEgg and EggToggle then
+                wasEggActiveBeforeRoute = true
+                EggToggle:Set(false)
+            end
+
+            -- Loop executando as coordenadas da rota
             for i = 1, #TeleportSettings.Points do
                 if not TeleportSettings.Enabled then break end
                 local currentPoint = TeleportSettings.Points[i]
@@ -245,37 +255,49 @@ task.spawn(function()
                 end
             end
             
+            -- Retorno para a posição Home e início do tempo de espera
             if TeleportSettings.Enabled and TeleportSettings.Home then
                 local character = Players.LocalPlayer.Character
                 local rootPart = character and character:FindFirstChild("HumanoidRootPart")
                 if rootPart then
                     rootPart.CFrame = TeleportSettings.Home
                 end
+                
+                -- [AUTOMAÇÃO] Voltou ao estado de espera (10:01), reativa o Auto Egg
+                if wasEggActiveBeforeRoute and EggToggle then
+                    EggToggle:Set(true)
+                    wasEggActiveBeforeRoute = false -- Reseta o estado de verificação
+                end
+                
                 task.wait(601)
+            else
+                task.wait(1)
             end
         else
+            -- [SEGURANÇA] Se desativar o teleporte no meio do caminho, devolve o Auto Egg imediatamente
+            if wasEggActiveBeforeRoute and EggToggle and not TeleportSettings.Enabled then
+                EggToggle:Set(true)
+                wasEggActiveBeforeRoute = false
+            end
             task.wait(1)
         end
     end
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO COLLECT ORBS & LOOTBAGS (Garantia de Ordem Injetada)
+-- LÓGICA INTERNA: AUTO COLLECT ORBS & LOOTBAGS
 -- ============================================================================
 local function coletarEDeletar(item)
     if not _G.AutoCollect or not item then return end
     local itemId = item:GetAttribute("Id") or item:GetAttribute("OrbID") or item.Name
     
     if itemId and type(itemId) == "string" then
-        -- PASSO 1: Foca unicamente em mandar o sinal de coleta para o servidor
         pcall(function()
             Network.Fire("Orbs: Collect", {itemId})
         end)
         
-        -- PASSO 2: Delay cirúrgico para garantir o envio físico do sinal de rede
         task.wait(0.05)
         
-        -- PASSO 3: Só executa ocultação se o item ainda existir na árvore do jogo
         if item and item.Parent then
             pcall(function()
                 if item:IsA("Model") then
@@ -295,7 +317,6 @@ local function coletarEDeletar(item)
                 end
             end)
             
-            -- PASSO 4: Pequena folga para a engine consolidar o processo e deletar
             task.wait(0.1)
             if item and item.Parent then
                 pcall(function()
@@ -632,7 +653,7 @@ FarmTab:CreateToggle({
    end,
 })
 
--- 2. ABA EGGS
+-- 2. ABA EGGS (Elemento salvo em variável para permitir intertravamento automático)
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
 
 EggsTab:CreateInput({
@@ -667,7 +688,7 @@ EggsTab:CreateInput({
    end,
 })
 
-EggsTab:CreateToggle({
+EggToggle = EggsTab:CreateToggle({
    Name = "Auto Abrir Eggs",
    CurrentValue = false,
    Flag = "ToggleAutoEgg",
