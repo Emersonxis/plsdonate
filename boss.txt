@@ -1,0 +1,508 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "FrancesS Tools",
+   LoadingTitle = "Carregando Framework...",
+   LoadingSubtitle = "Utility Tools",
+   ConfigurationSaving = {
+      Enabled = false
+   },
+   Discord = {
+      Enabled = false
+   }
+})
+
+-- [[ VARIÁVEIS GLOBAIS E CONFIGURAÇÕES ]]
+_G.AutoCollect = false
+_G.AutoEgg = false
+_G.EggSelected = "Relic Egg"
+
+local DigSettings = {
+    Enabled = false,
+    Delay = 0.01,
+    MaxBlocks = 8,
+    HitsPerBlock = 3,
+    Chessboard = false,
+    TargetLayer = 70,
+}
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local Network = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("Network"))
+
+local MiningNow = {}
+local shaftX, shaftZ = nil, nil
+local LibraryNetwork = Network
+
+-- ============================================================================
+-- SCRIPT DE SEGUNDO PLANO: ANTI-EGG ANIMATION (Execução automática silenciosa)
+-- ============================================================================
+task.spawn(function()
+    task.wait(10)
+    local desativado = false
+    
+    while not desativado do
+        pcall(function()
+            for _, v in ipairs(getgc(true)) do
+                if type(v) == "table" and rawget(v, "PlayEggAnimation") then
+                    v.PlayEggAnimation = function() return end
+                    desativado = true
+                    break
+                end
+            end
+
+            if not desativado then
+                for _, v in ipairs(getgc()) do
+                    if type(v) == "function" and islclosure(v) then
+                        local info = debug.getinfo(v)
+                        if info.name == "PlayEggAnimation" or (info.source and string.find(info.source, "Egg Opening")) then
+                            hookfunction(v, function(...) return end)
+                            desativado = true
+                            break
+                        end
+                    end
+                end
+            end
+        end)
+        if desativado then break end
+        task.wait(0.5)
+    end
+end)
+
+-- ============================================================================
+-- LÓGICA INTERNA: AUTO COLLECT ORBS & LOOTBAGS
+-- ============================================================================
+local function coletarEDeletar(item)
+    if not _G.AutoCollect or not item then return end
+    
+    local itemId = item:GetAttribute("Id") or item:GetAttribute("OrbID") or item.Name
+    
+    if itemId and type(itemId) == "string" then
+        pcall(function()
+            Network.Fire("Orbs: Collect", {itemId})
+        end)
+        
+        pcall(function()
+            if item:IsA("Model") then
+                for _, child in ipairs(item:GetDescendants()) do
+                    if child:IsA("BasePart") then
+                        child.Transparency = 1
+                        child.CanCollide = false
+                    elseif child:IsA("Decal") or child:IsA("Texture") then
+                        child.Transparency = 1
+                    elseif child:IsA("ParticleEmitter") or child:IsA("Beam") or child:IsA("Trail") then
+                        child.Enabled = false
+                    end
+                end
+            elseif item:IsA("BasePart") then
+                item.Transparency = 1
+                item.CanCollide = false
+            end
+        end)
+        
+        task.defer(function()
+            if item and item.Parent then
+                pcall(function()
+                    item:Destroy()
+                end)
+            end
+        end)
+    end
+end
+
+local function monitorarPasta(pasta)
+    if not pasta then return end
+    
+    for _, item in ipairs(pasta:GetChildren()) do
+        task.spawn(coletarEDeletar, item)
+    end
+    
+    return pasta.ChildAdded:Connect(function(item)
+        task.spawn(coletarEDeletar, item)
+    end)
+end
+
+task.spawn(function()
+    local conexoes = {}
+    while true do
+        if _G.AutoCollect then
+            local things = Workspace:FindFirstChild("__THINGS")
+            if things then
+                local pastasAlvo = {
+                    things:FindFirstChild("Orbs"),
+                    things:FindFirstChild("RenderedOrbs")
+                }
+                
+                for _, pasta in ipairs(pastasAlvo) do
+                    if pasta and not conexoes[pasta] then
+                        conexoes[pasta] = monitorarPasta(pasta)
+                    end
+                end
+            end
+        else
+            for pasta, conexao in pairs(conexoes) do
+                if conexao then conexao:Disconnect() end
+                conexoes[pasta] = nil
+            end
+        end
+        
+        for pasta, conexao in pairs(conexoes) do
+            if not pasta or not pasta.Parent then
+                if conexao then conexao:Disconnect() end
+                conexoes[pasta] = nil
+            end
+        end
+        task.wait(1)
+    end
+end)
+
+-- ============================================================================
+-- LÓGICA INTERNA: AUTO EGG PURCHASER
+-- ============================================================================
+task.spawn(function()
+    while true do
+        if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" then
+            pcall(function()
+                Network.Invoke("Eggs_RequestPurchase", _G.EggSelected, 1)
+            end)
+        end
+        task.wait(0.01)
+    end
+end)
+
+-- ============================================================================
+-- LÓGICA INTERNA: AUTO DIG AVANÇADO (Mecanismo Funcional Preservado)
+-- ============================================================================
+task.spawn(function()
+    while true do
+        if DigSettings.Enabled then
+            pcall(function()
+                if not LibraryNetwork then
+                    local lib = ReplicatedStorage:FindFirstChild("Library")
+                    local client = lib and lib:FindFirstChild("Client")
+                    local netMod = client and client:FindFirstChild("Network")
+                    if netMod then LibraryNetwork = require(netMod) end
+                end
+                
+                if not LibraryNetwork then return end
+                
+                local things = Workspace:FindFirstChild("__THINGS")
+                local container = things and things:FindFirstChild("__INSTANCE_CONTAINER")
+                local active = container and container:FindFirstChild("Active")
+                local digsite = active and active:FindFirstChild("Digsite")
+                local important = digsite and digsite:FindFirstChild("Important")
+                
+                local activeBlocksPath = important and important:FindFirstChild("ActiveBlocks")
+                local activeChestsPath = important and important:FindFirstChild("ActiveChests")
+                
+                if not activeBlocksPath or not activeChestsPath then return end
+                
+                local validTargets = {}
+                local allBlocks = activeBlocksPath:GetChildren()
+                local allChests = activeChestsPath:GetDescendants()
+                
+                if DigSettings.Chessboard and (not shaftX or not shaftZ) then
+                    local minY = math.huge
+                    local shallowestBlock = nil
+                    for _, block in ipairs(allBlocks) do
+                        if block.Name == "Part" and block:IsA("BasePart") then
+                            local coord = block:GetAttribute("Coord")
+                            if coord and coord.Y > 1 and coord.Y < minY then
+                                minY = coord.Y
+                                shallowestBlock = block
+                            end
+                        end
+                    end
+                    if shallowestBlock then
+                        local coord = shallowestBlock:GetAttribute("Coord")
+                        shaftX = math.floor(coord.X + 0.5)
+                        shaftZ = math.floor(coord.Z + 0.5)
+                    end
+                end
+                
+                if DigSettings.Chessboard then
+                    local shaftBlocks = {}
+                    for _, block in ipairs(allBlocks) do
+                        if block.Name == "Part" and block:IsA("BasePart") and not MiningNow[block] then
+                            local coord = block:GetAttribute("Coord")
+                            if coord and coord.Y > 1 and coord.Y < DigSettings.TargetLayer then
+                                local posX = math.floor(coord.X + 0.5)
+                                local posZ = math.floor(coord.Z + 0.5)
+                                if posX == shaftX and posZ == shaftZ then
+                                    table.insert(shaftBlocks, { Instance = block, Coord = coord, IsChest = false })
+                                end
+                            end
+                        end
+                    end
+                    
+                    if #shaftBlocks > 0 then
+                        table.sort(shaftBlocks, function(a, b) return a.Coord.Y < b.Coord.Y end)
+                        table.insert(validTargets, shaftBlocks[1])
+                        
+                        local currentShaftY = shaftBlocks[1].Coord.Y
+                        for _, chest in ipairs(allChests) do
+                            if not MiningNow[chest] then
+                                local coord = chest:GetAttribute("Coord") or (chest:IsA("Model") and chest.PrimaryPart and chest.PrimaryPart:GetAttribute("Coord"))
+                                if coord and coord.Y == currentShaftY then
+                                    local cX = math.floor(coord.X + 0.5)
+                                    local cZ = math.floor(coord.Z + 0.5)
+                                    if cX == shaftX and cZ == shaftZ then
+                                        table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true })
+                                    end
+                                end
+                            end
+                        end
+                    else
+                        local targetLayerBlocks = {}
+                        for _, block in ipairs(allBlocks) do
+                            if block.Name == "Part" and block:IsA("BasePart") and not MiningNow[block] then
+                                local coord = block:GetAttribute("Coord")
+                                if coord and coord.Y == DigSettings.TargetLayer then
+                                    table.insert(targetLayerBlocks, { Instance = block, Coord = coord, IsChest = false })
+                                end
+                            end
+                        end
+                        
+                        if #targetLayerBlocks > 0 then
+                            for _, bData in ipairs(targetLayerBlocks) do table.insert(validTargets, bData) end
+                            for _, chest in ipairs(allChests) do
+                                if not MiningNow[chest] then
+                                    local coord = chest:GetAttribute("Coord") or (chest:IsA("Model") and chest.PrimaryPart and chest.PrimaryPart:GetAttribute("Coord"))
+                                    if coord and coord.Y == DigSettings.TargetLayer then
+                                        table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true })
+                                    end
+                                end
+                            end
+                        else
+                            local leftBehindChests = {}
+                            for _, chest in ipairs(allChests) do
+                                if not MiningNow[chest] then
+                                    local coord = chest:GetAttribute("Coord") or (chest:IsA("Model") and chest.PrimaryPart and chest.PrimaryPart:GetAttribute("Coord"))
+                                    if coord and coord.Y > 1 and coord.Y <= DigSettings.TargetLayer then
+                                        table.insert(leftBehindChests, { Instance = chest, Coord = coord, IsChest = true })
+                                    end
+                                end
+                            end
+                            
+                            if #leftBehindChests > 0 then
+                                for _, cData in ipairs(leftBehindChests) do table.insert(validTargets, cData) end
+                            else
+                                local blocksByLayer = {}
+                                local layersOrder = {}
+                                for _, block in ipairs(allBlocks) do
+                                    if block.Name == "Part" and block:IsA("BasePart") and not MiningNow[block] then
+                                        local coord = block:GetAttribute("Coord")
+                                        if coord and coord.Y > DigSettings.TargetLayer then
+                                            local layerY = coord.Y
+                                            if not blocksByLayer[layerY] then
+                                                blocksByLayer[layerY] = {}
+                                                table.insert(layersOrder, layerY)
+                                                    end
+                                            table.insert(blocksByLayer[layerY], { Instance = block, Coord = coord, IsChest = false })
+                                        end
+                                    end
+                                end
+                                
+                                table.sort(layersOrder, function(a, b) return a < b end)
+                                
+                                local nextActiveY = nil
+                                for _, y in ipairs(layersOrder) do
+                                    for _, bData in ipairs(blocksByLayer[y]) do
+                                        local posX = math.floor(bData.Coord.X + 0.5)
+                                        local posZ = math.floor(bData.Coord.Z + 0.5)
+                                        if (posX + posZ) % 2 == 0 then
+                                            nextActiveY = y
+                                            break
+                                        end
+                                    end
+                                    if nextActiveY then break end
+                                end
+                                
+                                if nextActiveY then
+                                    for _, bData in ipairs(blocksByLayer[nextActiveY]) do
+                                        local posX = math.floor(bData.Coord.X + 0.5)
+                                        local posZ = math.floor(bData.Coord.Z + 0.5)
+                                        if (posX + posZ) % 2 == 0 then table.insert(validTargets, bData) end
+                                    end
+                                    for _, chest in ipairs(allChests) do
+                                        if not MiningNow[chest] then
+                                            local coord = chest:GetAttribute("Coord") or (chest:IsA("Model") and chest.PrimaryPart and chest.PrimaryPart:GetAttribute("Coord"))
+                                            if coord and coord.Y == nextActiveY then
+                                                table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true })
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                else
+                    local blocksByLayer = {}
+                    local layersOrder = {}
+                    for _, block in ipairs(allBlocks) do
+                        if block.Name == "Part" and block:IsA("BasePart") and not MiningNow[block] then
+                            local coord = block:GetAttribute("Coord")
+                            if coord and coord.Y > 1 then
+                                local layerY = coord.Y
+                                if not blocksByLayer[layerY] then
+                                    blocksByLayer[layerY] = {}
+                                    table.insert(layersOrder, layerY)
+                                end
+                                table.insert(blocksByLayer[layerY], { Instance = block, Coord = coord, IsChest = false })
+                            end
+                        end
+                    end
+                    
+                    table.sort(layersOrder, function(a, b) return a < b end)
+                    local nextActiveY = layersOrder[1]
+                    
+                    if nextActiveY then
+                        for _, bData in ipairs(blocksByLayer[nextActiveY]) do table.insert(validTargets, bData) end
+                    end
+                    for _, chest in ipairs(allChests) do
+                        if not MiningNow[chest] then
+                            local coord = chest:GetAttribute("Coord") or (chest:IsA("Model") and chest.PrimaryPart and chest.PrimaryPart:GetAttribute("Coord"))
+                            if coord and coord.Y > 1 then
+                                table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true })
+                            end
+                        end
+                    end
+                end
+                
+                local processedCount = 0
+                for _, targetData in ipairs(validTargets) do
+                    if not targetData.IsChest and DigSettings.MaxBlocks > 0 and processedCount >= DigSettings.MaxBlocks then break end
+                    
+                    local target = targetData.Instance
+                    local coord = targetData.Coord
+                    local isChest = targetData.IsChest
+                    
+                    MiningNow[target] = true
+                    if not isChest then processedCount = processedCount + 1 end
+                    
+                    task.spawn(function()
+                        local exists = isChest and target:IsDescendantOf(activeChestsPath) or (not isChest and target and target.Parent == activeBlocksPath)
+                        if exists then
+                            local blockVector = vector.create(coord.X, coord.Y, coord.Z)
+                            local comandoRede = isChest and "DigChest" or "DigBlock"
+                            
+                            for i = 1, DigSettings.HitsPerBlock do
+                                LibraryNetwork.Fire("Instancing_FireCustomFromClient", "Digsite", comandoRede, blockVector)
+                            end
+                            
+                            local frameTimeout = 0
+                            while frameTimeout < (isChest and 20 or 10) do
+                                local stillExists = isChest and target:IsDescendantOf(activeChestsPath) or (not isChest and target and target.Parent == activeBlocksPath)
+                                if not stillExists then break end
+                                task.wait()
+                                frameTimeout = frameTimeout + 1
+                            end
+                        end
+                        MiningNow[target] = nil
+                    end)
+                end
+            end)
+        end
+        task.wait(DigSettings.Delay)
+    end
+end)
+
+-- ============================================================================
+-- CRIAÇÃO DAS ABAS E ELEMENTOS DA INTERFACE
+-- ============================================================================
+
+-- 1. ABA FARM
+local FarmTab = Window:CreateTab("Farm", 4483362458)
+
+FarmTab:CreateToggle({
+   Name = "Auto Collect Orbs & Lootbags",
+   CurrentValue = false,
+   Flag = "ToggleAutoCollect",
+   Callback = function(Value)
+      _G.AutoCollect = Value
+   end,
+})
+
+-- 2. ABA EGGS
+local EggsTab = Window:CreateTab("Eggs", 4483362458)
+
+EggsTab:CreateInput({
+   Name = "Nome do Egg",
+   PlaceholderText = "Digite o nome exato (Ex: Relic Egg)",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      _G.EggSelected = Text
+   end,
+})
+
+EggsTab:CreateToggle({
+   Name = "Auto Abrir Eggs (X1)",
+   CurrentValue = false,
+   Flag = "ToggleAutoEgg",
+   Callback = function(Value)
+      _G.AutoEgg = Value
+   end,
+})
+
+-- 3. ABA DIG (Totalmente integrada e baseada nos inputs funcionais)
+local DigTab = Window:CreateTab("Auto Dig", 4483362458)
+
+DigTab:CreateToggle({
+   Name = "Ativar Auto-Dig",
+   CurrentValue = false,
+   Flag = "AutoDigActive",
+   Callback = function(Value)
+      DigSettings.Enabled = Value
+      if not Value then 
+          table.clear(MiningNow) 
+          shaftX = nil
+          shaftZ = nil
+      end
+   end,
+})
+
+DigTab:CreateToggle({
+   Name = "Modo Xadrez Avançado",
+   CurrentValue = false,
+   Flag = "ChessboardMode",
+   Callback = function(Value)
+      DigSettings.Chessboard = Value
+      if not Value then
+          shaftX = nil
+          shaftZ = nil
+      end
+   end,
+})
+
+DigTab:CreateInput({
+   Name = "Começar Xadrez na Camada:",
+   PlaceholderText = "Ex: 70",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      if num then DigSettings.TargetLayer = num end
+   end,
+})
+
+DigTab:CreateInput({
+   Name = "Velocidade Mineração (Segundos)",
+   PlaceholderText = "Padrão: 0.01",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      if num then DigSettings.Delay = num end
+   end,
+})
+
+DigTab:CreateInput({
+   Name = "Blocos Simultâneos",
+   PlaceholderText = "Padrão: 8",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      if num then DigSettings.MaxBlocks = num end
+   end,
+})
+
+Rayfield:LoadConfiguration()
