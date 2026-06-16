@@ -71,11 +71,69 @@ local EggToggle = nil                  -- Referência para controle direto da UI
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 local Network = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("Network"))
 
 local MiningNow = {}
 local shaftX, shaftZ = nil, nil
 local LibraryNetwork = Network
+local FILE_NAME = "FrancesSTools_Teleports.json"
+
+-- ============================================================================
+-- ARQUIVO LOCAL: SISTEMA DE SALVAMENTO DE CFRAMES CUSTOMIZADO
+-- ============================================================================
+local function cframeToTable(cf)
+    if not cf then return nil end
+    return {cf:GetComponents()}
+end
+
+local function tableToCFrame(tbl)
+    if not tbl then return nil end
+    return CFrame.new(unpack(tbl))
+end
+
+local function saveTeleportData()
+    local data = {
+        Home = cframeToTable(TeleportSettings.Home),
+        Points = {}
+    }
+    for _, pt in ipairs(TeleportSettings.Points) do
+        table.insert(data.Points, {
+            cframe = cframeToTable(pt.cframe),
+            waitTime = pt.waitTime,
+            id = pt.id
+        })
+    end
+    pcall(function()
+        writefile(FILE_NAME, HttpService:JSONEncode(data))
+    end)
+end
+
+local function loadTeleportData()
+    if isfile(FILE_NAME) then
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(readfile(FILE_NAME))
+        end)
+        if success and result then
+            if result.Home then
+                TeleportSettings.Home = tableToCFrame(result.Home)
+            end
+            if result.Points then
+                TeleportSettings.Points = {}
+                for _, pt in ipairs(result.Points) do
+                    table.insert(TeleportSettings.Points, {
+                        cframe = tableToCFrame(pt.cframe),
+                        waitTime = pt.waitTime,
+                        id = pt.id
+                    })
+                end
+            end
+        end
+    end
+end
+
+-- Carrega os dados salvos antes da interface popular os elementos
+loadTeleportData()
 
 -- ============================================================================
 -- SCRIPT DE SEGUNDO PLANO: ANTI-EGG ANIMATION & PET SPEED HACK
@@ -200,8 +258,19 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: GERENCIADOR DE TELEPORTE + AUTOMAÇÃO DO AUTO EGG
+-- LÓGICA INTERNA: GERENCIADOR DE TELEPORTE (INTERRUPTÍVEL + PERSISTENTE)
 -- ============================================================================
+local function interruptibleWait(seconds)
+    local start = os.clock()
+    while os.clock() - start < seconds do
+        if not TeleportSettings.Enabled then
+            return false -- Retorna falso se o loop foi desligado no meio do caminho
+        end
+        task.wait(0.1) -- Verificação constante fracionada
+    end
+    return true
+end
+
 local function MonitorarTempoParado()
     local character = Players.LocalPlayer.Character
     local rootPart = character and character:FindFirstChild("HumanoidRootPart")
@@ -231,6 +300,7 @@ local function MonitorarTempoParado()
         waitTime = finalTime,
         id = pointId
     })
+    saveTeleportData() -- Salva localmente após adicionar novo ponto
 end
 
 task.spawn(function()
@@ -242,21 +312,26 @@ task.spawn(function()
                 EggToggle:Set(false)
             end
 
+            local interrupted = false
+
             -- Loop executando as coordenadas da rota
             for i = 1, #TeleportSettings.Points do
-                if not TeleportSettings.Enabled then break end
+                if not TeleportSettings.Enabled then interrupted = true; break end
                 local currentPoint = TeleportSettings.Points[i]
                 local character = Players.LocalPlayer.Character
                 local rootPart = character and character:FindFirstChild("HumanoidRootPart")
                 
                 if rootPart then
                     rootPart.CFrame = currentPoint.cframe
-                    task.wait(currentPoint.waitTime)
+                    if not interruptibleWait(currentPoint.waitTime) then
+                        interrupted = true
+                        break
+                    end
                 end
             end
             
             -- Retorno para a posição Home e início do tempo de espera
-            if TeleportSettings.Enabled and TeleportSettings.Home then
+            if not interrupted and TeleportSettings.Enabled and TeleportSettings.Home then
                 local character = Players.LocalPlayer.Character
                 local rootPart = character and character:FindFirstChild("HumanoidRootPart")
                 if rootPart then
@@ -266,11 +341,17 @@ task.spawn(function()
                 -- [AUTOMAÇÃO] Voltou ao estado de espera (10:01), reativa o Auto Egg
                 if wasEggActiveBeforeRoute and EggToggle then
                     EggToggle:Set(true)
-                    wasEggActiveBeforeRoute = false -- Reseta o estado de verificação
+                    wasEggActiveBeforeRoute = false
                 end
                 
-                task.wait(601)
+                -- Se o usuário desligar o loop durante os 10 min, ele sai na hora
+                interruptibleWait(601)
             else
+                -- Caso tenha sido parado manualmente no meio do percurso
+                if wasEggActiveBeforeRoute and EggToggle then
+                    EggToggle:Set(true)
+                    wasEggActiveBeforeRoute = false
+                end
                 task.wait(1)
             end
         else
@@ -653,7 +734,7 @@ FarmTab:CreateToggle({
    end,
 })
 
--- 2. ABA EGGS (Elemento salvo em variável para permitir intertravamento automático)
+-- 2. ABA EGGS 
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
 
 EggsTab:CreateInput({
@@ -819,6 +900,7 @@ TeleportTab:CreateButton({
       local rootPart = character and character:FindFirstChild("HumanoidRootPart")
       if rootPart then
           TeleportSettings.Home = rootPart.CFrame
+          saveTeleportData() -- Salva localmente a nova Home
       end
    end,
 })
@@ -843,6 +925,9 @@ TPDropdown = TeleportTab:CreateDropdown({
    end,
 })
 
+-- Alimenta a lista visual do Dropdown com as coordenadas persistidas do JSON
+AtualizarListaDropdown()
+
 TeleportTab:CreateButton({
    Name = "Excluir Ponto Selecionado",
    Callback = function()
@@ -854,6 +939,7 @@ TeleportTab:CreateButton({
               end
           end
           TeleportSettings.SelectedPoint = nil
+          saveTeleportData() -- Salva as alterações de remoção no JSON
           AtualizarListaDropdown()
       end
    end,
