@@ -164,7 +164,7 @@ task.spawn(function()
     while true do
         if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" then
             pcall(function()
-                Network.Invoke("Eggs_RequestPurchase", _G.EggSelected, 1)
+                Network.Invoke("Eggs_RequestPurchase", _G.EggSelected, 2)
             end)
         end
         task.wait(0.01)
