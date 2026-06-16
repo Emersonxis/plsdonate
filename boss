@@ -1,3 +1,22 @@
+-- =============================================================================
+-- 1. ANTI-REJOIN / ANTI-TELEPORT (Bloqueio Nativo Injetado no Topo)
+-- =============================================================================
+local TeleportService = game:GetService("TeleportService")
+local metodosTeleporte = {"Teleport", "TeleportToPlaceInstance", "TeleportAsync", "TeleportToSpawnPoint", "TeleportToPrivateServer"}
+
+for _, nomeMetodo in ipairs(metodosTeleporte) do
+    pcall(function()
+        if TeleportService[nomeMetodo] then
+            hookfunction(TeleportService[nomeMetodo], function(...)
+                return nil
+            end)
+        end
+    end)
+end
+
+-- =============================================================================
+-- INTERFACE PRINCIPAL & CONFIGURAÇÕES (Rayfield Framework)
+-- =============================================================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -15,9 +34,11 @@ local Window = Rayfield:CreateWindow({
 })
 
 -- [[ VARIÁVEIS GLOBAIS E CONFIGURAÇÕES ]]
-_G.AutoCollect = false
+_G.AutoCollect = true
 _G.AutoEgg = false
 _G.EggSelected = "Relic Egg"
+_G.EggMultiplier = 1 -- Controla o multiplicador manual selecionado na UI
+_G.AutoGift = true   -- Estado do Auto Claim Gifts
 
 local DigSettings = {
     Enabled = false,
@@ -301,16 +322,35 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO EGG PURCHASER
+-- LÓGICA INTERNA: AUTO EGG PURCHASER (Atualizado com Multiplicador Global)
 -- ============================================================================
 task.spawn(function()
     while true do
         if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" then
             pcall(function()
-                Network.Invoke("Eggs_RequestPurchase", _G.EggSelected, 2)
+                -- Envia dinamicamente a quantidade definida pelo Dropdown manual (_G.EggMultiplier)
+                Network.Invoke("Eggs_RequestPurchase", _G.EggSelected, _G.EggMultiplier)
             end)
         end
         task.wait(0.01)
+    end
+end)
+
+-- ============================================================================
+-- LÓGICA INTERNA: AUTO CLAIM FREE GIFTS (Loop em Background)
+-- ============================================================================
+task.spawn(function()
+    while true do
+        if _G.AutoGift then
+            for i = 1, 12 do
+                if not _G.AutoGift then break end
+                pcall(function()
+                    Network.Invoke("Redeem Free Gift", i)
+                end)
+                task.wait(5) -- Delay de segurança entre os resgates
+            end
+        end
+        task.wait(30) -- Intervalo de varredura completa do painel de presentes
     end
 end)
 
@@ -552,7 +592,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- CRIAÇÃO DAS ABAS E ELEMENTOS DA INTERFACE (MANTIDO E EXPANDIDO)
+-- CRIAÇÃO DAS ABAS E ELEMENTOS DA INTERFACE (Rayfield Elements)
 -- ============================================================================
 
 -- 1. ABA FARM
@@ -567,7 +607,7 @@ FarmTab:CreateToggle({
    end,
 })
 
--- 2. ABA EGGS
+-- 2. ABA EGGS (Atualizada com Multiplicador Dropdown)
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
 
 EggsTab:CreateInput({
@@ -579,8 +619,24 @@ EggsTab:CreateInput({
    end,
 })
 
+EggsTab:CreateDropdown({
+   Name = "Quantidade de Ovos (Manual)",
+   Options = {"1x", "2x", "3x"},
+   CurrentOption = "1x",
+   Flag = "EggMultiplierManualSelect",
+   Callback = function(Option)
+      if Option == "1x" then
+          _G.EggMultiplier = 1
+      elseif Option == "2x" then
+          _G.EggMultiplier = 2
+      elseif Option == "3x" then
+          _G.EggMultiplier = 3
+      end
+   end,
+})
+
 EggsTab:CreateToggle({
-   Name = "Auto Abrir Eggs (X1)",
+   Name = "Auto Abrir Eggs",
    CurrentValue = false,
    Flag = "ToggleAutoEgg",
    Callback = function(Value)
@@ -647,10 +703,6 @@ DigTab:CreateInput({
       if num then DigSettings.MaxBlocks = num end
    end,
 })
-
--- ============================================================================
--- NOVAS ABAS INJETADAS CO CONFORME SOLICITADO
--- ============================================================================
 
 -- 4. ABA AUTO CLICK (Configurável e Progressivo)
 local AutoClickTab = Window:CreateTab("Auto Click", 4483362458)
@@ -754,6 +806,18 @@ TeleportTab:CreateButton({
           TeleportSettings.SelectedPoint = nil
           AtualizarListaDropdown()
       end
+   end,
+})
+
+-- 6. ABA MISC (Nova Aba Injetada com o Auto Claim Free Gifts)
+local MiscTab = Window:CreateTab("Misc", 4483362748)
+
+MiscTab:CreateToggle({
+   Name = "Auto Claim Free Gifts",
+   CurrentValue = false,
+   Flag = "ToggleAutoGift",
+   Callback = function(Value)
+      _G.AutoGift = Value
    end,
 })
 
