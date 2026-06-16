@@ -5,7 +5,9 @@ local Window = Rayfield:CreateWindow({
    LoadingTitle = "Carregando Framework...",
    LoadingSubtitle = "Utility Tools",
    ConfigurationSaving = {
-      Enabled = false
+      Enabled = true,
+      FolderName = "FrancesSToolsConfigs",
+      FileName = "saveconfig"
    },
    Discord = {
       Enabled = false
@@ -26,6 +28,21 @@ local DigSettings = {
     TargetLayer = 70,
 }
 
+-- Configurações das Novas Abas
+local ClickSettings = {
+    Enabled = false,
+    Multipler = 5,
+    Delay = 0.1,
+    MaxDistance = 150,
+}
+
+local TeleportSettings = {
+    Enabled = false,
+    Home = nil,
+    Points = {}, -- Formato: {cframe = CFrame, waitTime = number, id = string}
+    SelectedPoint = nil
+}
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
@@ -36,9 +53,22 @@ local shaftX, shaftZ = nil, nil
 local LibraryNetwork = Network
 
 -- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: ANTI-EGG ANIMATION (Execução automática silenciosa)
+-- SCRIPT DE SEGUNDO PLANO: ANTI-EGG ANIMATION & PET SPEED HACK
 -- ============================================================================
 task.spawn(function()
+    -- Execução Automática do Pet Speed Hack
+    pcall(function()
+        local LibraryMod = ReplicatedStorage:WaitForChild("Library")
+        local ClientMod = LibraryMod:WaitForChild("Client")
+        local PlayerPet = require(ClientMod:WaitForChild("PlayerPet"))
+
+        if replaceclosure or hookfunction then
+            (replaceclosure or hookfunction)(PlayerPet.CalculateSpeedMultiplier, function(...)
+                return 201
+            end)
+        end
+    end)
+
     task.wait(10)
     local desativado = false
     
@@ -67,6 +97,119 @@ task.spawn(function()
         end)
         if desativado then break end
         task.wait(0.5)
+    end
+end)
+
+-- ============================================================================
+-- LÓGICA INTERNA: AUTO CLICK PROGRESSIVO
+-- ============================================================================
+task.spawn(function()
+    while true do
+        if ClickSettings.Enabled then
+            local player = Players.LocalPlayer
+            local character = player.Character
+            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+            local breakablesFolder = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
+            
+            if rootPart and breakablesFolder then
+                local playerPos = rootPart.Position
+                local targets = {}
+                
+                -- Coleta e calcula a distância física dos alvos
+                for _, breakable in ipairs(breakablesFolder:GetChildren()) do
+                    local targetPos = breakable:IsA("Model") and breakable:GetPivot().Position or (breakable:IsA("BasePart") and breakable.Position)
+                    if targetPos then
+                        local distance = (playerPos - targetPos).Magnitude
+                        if distance <= ClickSettings.MaxDistance then
+                            table.insert(targets, {Instance = breakable, Dist = distance})
+                        end
+                    end
+                end
+                
+                -- Ordenação Progressiva: Menor distância para a maior (Mais próximo primeiro)
+                table.sort(targets, function(a, b) return a.Dist < b.Dist end)
+                
+                -- Processa sequencialmente as rajadas de clique com base na ordenação
+                for i = 1, #targets do
+                    if not ClickSettings.Enabled then break end
+                    local uid = targets[i].Instance:GetAttribute("BreakableUID") or targets[i].Instance.Name
+                    
+                    for j = 1, ClickSettings.Multipler do
+                        pcall(function()
+                            Network.UnreliableFire("Breakables_PlayerDealDamage", uid)
+                        end)
+                    end
+                end
+            end
+        end
+        task.wait(ClickSettings.Delay)
+    end
+end)
+
+-- ============================================================================
+-- LÓGICA INTERNA: GERENCIADOR DE TELEPORTE (LISTA DE ROTA + HOME LOOP)
+-- ============================================================================
+local function MonitorarTempoParado()
+    local character = Players.LocalPlayer.Character
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
+    local startPos = rootPart.Position
+    local startCFrame = rootPart.CFrame
+    local timeSpent = 0
+    
+    -- Loop em background computando o tempo enquanto o player estiver imóvel
+    while true do
+        task.wait(0.1)
+        local currentChar = Players.LocalPlayer.Character
+        local currentRoot = currentChar and currentChar:FindFirstChild("HumanoidRootPart")
+        if currentRoot and (currentRoot.Position - startPos).Magnitude < 2 then
+            timeSpent = timeSpent + 0.1
+        else
+            break
+        end
+    end
+    
+    local finalTime = math.round(timeSpent * 10) / 10
+    if finalTime < 1 then finalTime = 1 end -- Tempo mínimo padrão de 1 segundo
+    
+    local pointId = "Ponto " .. tostring(#TeleportSettings.Points + 1) .. " (" .. tostring(finalTime) .. "s)"
+    table.insert(TeleportSettings.Points, {
+        cframe = startCFrame,
+        waitTime = finalTime,
+        id = pointId
+    })
+end
+
+task.spawn(function()
+    while true do
+        if TeleportSettings.Enabled and #TeleportSettings.Points > 0 and TeleportSettings.Home then
+            -- 1. Executa o trajeto ponto a ponto da lista
+            for i = 1, #TeleportSettings.Points do
+                if not TeleportSettings.Enabled then break end
+                local currentPoint = TeleportSettings.Points[i]
+                local character = Players.LocalPlayer.Character
+                local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+                
+                if rootPart then
+                    rootPart.CFrame = currentPoint.cframe
+                    task.wait(currentPoint.waitTime)
+                end
+            end
+            
+            -- 2. Retorna para a posição estabelecida como Home após concluir o trajeto
+            if TeleportSettings.Enabled and TeleportSettings.Home then
+                local character = Players.LocalPlayer.Character
+                local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+                if rootPart then
+                    rootPart.CFrame = TeleportSettings.Home
+                end
+                -- Tempo de espera exato solicitado (10:01 -> 601 segundos)
+                task.wait(601)
+            end
+        else
+            task.wait(1)
+        end
     end
 end)
 
@@ -172,7 +315,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO DIG AVANÇADO (Mecanismo Funcional Preservado)
+-- LÓGICA INTERNA: AUTO DIG AVANÇADO
 -- ============================================================================
 task.spawn(function()
     while true do
@@ -409,7 +552,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- CRIAÇÃO DAS ABAS E ELEMENTOS DA INTERFACE
+-- CRIAÇÃO DAS ABAS E ELEMENTOS DA INTERFACE (MANTIDO E EXPANDIDO)
 -- ============================================================================
 
 -- 1. ABA FARM
@@ -445,7 +588,7 @@ EggsTab:CreateToggle({
    end,
 })
 
--- 3. ABA DIG (Totalmente integrada e baseada nos inputs funcionais)
+-- 3. ABA DIG
 local DigTab = Window:CreateTab("Auto Dig", 4483362458)
 
 DigTab:CreateToggle({
@@ -502,6 +645,115 @@ DigTab:CreateInput({
    Callback = function(Text)
       local num = tonumber(Text)
       if num then DigSettings.MaxBlocks = num end
+   end,
+})
+
+-- ============================================================================
+-- NOVAS ABAS INJETADAS CO CONFORME SOLICITADO
+-- ============================================================================
+
+-- 4. ABA AUTO CLICK (Configurável e Progressivo)
+local AutoClickTab = Window:CreateTab("Auto Click", 4483362458)
+
+AutoClickTab:CreateToggle({
+   Name = "Ativar Auto Click Progressivo",
+   CurrentValue = false,
+   Flag = "AutoClickPerfectState",
+   Callback = function(Value)
+      ClickSettings.Enabled = Value
+   end,
+})
+
+AutoClickTab:CreateSlider({
+   Name = "Múltiplos Cliques por Objeto (DPS)",
+   Min = 1,
+   Max = 20,
+   CurrentValue = 5,
+   Flag = "ClickMultiplerValue",
+   Callback = function(Value)
+      ClickSettings.Multipler = Value
+   end,
+})
+
+AutoClickTab:CreateSlider({
+   Name = "Velocidade do Clique (Intervalo)",
+   Min = 0,
+   Max = 1,
+   CurrentValue = 0.1,
+   Flag = "ClickDelayValue",
+   Callback = function(Value)
+      ClickSettings.Delay = Value
+   end,
+})
+
+-- 5. ABA TELEPORTE (Gerenciador Estável de Rotas)
+local TeleportTab = Window:CreateTab("Teleporte", 4483362458)
+
+local TPDropdown -- Pré-declaração para atualização dinâmica
+
+local function AtualizarListaDropdown()
+    local ids = {}
+    for i = 1, #TeleportSettings.Points do
+        table.insert(ids, TeleportSettings.Points[i].id)
+    end
+    if TPDropdown then
+        TPDropdown:Refresh(ids, true)
+    end
+end
+
+TeleportTab:CreateToggle({
+   Name = "Ativar Loop de Rotas",
+   CurrentValue = false,
+   Flag = "RouteLoopActive",
+   Callback = function(Value)
+      TeleportSettings.Enabled = Value
+   end,
+})
+
+TeleportTab:CreateButton({
+   Name = "Definir Coordenada 'Home'",
+   Callback = function()
+      local character = Players.LocalPlayer.Character
+      local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+      if rootPart then
+          TeleportSettings.Home = rootPart.CFrame
+      end
+   end,
+})
+
+TeleportTab:CreateButton({
+   Name = "Salvar Coordenada Atual da Rota",
+   Callback = function()
+      task.spawn(function()
+          MonitorarTempoParado()
+          AtualizarListaDropdown()
+      end)
+   end,
+})
+
+TPDropdown = TeleportTab:CreateDropdown({
+   Name = "Gerenciar Pontos Salvos",
+   Options = {},
+   CurrentOption = "",
+   Flag = "PointRouteList",
+   Callback = function(Option)
+      TeleportSettings.SelectedPoint = Option
+   end,
+})
+
+TeleportTab:CreateButton({
+   Name = "Excluir Ponto Selecionado",
+   Callback = function()
+      if TeleportSettings.SelectedPoint then
+          for i = #TeleportSettings.Points, 1, -1 do
+              if TeleportSettings.Points[i].id == TeleportSettings.SelectedPoint then
+                  table.remove(TeleportSettings.Points, i)
+                  break
+              end
+          end
+          TeleportSettings.SelectedPoint = nil
+          AtualizarListaDropdown()
+      end
    end,
 })
 
