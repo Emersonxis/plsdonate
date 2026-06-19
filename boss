@@ -1,7 +1,10 @@
 -- =============================================================================
--- HUB VERSÃO: 0.0.5 "Pet Squad Y"
+-- HUB VERSÃO: 0.0.3 "Resilience Update"
+-- CHANGELOG v0.0.3:
+-- 1. [Fix] Auto Hatch reestruturado com inicialização assíncrona via getNetwork().
+-- 2. [Fix] Auto Click corrigido com suporte a UnreliableFire/Fire e distância dinâmica.
+-- 3. [Otimização] Remoção de WaitForChild síncronos que congelavam o script no topo.
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
--- CORREÇÃO: Sistema dinâmico e inteligente de detecção de proximidade de Eggs
 -- =============================================================================
 
 -- =============================================================================
@@ -26,9 +29,9 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.0.5",
+   Name = "FrancesS Tools | v0.0.3",
    LoadingTitle = "Carregando FrancesS Tools...",
-   LoadingSubtitle = "Pet Squad Y",
+   LoadingSubtitle = "Resilience Update",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = "FrancesSToolsConfigs",
@@ -39,62 +42,12 @@ local Window = Rayfield:CreateWindow({
    }
 })
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-
--- [[ CARREGAMENTO SEGURO CONTRA INFINITE YIELD (EVITA CONGELAMENTO) ]]
-local Network = nil
-pcall(function()
-    local library = ReplicatedStorage:WaitForChild("Library", 10)
-    local client = library and library:WaitForChild("Client", 10)
-    local netMod = client and client:WaitForChild("Network", 10)
-    if netMod then
-        Network = require(netMod)
-    end
-end)
-
--- [[ EXTRAÇÃO SEGURA DO MÓDULO EGGCMDS ]]
-local EggCmds = nil
-pcall(function()
-    local library = ReplicatedStorage:WaitForChild("Library", 10)
-    local clientMod = library and library:WaitForChild("Client", 10)
-    if clientMod then
-        EggCmds = require(clientMod:WaitForChild("EggCmds", 10))
-    end
-end)
-
--- [[ LEITURA DINÂMICA DA PASTA DE EGGS ]]
-local eggOptions = {}
-pcall(function()
-    local directory = ReplicatedStorage:WaitForChild("__DIRECTORY", 5)
-    local eggsFolder = directory and directory:WaitForChild("Eggs", 5)
-    if eggsFolder then
-        for _, egg in ipairs(eggsFolder:GetChildren()) do
-            table.insert(eggOptions, egg.Name)
-        end
-        table.sort(eggOptions, function(a, b)
-            local numA = tonumber(string.match(a, "^(%d+)")) or 0
-            local numB = tonumber(string.match(b, "^(%d+)")) or 0
-            if numA ~= numB then return numA < numB end
-            return a < b
-        end)
-    end
-end)
-
-if #eggOptions == 0 then
-    eggOptions = {"Nenhum Egg Encontrado"}
-end
-
 -- [[ VARIÁVEIS GLOBAIS E CONFIGURAÇÕES ]]
 _G.AutoCollect = false
 _G.AutoEgg = false
-_G.EggSelected = eggOptions[1] ~= "Nenhum Egg Encontrado" and eggOptions[1] or ""
+_G.EggSelected = "Relic Egg"
 _G.EggMultiplier = 1 
 _G.AutoGift = false   
-_G.AutoMysteryMerchant = false
-_G.AutoMerchantBuy = false
 
 local DigSettings = {
     Enabled = false,
@@ -114,7 +67,7 @@ local ClickSettings = {
     MaxBreakables = 1,    
 }
 
--- Configurações de Teleporte
+-- Configurações de Teleporte + Variáveis de Automação Intertravada
 local TeleportSettings = {
     Enabled = false,
     Home = nil,
@@ -122,13 +75,35 @@ local TeleportSettings = {
     SelectedPoint = nil
 }
 local wasEggActiveBeforeRoute = false 
-local wasEggActiveBeforeMerchant = false
-local hasBoughtThisSpawn = false
 local EggToggle = nil                  
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+
+-- SISTEMA DINÂMICO E SEGURO DE EXTRAÇÃO DA REDE
+local Network = nil
+local function getNetwork()
+    if Network then return Network end
+    pcall(function()
+        local library = ReplicatedStorage:FindFirstChild("Library")
+        local client = library and library:FindFirstChild("Client")
+        local netMod = client and client:FindFirstChild("Network")
+        if netMod then
+            Network = require(netMod)
+        end
+    end)
+    if not Network then
+        pcall(function()
+            Network = require(ReplicatedStorage.Library.Client.Network)
+        end)
+    end
+    return Network
+end
 
 local MiningNow = {}
 local shaftX, shaftZ = nil, nil
-local LibraryNetwork = Network
 local FILE_NAME = "FrancesSTools_Teleports.json"
 
 -- ============================================================================
@@ -184,6 +159,7 @@ local function loadTeleportData()
     end
 end
 
+-- Carrega os dados salvos antes da interface popular os elementos
 loadTeleportData()
 
 -- ============================================================================
@@ -191,18 +167,18 @@ loadTeleportData()
 -- ============================================================================
 task.spawn(function()
     pcall(function()
-        local LibraryMod = ReplicatedStorage:WaitForChild("Library", 10)
-        local ClientMod = LibraryMod and LibraryMod:WaitForChild("Client", 10)
-        local PlayerPet = ClientMod and require(ClientMod:WaitForChild("PlayerPet", 10))
+        local LibraryMod = ReplicatedStorage:WaitForChild("Library")
+        local ClientMod = LibraryMod:WaitForChild("Client")
+        local PlayerPet = require(ClientMod:WaitForChild("PlayerPet"))
 
-        if PlayerPet and (replaceclosure or hookfunction) then
+        if replaceclosure or hookfunction then
             (replaceclosure or hookfunction)(PlayerPet.CalculateSpeedMultiplier, function(...)
                 return 201
             end)
         end
     end)
 
-    task.wait(5)
+    task.wait(10)
     local desativado = false
     
     while not desativado do
@@ -238,13 +214,14 @@ end)
 -- ============================================================================
 task.spawn(function()
     while true do
-        if ClickSettings.Enabled and Network then
+        if ClickSettings.Enabled then
+            local net = getNetwork()
             local player = Players.LocalPlayer
             local character = player.Character
             local rootPart = character and character:FindFirstChild("HumanoidRootPart")
             local breakablesFolder = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
             
-            if rootPart and breakablesFolder then
+            if rootPart and breakablesFolder and net then
                 local playerPos = rootPart.Position
                 local targets = {}
                 
@@ -252,7 +229,7 @@ task.spawn(function()
                     local targetPos = breakable:IsA("Model") and breakable:GetPivot().Position or (breakable:IsA("BasePart") and breakable.Position)
                     if targetPos then
                         local distance = (playerPos - targetPos).Magnitude
-                        if distance <= 100 then 
+                        if distance <= ClickSettings.MaxDistance then 
                             table.insert(targets, {Instance = breakable, Dist = distance})
                         end
                     end
@@ -268,7 +245,11 @@ task.spawn(function()
                         local uid = currentTarget:GetAttribute("BreakableUID") or currentTarget.Name
                         
                         pcall(function()
-                            Network.UnreliableFire("Breakables_PlayerDealDamage", uid)
+                            if net.UnreliableFire then
+                                net.UnreliableFire("Breakables_PlayerDealDamage", uid)
+                            else
+                                net.Fire("Breakables_PlayerDealDamage", uid)
+                            end
                         end)
                         
                         local foiQuebrado = false
@@ -280,7 +261,7 @@ task.spawn(function()
                             end
                         end)
                         
-                        local inicio = os clock()
+                        local inicio = os.clock()
                         while os.clock() - inicio < ClickSettings.Delay and not foiQuebrado and ClickSettings.Enabled do
                             task.wait() 
                         end
@@ -291,7 +272,11 @@ task.spawn(function()
                             local currentTarget = targets[i].Instance
                             local uid = currentTarget:GetAttribute("BreakableUID") or currentTarget.Name
                             pcall(function()
-                                Network.UnreliableFire("Breakables_PlayerDealDamage", uid)
+                                if net.UnreliableFire then
+                                    net.UnreliableFire("Breakables_PlayerDealDamage", uid)
+                                else
+                                    net.Fire("Breakables_PlayerDealDamage", uid)
+                                end
                             end)
                         end
                         task.wait(ClickSettings.Delay)
@@ -315,9 +300,9 @@ local function interruptibleWait(seconds)
     local start = os.clock()
     while os.clock() - start < seconds do
         if not TeleportSettings.Enabled then
-            return false 
+            return false
         end
-        task.wait(0.1) 
+        task.wait(0.1)
     end
     return true
 end
@@ -351,7 +336,7 @@ local function MonitorarTempoParado()
         waitTime = finalTime,
         id = pointId
     })
-    saveTeleportData() 
+    saveTeleportData()
 end
 
 task.spawn(function()
@@ -413,13 +398,18 @@ end)
 -- LÓGICA INTERNA: AUTO COLLECT ORBS & LOOTBAGS
 -- ============================================================================
 local function coletarEDeletar(item)
-    if not _G.AutoCollect or not item or not Network then return end
+    if not _G.AutoCollect or not item then return end
     local itemId = item:GetAttribute("Id") or item:GetAttribute("OrbID") or item.Name
     
     if itemId and type(itemId) == "string" then
-        pcall(function()
-            Network.Fire("Orbs: Collect", {itemId})
-        end)
+        local net = getNetwork()
+        if net then
+            pcall(function()
+                if net.Fire then
+                    net.Fire("Orbs: Collect", {itemId})
+                end
+            end)
+        end
         
         task.wait(0.05)
         
@@ -496,71 +486,23 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: VALIDADOR DE DISTÂNCIA E COMPRA DO EGG (CORRIGIDO v0.0.5)
+-- LÓGICA INTERNA: AUTO EGG PURCHASER (AUTO HATCH)
 -- ============================================================================
-local function limparNomeEgg(nome)
-    if not nome then return "" end
-    return string.gsub(nome, "^%d+%s*[%-%|%s]+", "")
-end
-
-local function getEggCapsule(eggName)
-    if not eggName or eggName == "" then return nil end
-    local nomeOvoLimpo = string.lower(limparNomeEgg(eggName))
-    
-    local things = Workspace:FindFirstChild("__THINGS")
-    local zoneEggs = things and things:FindFirstChild("ZoneEggs")
-    local mainEggs = zoneEggs and zoneEggs:FindFirstChild("Main")
-    
-    if mainEggs then
-        for _, capsule in ipairs(mainEggs:GetChildren()) do
-            local nomeCapsuleLimpo = string.lower(limparNomeEgg(capsule.Name))
-            if nomeOvoLimpo == nomeCapsuleLimpo or string.find(nomeOvoLimpo, nomeCapsuleLimpo, 1, true) or string.find(nomeCapsuleLimpo, nomeOvoLimpo, 1, true) then
-                return capsule
-            end
-        end
-    end
-    return nil
-end
-
 task.spawn(function()
     while true do
-        if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" and Network then
-            local dentroDoRaio = false
-            local capsuleEncontrada = nil
-            
-            pcall(function()
-                capsuleEncontrada = getEggCapsule(_G.EggSelected)
-                if capsuleEncontrada then
-                    local character = Players.LocalPlayer.Character
-                    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-                    if rootPart then
-                        local capsulePos = capsuleEncontrada:GetPivot().Position
-                        if (rootPart.Position - capsulePos).Magnitude <= 50 then
-                            dentroDoRaio = true
-                        end
-                    end
-                end
-            end)
-            
-            if dentroDoRaio and capsuleEncontrada then
+        if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" then
+            local net = getNetwork()
+            if net then
                 pcall(function()
-                    local finalAmount = _G.EggMultiplier
-                    if finalAmount == "Max" then
-                        if EggCmds and EggCmds.GetMaxHatch then
-                            finalAmount = EggCmds.GetMaxHatch()
-                        else
-                            finalAmount = 1
-                        end
+                    if net.Invoke then
+                        net.Invoke("Eggs_RequestPurchase", _G.EggSelected, _G.EggMultiplier)
+                    elseif net.Fire then
+                        net.Fire("Eggs_RequestPurchase", _G.EggSelected, _G.EggMultiplier)
                     end
-                    
-                    finalAmount = (type(finalAmount) == "number" and finalAmount > 0) and finalAmount or 1
-                    
-                    -- Dispara o Invoke usando a seleção mapeada e limpa pelo script
-                    Network.Invoke("Eggs_RequestPurchase", _G.EggSelected, finalAmount)
                 end)
             end
         end
-        task.wait(0.05)
+        task.wait(0.05) 
     end
 end)
 
@@ -569,129 +511,23 @@ end)
 -- ============================================================================
 task.spawn(function()
     while true do
-        if _G.AutoGift and Network then
+        if _G.AutoGift then
+            local net = getNetwork()
             for i = 1, 12 do
                 if not _G.AutoGift then break end
-                pcall(function()
-                    Network.Invoke("Redeem Free Gift", i)
-                end)
+                if net then
+                    pcall(function()
+                        if net.Invoke then
+                            net.Invoke("Redeem Free Gift", i)
+                        elseif net.Fire then
+                            net.Fire("Redeem Free Gift", i)
+                        end
+                    end)
+                end
                 task.wait(5)
             end
         end
         task.wait(30)
-    end
-end)
-
--- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: ANTI-AFK (VirtualInputManager) - 15 MINUTOS
--- ============================================================================
-task.spawn(function()
-    local VirtualInputManager = game:GetService("VirtualInputManager")
-    while true do
-        task.wait(900) 
-        pcall(function()
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-            task.wait(0.1)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-        end)
-    end
-end)
-
--- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: GERENCIADOR E BUSCA DO MYSTERY MERCHANT
--- ============================================================================
-local function findMysteryMerchant()
-    local map = Workspace:FindFirstChild("Map")
-    if map then
-        for _, zone in ipairs(map:GetChildren()) do
-            local interact = zone:FindFirstChild("INTERACT")
-            local machines = interact and interact:FindFirstChild("Machines")
-            local merchant = machines and machines:FindFirstChild("MysteryMerchant")
-            if merchant then
-                return merchant
-            end
-        end
-    end
-    return nil
-end
-
-task.spawn(function()
-    while true do
-        if _G.AutoMysteryMerchant and Network then
-            local merchant = findMysteryMerchant()
-            if merchant and not hasBoughtThisSpawn then
-                hasBoughtThisSpawn = true
-                
-                local primaryPart = merchant.PrimaryPart or merchant:FindFirstChildWhichIsA("BasePart")
-                local character = Players.LocalPlayer.Character
-                local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-                
-                if rootPart and primaryPart then
-                    if _G.AutoEgg and EggToggle then
-                        wasEggActiveBeforeMerchant = true
-                        EggToggle:Set(false)
-                    end
-                    
-                    local returnCFrame = TeleportSettings.Home or rootPart.CFrame
-                    
-                    rootPart.CFrame = primaryPart.CFrame * CFrame.new(0, 3, 0)
-                    task.wait(0.5)
-                    
-                    for slot = 1, 6 do
-                        for i = 1, 10 do
-                            task.spawn(function()
-                                pcall(function()
-                                    Network.Invoke("Merchant_RequestPurchase", "MysteryMerchant", slot)
-                                end)
-                            end)
-                        end
-                    end
-                    
-                    task.wait(1)
-                    
-                    local modernChar = Players.LocalPlayer.Character
-                    local modernRoot = modernChar and modernChar:FindFirstChild("HumanoidRootPart")
-                    if modernRoot then
-                        modernRoot.CFrame = returnCFrame
-                    end
-                    
-                    if wasEggActiveBeforeMerchant and EggToggle then
-                        EggToggle:Set(true)
-                        wasEggActiveBeforeMerchant = false
-                    end
-                end
-            elseif not merchant then
-                hasBoughtThisSpawn = false
-            end
-        end
-        task.wait(2)
-    end
-end)
-
--- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: AUTO MERCHANT REGULAR (30 MINUTOS)
--- ============================================================================
-task.spawn(function()
-    while true do
-        if _G.AutoMerchantBuy and Network then
-            for numeroItem = 1, 6 do
-                if not _G.AutoMerchantBuy then break end
-                for i = 1, 10 do
-                    task.spawn(function()
-                        pcall(function()
-                            Network.Invoke("Merchant_RequestPurchase", "RegularMerchant", numeroItem)
-                        end)
-                    end)
-                end
-            end
-            
-            for segundo = 1, 1800 do
-                if not _G.AutoMerchantBuy then break end
-                task.wait(1)
-            end
-        else
-            task.wait(2)
-        end
     end
 end)
 
@@ -702,12 +538,7 @@ task.spawn(function()
     while true do
         if DigSettings.Enabled then
             pcall(function()
-                if not LibraryNetwork and ReplicatedStorage then
-                    local lib = ReplicatedStorage:FindFirstChild("Library")
-                    local client = lib and lib:FindFirstChild("Client")
-                    local netMod = client and client:FindFirstChild("Network")
-                    if netMod then LibraryNetwork = require(netMod) end
-                end
+                local LibraryNetwork = getNetwork()
                 if not LibraryNetwork then return end
                 
                 local things = Workspace:FindFirstChild("__THINGS")
@@ -780,7 +611,7 @@ task.spawn(function()
                         local targetLayerBlocks = {}
                         for _, block in ipairs(allBlocks) do
                             if block.Name == "Part" and block:IsA("BasePart") and not MiningNow[block] then
-                                RunningCoord = block:GetAttribute("Coord")
+                                local RunningCoord = block:GetAttribute("Coord")
                                 if RunningCoord and RunningCoord.Y == DigSettings.TargetLayer then
                                     table.insert(targetLayerBlocks, { Instance = block, Coord = RunningCoord, IsChest = false })
                                 end
@@ -946,33 +777,27 @@ FarmTab:CreateToggle({
    end,
 })
 
--- 2. ABA EGGS (ATUALIZADA DINAMICAMENTE)
+-- 2. ABA EGGS 
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
 
-EggsTab:CreateDropdown({
-   Name = "Selecionar Egg",
-   Options = eggOptions,
-   CurrentOption = eggOptions[1] or "",
-   Flag = "EggSelectedDropdown",
-   Callback = function(Option)
-      if Option ~= "Nenhum Egg Encontrado" then
-          _G.EggSelected = Option
-      else
-          _G.EggSelected = ""
-      end
+EggsTab:CreateInput({
+   Name = "Nome do Egg",
+   PlaceholderText = "Digite o nome exato (Ex: Relic Egg)",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      _G.EggSelected = Text
    end,
 })
 
 EggsTab:CreateDropdown({
-   Name = "Quantidade de Ovos",
-   Options = {"1x", "2x", "3x", "Máximo Dinâmico (Módulo)"},
+   Name = "Quantidade de Ovos (Manual)",
+   Options = {"1x", "2x", "3x"},
    CurrentOption = "1x",
    Flag = "EggMultiplierManualSelect",
    Callback = function(Option)
       if Option == "1x" then _G.EggMultiplier = 1
       elseif Option == "2x" then _G.EggMultiplier = 2
       elseif Option == "3x" then _G.EggMultiplier = 3
-      elseif Option == "Máximo Dinâmico (Módulo)" then _G.EggMultiplier = "Max"
       end
    end,
 })
@@ -988,7 +813,7 @@ EggsTab:CreateInput({
 })
 
 EggToggle = EggsTab:CreateToggle({
-   Name = "Auto Abrir Eggs (Max 50 Studs)",
+   Name = "Auto Abrir Eggs",
    CurrentValue = false,
    Flag = "ToggleAutoEgg",
    Callback = function(Value)
@@ -1118,7 +943,7 @@ TeleportTab:CreateButton({
       local rootPart = character and character:FindFirstChild("HumanoidRootPart")
       if rootPart then
           TeleportSettings.Home = rootPart.CFrame
-          saveTeleportData() 
+          saveTeleportData()
       end
    end,
 })
@@ -1156,35 +981,14 @@ TeleportTab:CreateButton({
               end
           end
           TeleportSettings.SelectedPoint = nil
-          saveTeleportData() 
+          saveTeleportData()
           AtualizarListaDropdown()
       end
    end,
 })
 
--- 6. ABA MERCHANT
-local MerchantTab = Window:CreateTab("Merchant", 4483362458)
-
-MerchantTab:CreateToggle({
-   Name = "Merchant Mystery",
-   CurrentValue = false,
-   Flag = "ToggleAutoMysteryMerchant",
-   Callback = function(Value)
-      _G.AutoMysteryMerchant = Value
-   end,
-})
-
-MerchantTab:CreateToggle({
-   Name = "Merchant Normal",
-   CurrentValue = false,
-   Flag = "ToggleAutoMerchantBuy",
-   Callback = function(Value)
-      _G.AutoMerchantBuy = Value
-   end,
-})
-
--- 7. ABA MISC
-local MiscTab = Window:CreateTab("Misc", 4483362458)
+-- 6. ABA MISC
+local MiscTab = Window:CreateTab("Misc", 4483362748)
 
 MiscTab:CreateToggle({
    Name = "Auto Claim Free Gifts",
