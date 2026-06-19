@@ -1,5 +1,5 @@
 -- =============================================================================
--- HUB VERSÃO: 0.0.7 "Exact SimpleSpy Network Invocator"
+-- HUB VERSÃO: 0.0.8 "Clean Egg Name Purchase Fix"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
 -- =============================================================================
 
@@ -25,7 +25,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.0.7",
+   Name = "FrancesS Tools | v0.0.8",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -122,12 +122,22 @@ local shaftX, shaftZ = nil, nil
 local FILE_NAME = "FrancesSTools_Teleports.json"
 
 -- ============================================================================
--- FUNÇÕES DE TRATAMENTO DOS EGGS (EXTRAÇÃO DO NOME LIMPO)
+-- FUNÇÃO CORRIGIDA: LIMPEZA ABSOLUTA DO NOME DO EGG (EX: "1 | Cracked Egg" -> "Cracked Egg")
 -- ============================================================================
 local function getEggPurchaseName(eggSelectedStr)
     if not eggSelectedStr or eggSelectedStr == "" then return "" end
-    local cleanName = string.match(eggSelectedStr, "^%d+%s*|%s*(.+)")
-    return cleanName or eggSelectedStr
+    
+    -- Se contiver uma barra vertical '|', captura apenas o que estiver depois dela
+    if string.find(eggSelectedStr, "|") then
+        local clean = string.match(eggSelectedStr, "|%s*(.+)")
+        if clean then
+            -- Remove possíveis espaços extras nas pontas e retorna
+            return string.gsub(clean, "^%s*(.-)%s*$", "%1")
+        end
+    end
+    
+    -- Se não tiver barra, remove apenas espaços extras e envia direto
+    return string.gsub(eggSelectedStr, "^%s*(.-)%s*$", "%1")
 end
 
 -- ============================================================================
@@ -386,13 +396,14 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO EGG REFORMULADA VIA MODELO EXATO DO SIMPLESPY
+-- LÓGICA INTERNA: AUTO EGG COM ENVIO DE NOME TOTALMENTE LIMPO
 -- ============================================================================
 task.spawn(function()
     while true do
         if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" and _G.EggSelected ~= "Nenhum Egg Encontrado" then
             local net = getNetwork()
             if net then
+                -- Obtém o nome 100% puro (Sem IDs na frente)
                 local nomeRealCompra = getEggPurchaseName(_G.EggSelected)
                 local quant = _G.EggMultiplier
                 
@@ -408,7 +419,7 @@ task.spawn(function()
                 end
                 
                 if nomeRealCompra and nomeRealCompra ~= "" then
-                    -- Dispara o Invoke isolado em thread para não engasgar o loop principal
+                    -- Dispara o Invoke idêntico ao modelo mapeado pelo SimpleSpy
                     task.spawn(function()
                         pcall(function()
                             net.Invoke("Eggs_RequestPurchase", nomeRealCompra, quant)
@@ -417,7 +428,7 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.2) -- Delay estável para evitar kick por spam de remotos no servidor
+        task.wait(0.2) -- Mantém estabilidade móvel para evitar kicks
     end
 end)
 
@@ -720,7 +731,7 @@ FarmTab:CreateToggle({
    Callback = function(Value) _G.AutoCollect = Value end,
 })
 
--- 2. ABA EGGS (HATCH SEM DISTÂNCIA - CORRIGIDO!)
+-- 2. ABA EGGS (NOME DO OVO CORRIGIDO!)
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
 EggsTab:CreateDropdown({
    Name = "Selecionar Egg",
