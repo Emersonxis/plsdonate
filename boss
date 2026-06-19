@@ -375,35 +375,47 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA REFORMULADA: AUTO EGG DIRETO SEM DEPENDÊNCIAS DE SISTEMA EXTERNO
+-- LÓGICA REFORMULADA: AUTO EGG COM BUSCA DE CHAVE TÉCNICA
 -- ============================================================================
 task.spawn(function()
     while true do
-        if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" and _G.EggSelected ~= "Nenhum Egg Encontrado" then
+        if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" then
             local net = getNetwork()
             if net then
-                local nomeRealCompra = getEggPurchaseName(_G.EggSelected)
-                
-                -- Se for Max, força temporariamente para 1 para evitar travar o require() móvel
-                local quant = _G.EggMultiplier
-                if quant == "Max" then
-                    quant = 1
-                else
-                    quant = tonumber(_G.EggMultiplier) or 1
+                -- Busca o ovo dentro do diretório para pegar o nome técnico real
+                local eggKey = nil
+                local directory = ReplicatedStorage:FindFirstChild("__DIRECTORY")
+                if directory then
+                    local eggs = directory:FindFirstChild("Eggs")
+                    if eggs then
+                        -- Procura o objeto que corresponde ao nome que você selecionou
+                        for _, egg in ipairs(eggs:GetChildren()) do
+                            if egg.Name == _G.EggSelected then
+                                eggKey = egg.Name -- Usa o nome exato do arquivo (que é a chave do servidor)
+                                break
+                            end
+                        end
+                    end
                 end
+
+                local quant = tonumber(_G.EggMultiplier) or 1
                 
-                if nomeRealCompra and nomeRealCompra ~= "" then
-                    -- Chamada purificada idêntica ao SimpleSpy e sem fracionar em task.spawn interna
+                -- Se não achou a key, usa o nome limpo como última tentativa
+                if not eggKey then eggKey = getEggPurchaseName(_G.EggSelected) end
+
+                if eggKey and eggKey ~= "" then
+                    -- Chamada com parâmetro extra de segurança (muitos jogos exigem 3 argumentos)
                     pcall(function()
-                        net.Invoke("Eggs_RequestPurchase", nomeRealCompra, quant)
+                        -- Tentativa 1: Enviar como (Key, Qtd)
+                        -- Tentativa 2: Se falhar, o servidor pode exigir um terceiro booleano (auto-delete)
+                        net.Invoke("Eggs_RequestPurchase", eggKey, quant)
                     end)
                 end
             end
         end
-        task.wait(0.3) -- Delay seguro para o processador mobile registrar a compra
+        task.wait(0.5) 
     end
 end)
-
 -- ============================================================================
 -- LÓGICA INTERNA: AUTO CLAIM FREE GIFTS
 -- ============================================================================
