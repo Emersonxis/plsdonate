@@ -1,7 +1,7 @@
 -- =============================================================================
--- HUB VERSÃO: 0.0.3 "Pet Squad Y"
+-- HUB VERSÃO: 0.0.4 "Pet Squad Y"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
--- NOTA: Foco em estabilidade e integração do módulo nativo EggCmds.
+-- NOTA: Blindagem contra Infinite Yields para garantir carregamento imediato.
 -- =============================================================================
 
 -- =============================================================================
@@ -26,7 +26,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.0.3",
+   Name = "FrancesS Tools | v0.0.4",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -43,9 +43,19 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local Network = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("Network"))
 
--- [[ EXTRAÇÃO SEGURA DO MÓDULO EGGCMDS PARA VALIDAÇÃO ]]
+-- [[ CARREGAMENTO SEGURO CONTRA INFINITE YIELD (EVITA CONGELAMENTO) ]]
+local Network = nil
+pcall(function()
+    local library = ReplicatedStorage:WaitForChild("Library", 10)
+    local client = library and library:WaitForChild("Client", 10)
+    local netMod = client and client:WaitForChild("Network", 10)
+    if netMod then
+        Network = require(netMod)
+    end
+end)
+
+-- [[ EXTRAÇÃO SEGURA DO MÓDULO EGGCMDS ]]
 local EggCmds = nil
 pcall(function()
     local library = ReplicatedStorage:WaitForChild("Library", 10)
@@ -104,7 +114,7 @@ local ClickSettings = {
     MaxBreakables = 1,    
 }
 
--- Configurações de Teleporte + Variáveis de Automação Intertravada
+-- Configurações de Teleporte
 local TeleportSettings = {
     Enabled = false,
     Home = nil,
@@ -181,18 +191,18 @@ loadTeleportData()
 -- ============================================================================
 task.spawn(function()
     pcall(function()
-        local LibraryMod = ReplicatedStorage:WaitForChild("Library")
-        local ClientMod = LibraryMod:WaitForChild("Client")
-        local PlayerPet = require(ClientMod:WaitForChild("PlayerPet"))
+        local LibraryMod = ReplicatedStorage:WaitForChild("Library", 10)
+        local ClientMod = LibraryMod and LibraryMod:WaitForChild("Client", 10)
+        local PlayerPet = ClientMod and require(ClientMod:WaitForChild("PlayerPet", 10))
 
-        if replaceclosure or hookfunction then
+        if PlayerPet and (replaceclosure or hookfunction) then
             (replaceclosure or hookfunction)(PlayerPet.CalculateSpeedMultiplier, function(...)
                 return 201
             end)
         end
     end)
 
-    task.wait(10)
+    task.wait(5)
     local desativado = false
     
     while not desativado do
@@ -228,7 +238,7 @@ end)
 -- ============================================================================
 task.spawn(function()
     while true do
-        if ClickSettings.Enabled then
+        if ClickSettings.Enabled and Network then
             local player = Players.LocalPlayer
             local character = player.Character
             local rootPart = character and character:FindFirstChild("HumanoidRootPart")
@@ -403,7 +413,7 @@ end)
 -- LÓGICA INTERNA: AUTO COLLECT ORBS & LOOTBAGS
 -- ============================================================================
 local function coletarEDeletar(item)
-    if not _G.AutoCollect or not item then return end
+    if not _G.AutoCollect or not item or not Network then return end
     local itemId = item:GetAttribute("Id") or item:GetAttribute("OrbID") or item.Name
     
     if itemId and type(itemId) == "string" then
@@ -510,7 +520,7 @@ end
 
 task.spawn(function()
     while true do
-        if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" then
+        if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" and Network then
             local dentroDoRaio = false
             pcall(function()
                 local capsule = getEggCapsule(_G.EggSelected)
@@ -528,19 +538,16 @@ task.spawn(function()
             
             if dentroDoRaio then
                 pcall(function()
-                    -- [[ SISTEMA ATUALIZADO V0.0.3: VERIFICAÇÃO DO LIMITE MÁXIMO NATIVO ]]
                     local finalAmount = _G.EggMultiplier
                     if finalAmount == "Max" then
                         if EggCmds and EggCmds.GetMaxHatch then
-                            finalAmount = EggCmds.GetMaxHatch()[cite: 2]
+                            finalAmount = EggCmds.GetMaxHatch()
                         else
                             finalAmount = 1
                         end
                     end
                     
-                    -- Sanitização estrita do valor numérico final
                     finalAmount = (type(finalAmount) == "number" and finalAmount > 0) and finalAmount or 1
-                    
                     Network.Invoke("Eggs_RequestPurchase", _G.EggSelected, finalAmount)
                 end)
             end
@@ -554,7 +561,7 @@ end)
 -- ============================================================================
 task.spawn(function()
     while true do
-        if _G.AutoGift then
+        if _G.AutoGift and Network then
             for i = 1, 12 do
                 if not _G.AutoGift then break end
                 pcall(function()
@@ -602,7 +609,7 @@ end
 
 task.spawn(function()
     while true do
-        if _G.AutoMysteryMerchant then
+        if _G.AutoMysteryMerchant and Network then
             local merchant = findMysteryMerchant()
             if merchant and not hasBoughtThisSpawn then
                 hasBoughtThisSpawn = true
@@ -658,7 +665,7 @@ end)
 -- ============================================================================
 task.spawn(function()
     while true do
-        if _G.AutoMerchantBuy then
+        if _G.AutoMerchantBuy and Network then
             for numeroItem = 1, 6 do
                 if not _G.AutoMerchantBuy then break end
                 for i = 1, 10 do
@@ -687,7 +694,7 @@ task.spawn(function()
     while true do
         if DigSettings.Enabled then
             pcall(function()
-                if not LibraryNetwork then
+                if not LibraryNetwork and ReplicatedStorage then
                     local lib = ReplicatedStorage:FindFirstChild("Library")
                     local client = lib and lib:FindFirstChild("Client")
                     local netMod = client and client:FindFirstChild("Network")
@@ -931,7 +938,7 @@ FarmTab:CreateToggle({
    end,
 })
 
--- 2. ABA EGGS (ATUALIZADA DINAMICAMENTE V0.0.3)
+-- 2. ABA EGGS (ATUALIZADA DINAMICAMENTE)
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
 
 EggsTab:CreateDropdown({
