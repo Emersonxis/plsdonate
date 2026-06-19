@@ -99,23 +99,23 @@ local shaftX, shaftZ = nil, nil
 local FILE_NAME = "FrancesSTools_Teleports.json"
 
 -- ============================================================================
--- FUNÇÃO DE LIMPEZA ULTRA-AGRESSIVA PARA SANEAMENTO DO NOME DO EGG
+-- FUNÇÃO DE LIMPEZA ULTRA-AGRESSIVA (CORRIGIDA)
 -- ============================================================================
 local function getEggPurchaseName(eggSelectedStr)
-    if not eggSelectedStr or eggSelectedStr == "" then return "" end
+    -- CAMADA DE SEGURANÇA: Garante que seja String antes de manipular[cite: 1]
+    local input = eggSelectedStr
+    if typeof(input) == "Instance" then input = input.Name 
+    elseif type(input) == "table" then input = tostring(input) end
+    if type(input) ~= "string" then return "" end
     
-    local clean = eggSelectedStr
-    -- Se tiver o pipe '|', isola o lado direito
+    if input == "" then return "" end
+    
+    local clean = input
     if string.find(clean, "|") then
         clean = string.match(clean, "|%s*(.+)") or clean
     end
-    
-    -- Se ainda houver números grudados na frente por algum motivo, remove
     clean = string.gsub(clean, "^%d+%s*", "")
-    
-    -- Corta espaços inúteis antes e depois do nome textual
     clean = string.gsub(clean, "^%s*(.-)%s*$", "%1")
-    
     return clean
 end
 
@@ -150,7 +150,7 @@ end
 loadTeleportData()
 
 -- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: ANTI-EGG ANIMATION & PET SPEED HACK
+-- SCRIPT DE SEGUNDO PLANO: ANTI-EGG ANIMATION
 -- ============================================================================
 task.spawn(function()
     pcall(function()
@@ -177,7 +177,7 @@ task.spawn(function()
                 for _, v in ipairs(getgc()) do
                     if type(v) == "function" and islclosure(v) then
                         local info = debug.getinfo(v)
-                        if info.name == "PlayEggAnimation" or (info.source and string.find(info.source, "Egg Opening")) then
+                        if info.name == "PlayEggAnimation" or (info.source and type(info.source) == "string" and string.find(info.source, "Egg Opening")) then
                             hookfunction(v, function(...) return end)
                             desativado = true
                             break
@@ -192,7 +192,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO CLICK PROGRESSIVO COM DETECÇÃO INSTANTÂNEA
+-- LÓGICA INTERNA: AUTO CLICK PROGRESSIVO
 -- ============================================================================
 task.spawn(function()
     while true do
@@ -262,7 +262,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: GERENCIADOR DE TELEPORTE (INTERRUPTÍVEL + PERSISTENTE)
+-- LÓGICA DE TELEPORTE
 -- ============================================================================
 local function interruptibleWait(seconds)
     local start = os.clock()
@@ -326,7 +326,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO COLLECT ORBS & LOOTBAGS
+-- LÓGICA DE COLETA (AUTO COLLECT)
 -- ============================================================================
 local function coletarEDeletar(item)
     if not _G.AutoCollect or not item then return end
@@ -375,49 +375,32 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA REFORMULADA: AUTO EGG COM BUSCA DE CHAVE TÉCNICA
+-- LÓGICA AUTO EGG (CORRIGIDA)
 -- ============================================================================
 task.spawn(function()
     while true do
-        if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" then
+        if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" and _G.EggSelected ~= "Nenhum Egg Encontrado" then
             local net = getNetwork()
             if net then
-                -- Busca o ovo dentro do diretório para pegar o nome técnico real
-                local eggKey = nil
-                local directory = ReplicatedStorage:FindFirstChild("__DIRECTORY")
-                if directory then
-                    local eggs = directory:FindFirstChild("Eggs")
-                    if eggs then
-                        -- Procura o objeto que corresponde ao nome que você selecionou
-                        for _, egg in ipairs(eggs:GetChildren()) do
-                            if egg.Name == _G.EggSelected then
-                                eggKey = egg.Name -- Usa o nome exato do arquivo (que é a chave do servidor)
-                                break
-                            end
-                        end
-                    end
-                end
-
-                local quant = tonumber(_G.EggMultiplier) or 1
+                -- Agora protegido contra objetos/tabelas
+                local nomeRealCompra = getEggPurchaseName(_G.EggSelected)
                 
-                -- Se não achou a key, usa o nome limpo como última tentativa
-                if not eggKey then eggKey = getEggPurchaseName(_G.EggSelected) end
-
-                if eggKey and eggKey ~= "" then
-                    -- Chamada com parâmetro extra de segurança (muitos jogos exigem 3 argumentos)
+                local quant = _G.EggMultiplier
+                if quant == "Max" then quant = 1 else quant = tonumber(_G.EggMultiplier) or 1 end
+                
+                if nomeRealCompra and nomeRealCompra ~= "" then
                     pcall(function()
-                        -- Tentativa 1: Enviar como (Key, Qtd)
-                        -- Tentativa 2: Se falhar, o servidor pode exigir um terceiro booleano (auto-delete)
-                        net.Invoke("Eggs_RequestPurchase", eggKey, quant)
+                        net.Invoke("Eggs_RequestPurchase", nomeRealCompra, quant)
                     end)
                 end
             end
         end
-        task.wait(0.5) 
+        task.wait(0.3)
     end
 end)
+
 -- ============================================================================
--- LÓGICA INTERNA: AUTO CLAIM FREE GIFTS
+-- LÓGICA AUTO CLAIM FREE GIFTS
 -- ============================================================================
 task.spawn(function()
     while true do
@@ -436,7 +419,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: ANTI-AFK (VirtualInputManager) - 15 MINUTOS
+-- ANTI-AFK
 -- ============================================================================
 task.spawn(function()
     local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -451,7 +434,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: GERENCIADOR E BUSCA DO MYSTERY MERCHANT
+-- LÓGICA MERCHANT
 -- ============================================================================
 local function findMysteryMerchant()
     local map = Workspace:FindFirstChild("Map")
@@ -502,9 +485,6 @@ task.spawn(function()
     end
 end)
 
--- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: AUTO MERCHANT REGULAR
--- ============================================================================
 task.spawn(function()
     while true do
         if _G.AutoMerchantBuy then
@@ -528,7 +508,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO DIG AVANÇADO
+-- LÓGICA AUTO DIG
 -- ============================================================================
 task.spawn(function()
     while true do
@@ -593,7 +573,7 @@ task.spawn(function()
                         local targetLayerBlocks = {}
                         for _, block in ipairs(allBlocks) do
                             if block.Name == "Part" and block:IsA("BasePart") and not MiningNow[block] then
-                                RunningCoord = block:GetAttribute("Coord")
+                                local RunningCoord = block:GetAttribute("Coord")
                                 if RunningCoord and RunningCoord.Y == DigSettings.TargetLayer then table.insert(targetLayerBlocks, { Instance = block, Coord = RunningCoord, IsChest = false }) end
                             end
                         end
@@ -703,10 +683,9 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- CRIAÇÃO DAS ABAS E ELEMENTOS DA INTERFACE (Rayfield Elements)
+-- INTERFACE (Rayfield Elements)
 -- ============================================================================
 
--- 1. ABA FARM
 local FarmTab = Window:CreateTab("Farm", 4483362458)
 FarmTab:CreateToggle({
    Name = "Auto Collect Orbs & Lootbags",
@@ -715,7 +694,6 @@ FarmTab:CreateToggle({
    Callback = function(Value) _G.AutoCollect = Value end,
 })
 
--- 2. ABA EGGS (NOTIFICAÇÕES DE FEEDBACK INCLUSAS)
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
 EggsTab:CreateDropdown({
    Name = "Selecionar Egg",
@@ -775,7 +753,6 @@ EggToggle = EggsTab:CreateToggle({
    end,
 })
 
--- 3. ABA DIG
 local DigTab = Window:CreateTab("Auto Dig", 4483362458)
 DigTab:CreateToggle({
    Name = "Ativar Auto-Dig",
@@ -811,7 +788,6 @@ DigTab:CreateInput({
    Callback = function(Text) local num = tonumber(Text) if num then DigSettings.MaxBlocks = num end end,
 })
 
--- 4. ABA AUTO CLICK
 local AutoClickTab = Window:CreateTab("Auto Click", 4483362458)
 AutoClickTab:CreateToggle({
    Name = "Ativar Auto Click Perfeito",
@@ -820,19 +796,18 @@ AutoClickTab:CreateToggle({
    Callback = function(Value) ClickSettings.Enabled = Value end,
 })
 AutoClickTab:CreateInput({
-   Name = "Qtd Breakables por Vez (1 = Modo Único)",
-   PlaceholderText = "Digite a quantidade (Padrão: 1)",
+   Name = "Qtd Breakables por Vez",
+   PlaceholderText = "Padrão: 1",
    RemoveTextAfterFocusLost = false,
    Callback = function(Text) local num = tonumber(Text) if num then ClickSettings.MaxBreakables = num end end,
 })
 AutoClickTab:CreateInput({
    Name = "Velocidade do Clique (Segundos)",
-   PlaceholderText = "Digite o delay (Padrão: 0.1)",
+   PlaceholderText = "Padrão: 0.1",
    RemoveTextAfterFocusLost = false,
    Callback = function(Text) local num = tonumber(Text) if num then ClickSettings.Delay = num end end,
 })
 
--- 5. ABA TELEPORTE
 local TeleportTab = Window:CreateTab("Teleporte", 4483362458)
 local TPDropdown 
 local function AtualizarListaDropdown()
@@ -879,7 +854,6 @@ TeleportTab:CreateButton({
    end,
 })
 
--- 6. ABA MERCHANT
 local MerchantTab = Window:CreateTab("Merchant", 4483362458)
 MerchantTab:CreateToggle({
    Name = "Merchant Mystery",
@@ -894,7 +868,6 @@ MerchantTab:CreateToggle({
    Callback = function(Value) _G.AutoMerchantBuy = Value end,
 })
 
--- 7. ABA MISC
 local MiscTab = Window:CreateTab("Misc", 4483362458)
 MiscTab:CreateToggle({
    Name = "Auto Claim Free Gifts",
