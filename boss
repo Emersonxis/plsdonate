@@ -1,5 +1,5 @@
 -- =============================================================================
--- HUB VERSÃO: 0.0.6 "Global Distance Hatch Test"
+-- HUB VERSÃO: 0.0.7 "Exact SimpleSpy Network Invocator"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
 -- =============================================================================
 
@@ -25,7 +25,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.0.6",
+   Name = "FrancesS Tools | v0.0.7",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -42,7 +42,19 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local Network = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("Network"))
+
+-- [[ GERENCIADOR SEGURO E DINÂMICO DE REDE (MÉTODO SIMPLESPY) ]]
+local NetworkModule = nil
+local function getNetwork()
+    if NetworkModule then return NetworkModule end
+    pcall(function()
+        local library = ReplicatedStorage:FindFirstChild("Library")
+        local client = library and library:FindFirstChild("Client")
+        local netMod = client and client:FindFirstChild("Network")
+        if netMod then NetworkModule = require(netMod) end
+    end)
+    return NetworkModule
+end
 
 -- [[ LEITURA DINÂMICA DA PASTA DE EGGS REAIS ]]
 local eggOptions = {}
@@ -107,7 +119,6 @@ local EggToggle = nil
 
 local MiningNow = {}
 local shaftX, shaftZ = nil, nil
-local LibraryNetwork = Network
 local FILE_NAME = "FrancesSTools_Teleports.json"
 
 -- ============================================================================
@@ -197,12 +208,13 @@ end)
 task.spawn(function()
     while true do
         if ClickSettings.Enabled then
+            local net = getNetwork()
             local player = Players.LocalPlayer
             local character = player.Character
             local rootPart = character and character:FindFirstChild("HumanoidRootPart")
             local breakablesFolder = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
             
-            if rootPart and breakablesFolder then
+            if rootPart and breakablesFolder and net then
                 local playerPos = rootPart.Position
                 local targets = {}
                 
@@ -223,7 +235,7 @@ task.spawn(function()
                     if ClickSettings.MaxBreakables == 1 then
                         local currentTarget = targets[1].Instance
                         local uid = currentTarget:GetAttribute("BreakableUID") or currentTarget.Name
-                        pcall(function() Network.UnreliableFire("Breakables_PlayerDealDamage", uid) end)
+                        pcall(function() net.UnreliableFire("Breakables_PlayerDealDamage", uid) end)
                         
                         local foiQuebrado = false
                         local conexao
@@ -244,7 +256,7 @@ task.spawn(function()
                             if not ClickSettings.Enabled then break end
                             local currentTarget = targets[i].Instance
                             local uid = currentTarget:GetAttribute("BreakableUID") or currentTarget.Name
-                            pcall(function() Network.UnreliableFire("Breakables_PlayerDealDamage", uid) end)
+                            pcall(function() net.UnreliableFire("Breakables_PlayerDealDamage", uid) end)
                         end
                         task.wait(ClickSettings.Delay)
                     end
@@ -331,7 +343,8 @@ local function coletarEDeletar(item)
     if not _G.AutoCollect or not item then return end
     local itemId = item:GetAttribute("Id") or item:GetAttribute("OrbID") or item.Name
     if itemId and type(itemId) == "string" then
-        pcall(function() Network.Fire("Orbs: Collect", {itemId}) end)
+        local net = getNetwork()
+        if net then pcall(function() net.Fire("Orbs: Collect", {itemId}) end) end
         task.wait(0.05)
         if item and item.Parent then
             pcall(function()
@@ -373,36 +386,38 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO EGG SEM TRAVA DE PROXIMIDADE (TESTE INFINITO)
+-- LÓGICA INTERNA: AUTO EGG REFORMULADA VIA MODELO EXATO DO SIMPLESPY
 -- ============================================================================
 task.spawn(function()
     while true do
         if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" and _G.EggSelected ~= "Nenhum Egg Encontrado" then
-            local nomeRealCompra = ""
-            
-            pcall(function()
-                nomeRealCompra = getEggPurchaseName(_G.EggSelected)
-            end)
-            
-            if nomeRealCompra and nomeRealCompra ~= "" then
-                pcall(function()
-                    local quant = _G.EggMultiplier
-                    if quant == "Max" then
+            local net = getNetwork()
+            if net then
+                local nomeRealCompra = getEggPurchaseName(_G.EggSelected)
+                local quant = _G.EggMultiplier
+                
+                if quant == "Max" then
+                    pcall(function()
+                        local EggCmds = ReplicatedStorage:FindFirstChild("Library") and ReplicatedStorage.Library:FindFirstChild("Client") and ReplicatedStorage.Library.Client:FindFirstChild("EggCmds")
+                        if EggCmds then
+                            local mod = require(EggCmds)
+                            if mod and mod.GetMaxHatch then quant = mod.GetMaxHatch() end
+                        end
+                    end)
+                    if type(quant) ~= "number" then quant = 1 end
+                end
+                
+                if nomeRealCompra and nomeRealCompra ~= "" then
+                    -- Dispara o Invoke isolado em thread para não engasgar o loop principal
+                    task.spawn(function()
                         pcall(function()
-                            local EggCmds = ReplicatedStorage:FindFirstChild("Library") and ReplicatedStorage.Library:FindFirstChild("Client") and ReplicatedStorage.Library.Client:FindFirstChild("EggCmds")
-                            if EggCmds then
-                                local mod = require(EggCmds)
-                                if mod and mod.GetMaxHatch then quant = mod.GetMaxHatch() end
-                            end
+                            net.Invoke("Eggs_RequestPurchase", nomeRealCompra, quant)
                         end)
-                        if type(quant) ~= "number" then quant = 1 end
-                    end
-                    -- Dispara diretamente sem checar distância do jogador
-                    Network.Invoke("Eggs_RequestPurchase", nomeRealCompra, quant)
-                end)
+                    end)
+                end
             end
         end
-        task.wait(0.05)
+        task.wait(0.2) -- Delay estável para evitar kick por spam de remotos no servidor
     end
 end)
 
@@ -412,10 +427,13 @@ end)
 task.spawn(function()
     while true do
         if _G.AutoGift then
-            for i = 1, 12 do
-                if not _G.AutoGift then break end
-                pcall(function() Network.Invoke("Redeem Free Gift", i) end)
-                task.wait(5)
+            local net = getNetwork()
+            if net then
+                for i = 1, 12 do
+                    if not _G.AutoGift then break end
+                    pcall(function() net.Invoke("Redeem Free Gift", i) end)
+                    task.wait(5)
+                end
             end
         end
         task.wait(30)
@@ -457,7 +475,8 @@ task.spawn(function()
     while true do
         if _G.AutoMysteryMerchant then
             local merchant = findMysteryMerchant()
-            if merchant and not hasBoughtThisSpawn then
+            local net = getNetwork()
+            if merchant and net and not hasBoughtThisSpawn then
                 hasBoughtThisSpawn = true
                 local primaryPart = merchant.PrimaryPart or merchant:FindFirstChildWhichIsA("BasePart")
                 local character = Players.LocalPlayer.Character
@@ -471,7 +490,7 @@ task.spawn(function()
                     
                     for slot = 1, 6 do
                         for i = 1, 10 do
-                            task.spawn(function() pcall(function() Network.Invoke("Merchant_RequestPurchase", "MysteryMerchant", slot) end) end)
+                            task.spawn(function() pcall(function() net.Invoke("Merchant_RequestPurchase", "MysteryMerchant", slot) end) end)
                         end
                     end
                     task.wait(1)
@@ -494,10 +513,13 @@ end)
 task.spawn(function()
     while true do
         if _G.AutoMerchantBuy then
-            for numeroItem = 1, 6 do
-                if not _G.AutoMerchantBuy then break end
-                for i = 1, 10 do
-                    task.spawn(function() pcall(function() Network.Invoke("Merchant_RequestPurchase", "RegularMerchant", numeroItem) end) end)
+            local net = getNetwork()
+            if net then
+                for numeroItem = 1, 6 do
+                    if not _G.AutoMerchantBuy then break end
+                    for i = 1, 10 do
+                        task.spawn(function() pcall(function() net.Invoke("Merchant_RequestPurchase", "RegularMerchant", numeroItem) end) end)
+                    end
                 end
             end
             for segundo = 1, 1800 do
@@ -517,13 +539,8 @@ task.spawn(function()
     while true do
         if DigSettings.Enabled then
             pcall(function()
-                if not LibraryNetwork then
-                    local lib = ReplicatedStorage:FindFirstChild("Library")
-                    local client = lib and lib:FindFirstChild("Client")
-                    local netMod = client and client:FindFirstChild("Network")
-                    if netMod then LibraryNetwork = require(netMod) end
-                end
-                if not LibraryNetwork then return end
+                local net = getNetwork()
+                if not net then return end
                 
                 local things = Workspace:FindFirstChild("__THINGS")
                 local container = things and things:FindFirstChild("__INSTANCE_CONTAINER")
@@ -673,7 +690,7 @@ task.spawn(function()
                         if exists then
                             local blockVector = vector.create(coord.X, coord.Y, coord.Z)
                             local comandoRede = isChest and "DigChest" or "DigBlock"
-                            for i = 1, DigSettings.HitsPerBlock do LibraryNetwork.Fire("Instancing_FireCustomFromClient", "Digsite", comandoRede, blockVector) end
+                            for i = 1, DigSettings.HitsPerBlock do net.Fire("Instancing_FireCustomFromClient", "Digsite", comandoRede, blockVector) end
                             local frameTimeout = 0
                             while frameTimeout < (isChest and 20 or 10) do
                                 local stillExists = isChest and target:IsDescendantOf(activeChestsPath) or (not isChest and target and target.Parent == activeBlocksPath)
@@ -703,7 +720,7 @@ FarmTab:CreateToggle({
    Callback = function(Value) _G.AutoCollect = Value end,
 })
 
--- 2. ABA EGGS (HATCH SEM DISTÂNCIA)
+-- 2. ABA EGGS (HATCH SEM DISTÂNCIA - CORRIGIDO!)
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
 EggsTab:CreateDropdown({
    Name = "Selecionar Egg",
@@ -728,7 +745,7 @@ EggsTab:CreateDropdown({
 
 EggsTab:CreateInput({
    Name = "Digitar Qtd Ovos Customizada",
-   PlaceholderText = "Digite o valor numérico (Ex: 5)",
+   PlaceholderText = "Digite o valor numérico (Ex: 2)",
    RemoveTextAfterFocusLost = false,
    Callback = function(Text) local num = tonumber(Text) if num then _G.EggMultiplier = num end end,
 })
