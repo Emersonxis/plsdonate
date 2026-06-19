@@ -1,7 +1,6 @@
 -- =============================================================================
--- HUB VERSÃO: 0.0.2 "Pet Squad Y - Smart Hatch Update"
+-- HUB VERSÃO: 0.1.0 "Pet Squad Y - Max Hatch & Auto List Fix"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
--- NOTA: Todos os logs/prints removidos para evitar vazamento de memória.
 -- =============================================================================
 
 -- =============================================================================
@@ -13,9 +12,7 @@ local metodosTeleporte = {"Teleport", "TeleportToPlaceInstance", "TeleportAsync"
 for _, nomeMetodo in ipairs(metodosTeleporte) do
     pcall(function()
         if TeleportService[nomeMetodo] then
-            hookfunction(TeleportService[nomeMetodo], function(...)
-                return nil
-            end)
+            hookfunction(TeleportService[nomeMetodo], function(...) return nil end)
         end
     end)
 end
@@ -26,7 +23,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.0.2",
+   Name = "FrancesS Tools | v0.1.0",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -34,40 +31,50 @@ local Window = Rayfield:CreateWindow({
       FolderName = "FrancesSToolsConfigs",
       FileName = "saveconfig"
    },
-   Discord = {
-      Enabled = false
-   }
+   Discord = { Enabled = false }
 })
 
--- [[ LEITURA DINÂMICA DA PASTA DE EGGS E SANEAMENTO DO NOME ]]
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+
+-- IMPORTAÇÃO FIXA E SEGURA DOS MÓDULOS (Baseada na versão funcional)
+local Network = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("Network"))
+local EggCmds = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("EggCmds"))
+
+-- ============================================================================
+-- LEITURA DINÂMICA DA PASTA DE EGGS (JÁ LIMPANDO O NOME)
+-- ============================================================================
 local eggOptions = {}
 pcall(function()
-    local directory = game:GetService("ReplicatedStorage"):WaitForChild("__DIRECTORY", 5)
-    local eggsFolder = directory and directory:WaitForChild("Eggs", 5)
-    if eggsFolder then
-        local rawEggs = {}
-        for _, egg in ipairs(eggsFolder:GetChildren()) do
-            -- Extrai o número e o nome limpo (Ex: "1 | Cracked Egg" -> num=1, name="Cracked Egg")
-            local numStr, cleanName = string.match(egg.Name, "^(%d+)%s*|%s*(.+)")
-            if numStr and cleanName then
-                -- Limpa possíveis espaços no início ou fim do nome
-                cleanName = string.gsub(cleanName, "^%s*(.-)%s*$", "%1")
-                table.insert(rawEggs, {num = tonumber(numStr), name = cleanName})
-            end
-        end
-        -- Ordena a lista com base no ID do ovo (do 1 ao último)
-        table.sort(rawEggs, function(a, b) return a.num < b.num end)
+    local dirEggs = ReplicatedStorage:WaitForChild("__DIRECTORY"):WaitForChild("Eggs")
+    local sortableEggs = {}
+    
+    for _, egg in ipairs(dirEggs:GetChildren()) do
+        -- Extrai o ID e o Nome (Ex: "1 | Cracked Egg" -> id="1", name="Cracked Egg")
+        local idStr, namePart = string.match(egg.Name, "^(%d+)%s*|%s*(.+)")
         
-        -- Alimenta a lista final apenas com os nomes limpos
-        for _, eggData in ipairs(rawEggs) do
-            table.insert(eggOptions, eggData.name)
+        if not namePart then
+            namePart = egg.Name
+            idStr = "999"
         end
+        
+        -- Garante que não há espaços sobrando
+        namePart = string.gsub(namePart, "^%s*(.-)%s*$", "%1")
+        
+        table.insert(sortableEggs, { id = tonumber(idStr) or 999, name = namePart })
+    end
+    
+    -- Ordena a lista do ovo 1 até o último
+    table.sort(sortableEggs, function(a, b) return a.id < b.id end)
+    
+    for _, data in ipairs(sortableEggs) do
+        table.insert(eggOptions, data.name)
     end
 end)
 
-if #eggOptions == 0 then
-    eggOptions = {"Nenhum Egg Encontrado"}
-end
+if #eggOptions == 0 then table.insert(eggOptions, "Nenhum Egg Encontrado") end
 
 -- [[ VARIÁVEIS GLOBAIS E CONFIGURAÇÕES ]]
 _G.AutoCollect = false
@@ -78,41 +85,14 @@ _G.AutoGift = false
 _G.AutoMysteryMerchant = false
 _G.AutoMerchantBuy = false
 
-local DigSettings = {
-    Enabled = false,
-    Delay = 0.01,
-    MaxBlocks = 8,
-    HitsPerBlock = 3,
-    Chessboard = false,
-    TargetLayer = 70,
-}
+local DigSettings = { Enabled = false, Delay = 0.01, MaxBlocks = 8, HitsPerBlock = 3, Chessboard = false, TargetLayer = 70 }
+local ClickSettings = { Enabled = false, Multipler = 1, Delay = 0.1, MaxDistance = 100, MaxBreakables = 1 }
+local TeleportSettings = { Enabled = false, Home = nil, Points = {}, SelectedPoint = nil }
 
--- Configurações do Auto Click
-local ClickSettings = {
-    Enabled = false,
-    Multipler = 1,        
-    Delay = 0.1,          
-    MaxDistance = 100,    
-    MaxBreakables = 1,    
-}
-
--- Configurações de Teleporte + Variáveis de Automação Intertravada
-local TeleportSettings = {
-    Enabled = false,
-    Home = nil,
-    Points = {}, 
-    SelectedPoint = nil
-}
 local wasEggActiveBeforeRoute = false 
 local wasEggActiveBeforeMerchant = false
 local hasBoughtThisSpawn = false
 local EggToggle = nil                  
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-local Network = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("Network"))
 
 local MiningNow = {}
 local shaftX, shaftZ = nil, nil
@@ -122,56 +102,31 @@ local FILE_NAME = "FrancesSTools_Teleports.json"
 -- ============================================================================
 -- ARQUIVO LOCAL: SISTEMA DE SALVAMENTO DE CFRAMES CUSTOMIZADO
 -- ============================================================================
-local function cframeToTable(cf)
-    if not cf then return nil end
-    return {cf:GetComponents()}
-end
-
-local function tableToCFrame(tbl)
-    if not tbl then return nil end
-    return CFrame.new(unpack(tbl))
-end
+local function cframeToTable(cf) if not cf then return nil end return {cf:GetComponents()} end
+local function tableToCFrame(tbl) if not tbl then return nil end return CFrame.new(unpack(tbl)) end
 
 local function saveTeleportData()
-    local data = {
-        Home = cframeToTable(TeleportSettings.Home),
-        Points = {}
-    }
+    local data = { Home = cframeToTable(TeleportSettings.Home), Points = {} }
     for _, pt in ipairs(TeleportSettings.Points) do
-        table.insert(data.Points, {
-            cframe = cframeToTable(pt.cframe),
-            waitTime = pt.waitTime,
-            id = pt.id
-        })
+        table.insert(data.Points, { cframe = cframeToTable(pt.cframe), waitTime = pt.waitTime, id = pt.id })
     end
-    pcall(function()
-        writefile(FILE_NAME, HttpService:JSONEncode(data))
-    end)
+    pcall(function() writefile(FILE_NAME, HttpService:JSONEncode(data)) end)
 end
 
 local function loadTeleportData()
     if isfile(FILE_NAME) then
-        local success, result = pcall(function()
-            return HttpService:JSONDecode(readfile(FILE_NAME))
-        end)
+        local success, result = pcall(function() return HttpService:JSONDecode(readfile(FILE_NAME)) end)
         if success and result then
-            if result.Home then
-                TeleportSettings.Home = tableToCFrame(result.Home)
-            end
+            if result.Home then TeleportSettings.Home = tableToCFrame(result.Home) end
             if result.Points then
                 TeleportSettings.Points = {}
                 for _, pt in ipairs(result.Points) do
-                    table.insert(TeleportSettings.Points, {
-                        cframe = tableToCFrame(pt.cframe),
-                        waitTime = pt.waitTime,
-                        id = pt.id
-                    })
+                    table.insert(TeleportSettings.Points, { cframe = tableToCFrame(pt.cframe), waitTime = pt.waitTime, id = pt.id })
                 end
             end
         end
     end
 end
-
 loadTeleportData()
 
 -- ============================================================================
@@ -184,15 +139,12 @@ task.spawn(function()
         local PlayerPet = require(ClientMod:WaitForChild("PlayerPet"))
 
         if replaceclosure or hookfunction then
-            (replaceclosure or hookfunction)(PlayerPet.CalculateSpeedMultiplier, function(...)
-                return 201
-            end)
+            (replaceclosure or hookfunction)(PlayerPet.CalculateSpeedMultiplier, function(...) return 201 end)
         end
     end)
 
     task.wait(10)
     local desativado = false
-    
     while not desativado do
         pcall(function()
             for _, v in ipairs(getgc(true)) do
@@ -222,7 +174,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO CLICK PROGRESSIVO COM DETECÇÃO INSTANTÂNEA
+-- LÓGICA INTERNA: AUTO CLICK PROGRESSIVO
 -- ============================================================================
 task.spawn(function()
     while true do
@@ -247,17 +199,13 @@ task.spawn(function()
                 end
                 
                 table.sort(targets, function(a, b) return a.Dist < b.Dist end)
-                
                 local maxToBreak = math.min(ClickSettings.MaxBreakables, #targets)
                 
                 if maxToBreak > 0 then
                     if ClickSettings.MaxBreakables == 1 then
                         local currentTarget = targets[1].Instance
                         local uid = currentTarget:GetAttribute("BreakableUID") or currentTarget.Name
-                        
-                        pcall(function()
-                            Network.UnreliableFire("Breakables_PlayerDealDamage", uid)
-                        end)
+                        pcall(function() Network.UnreliableFire("Breakables_PlayerDealDamage", uid) end)
                         
                         local foiQuebrado = false
                         local conexao
@@ -278,9 +226,7 @@ task.spawn(function()
                             if not ClickSettings.Enabled then break end
                             local currentTarget = targets[i].Instance
                             local uid = currentTarget:GetAttribute("BreakableUID") or currentTarget.Name
-                            pcall(function()
-                                Network.UnreliableFire("Breakables_PlayerDealDamage", uid)
-                            end)
+                            pcall(function() Network.UnreliableFire("Breakables_PlayerDealDamage", uid) end)
                         end
                         task.wait(ClickSettings.Delay)
                     end
@@ -297,14 +243,12 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: GERENCIADOR DE TELEPORTE (INTERRUPTÍVEL + PERSISTENTE)
+-- LÓGICA DE TELEPORTE
 -- ============================================================================
 local function interruptibleWait(seconds)
     local start = os.clock()
     while os.clock() - start < seconds do
-        if not TeleportSettings.Enabled then
-            return false 
-        end
+        if not TeleportSettings.Enabled then return false end
         task.wait(0.1) 
     end
     return true
@@ -323,131 +267,77 @@ local function MonitorarTempoParado()
         task.wait(0.1)
         local currentChar = Players.LocalPlayer.Character
         local currentRoot = currentChar and currentChar:FindFirstChild("HumanoidRootPart")
-        if currentRoot and (currentRoot.Position - startPos).Magnitude < 2 then
-            timeSpent = timeSpent + 0.1
-        else
-            break
-        end
+        if currentRoot and (currentRoot.Position - startPos).Magnitude < 2 then timeSpent = timeSpent + 0.1 else break end
     end
     
     local finalTime = math.round(timeSpent * 10) / 10
     if finalTime < 1 then finalTime = 1 end 
-    
     local pointId = "Ponto " .. tostring(#TeleportSettings.Points + 1) .. " (" .. tostring(finalTime) .. "s)"
-    table.insert(TeleportSettings.Points, {
-        cframe = startCFrame,
-        waitTime = finalTime,
-        id = pointId
-    })
+    table.insert(TeleportSettings.Points, { cframe = startCFrame, waitTime = finalTime, id = pointId })
     saveTeleportData() 
 end
 
 task.spawn(function()
     while true do
         if TeleportSettings.Enabled and #TeleportSettings.Points > 0 and TeleportSettings.Home then
-            if _G.AutoEgg and EggToggle then
-                wasEggActiveBeforeRoute = true
-                EggToggle:Set(false)
-            end
-
+            if _G.AutoEgg and EggToggle then wasEggActiveBeforeRoute = true EggToggle:Set(false) end
             local interrupted = false
-
             for i = 1, #TeleportSettings.Points do
                 if not TeleportSettings.Enabled then interrupted = true; break end
                 local currentPoint = TeleportSettings.Points[i]
                 local character = Players.LocalPlayer.Character
                 local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-                
                 if rootPart then
                     rootPart.CFrame = currentPoint.cframe
-                    if not interruptibleWait(currentPoint.waitTime) then
-                        interrupted = true
-                        break
-                    end
+                    if not interruptibleWait(currentPoint.waitTime) then interrupted = true; break end
                 end
             end
-            
             if not interrupted and TeleportSettings.Enabled and TeleportSettings.Home then
                 local character = Players.LocalPlayer.Character
                 local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-                if rootPart then
-                    rootPart.CFrame = TeleportSettings.Home
-                end
-                
-                if wasEggActiveBeforeRoute and EggToggle then
-                    EggToggle:Set(true)
-                    wasEggActiveBeforeRoute = false
-                end
-                
+                if rootPart then rootPart.CFrame = TeleportSettings.Home end
+                if wasEggActiveBeforeRoute and EggToggle then EggToggle:Set(true) wasEggActiveBeforeRoute = false end
                 interruptibleWait(601)
             else
-                if wasEggActiveBeforeRoute and EggToggle then
-                    EggToggle:Set(true)
-                    wasEggActiveBeforeRoute = false
-                end
+                if wasEggActiveBeforeRoute and EggToggle then EggToggle:Set(true) wasEggActiveBeforeRoute = false end
                 task.wait(1)
             end
         else
-            if wasEggActiveBeforeRoute and EggToggle and not TeleportSettings.Enabled then
-                EggToggle:Set(true)
-                wasEggActiveBeforeRoute = false
-            end
+            if wasEggActiveBeforeRoute and EggToggle and not TeleportSettings.Enabled then EggToggle:Set(true) wasEggActiveBeforeRoute = false end
             task.wait(1)
         end
     end
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO COLLECT ORBS & LOOTBAGS
+-- LÓGICA DE COLETA (AUTO COLLECT)
 -- ============================================================================
 local function coletarEDeletar(item)
     if not _G.AutoCollect or not item then return end
     local itemId = item:GetAttribute("Id") or item:GetAttribute("OrbID") or item.Name
-    
     if itemId and type(itemId) == "string" then
-        pcall(function()
-            Network.Fire("Orbs: Collect", {itemId})
-        end)
-        
+        pcall(function() Network.Fire("Orbs: Collect", {itemId}) end)
         task.wait(0.05)
-        
         if item and item.Parent then
             pcall(function()
                 if item:IsA("Model") then
                     for _, child in ipairs(item:GetDescendants()) do
-                        if child:IsA("BasePart") then
-                            child.Transparency = 1
-                            child.CanCollide = false
-                        elseif child:IsA("Decal") or child:IsA("Texture") then
-                            child.Transparency = 1
-                        elseif child:IsA("ParticleEmitter") or child:IsA("Beam") or child:IsA("Trail") then
-                            child.Enabled = false
-                        end
+                        if child:IsA("BasePart") then child.Transparency = 1 child.CanCollide = false
+                        elseif child:IsA("Decal") or child:IsA("Texture") then child.Transparency = 1
+                        elseif child:IsA("ParticleEmitter") or child:IsA("Beam") or child:IsA("Trail") then child.Enabled = false end
                     end
-                elseif item:IsA("BasePart") then
-                    item.Transparency = 1
-                    item.CanCollide = false
-                end
+                elseif item:IsA("BasePart") then item.Transparency = 1 item.CanCollide = false end
             end)
-            
             task.wait(0.1)
-            if item and item.Parent then
-                pcall(function()
-                    item:Destroy()
-                end)
-            end
+            if item and item.Parent then pcall(function() item:Destroy() end) end
         end
     end
 end
 
 local function monitorarPasta(pasta)
     if not pasta then return end
-    for _, item in ipairs(pasta:GetChildren()) do
-        task.spawn(coletarEDeletar, item)
-    end
-    return pasta.ChildAdded:Connect(function(item)
-        task.spawn(coletarEDeletar, item)
-    end)
+    for _, item in ipairs(pasta:GetChildren()) do task.spawn(coletarEDeletar, item) end
+    return pasta.ChildAdded:Connect(function(item) task.spawn(coletarEDeletar, item) end)
 end
 
 task.spawn(function()
@@ -456,78 +346,55 @@ task.spawn(function()
         if _G.AutoCollect then
             local things = Workspace:FindFirstChild("__THINGS")
             if things then
-                local pastasAlvo = {
-                    things:FindFirstChild("Orbs"),
-                    things:FindFirstChild("RenderedOrbs")
-                }
-                for _, pasta in ipairs(pastasAlvo) do
-                    if pasta and not conexoes[pasta] then
-                        conexoes[pasta] = monitorarPasta(pasta)
-                    end
-                end
+                local pastasAlvo = { things:FindFirstChild("Orbs"), things:FindFirstChild("RenderedOrbs") }
+                for _, pasta in ipairs(pastasAlvo) do if pasta and not conexoes[pasta] then conexoes[pasta] = monitorarPasta(pasta) end end
             end
         else
-            for pasta, conexao in pairs(conexoes) do
-                if conexao then conexao:Disconnect() end
-                conexoes[pasta] = nil
-            end
+            for pasta, conexao in pairs(conexoes) do if conexao then conexao:Disconnect() end conexoes[pasta] = nil end
         end
-        
-        for pasta, conexao in pairs(conexoes) do
-            if not pasta or not pasta.Parent then
-                if conexao then conexao:Disconnect() end
-                conexoes[pasta] = nil
-            end
-        end
+        for pasta, conexao in pairs(conexoes) do if not pasta or not pasta.Parent then if conexao then conexao:Disconnect() end conexoes[pasta] = nil end end
         task.wait(1)
     end
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO EGG PURCHASER (COM MAX HATCH E NOME LIMPO)
+-- LÓGICA AUTO EGG (CORRIGIDA COM MAX HATCH)
 -- ============================================================================
 task.spawn(function()
     while true do
-        if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" and _G.EggSelected ~= "Nenhum Egg Encontrado" then
-            local quant = _G.EggMultiplier
+        -- Proteção contra envio de Tabelas do Rayfield e Nulos
+        local ovoSelecionado = _G.EggSelected
+        if type(ovoSelecionado) == "table" then ovoSelecionado = ovoSelecionado[1] end
+        
+        if _G.AutoEgg and type(ovoSelecionado) == "string" and ovoSelecionado ~= "" and ovoSelecionado ~= "Nenhum Egg Encontrado" then
+            local quant = 1
             
-            -- Lógica para buscar o máximo do Modulo se selecionado "Max"
-            if quant == "Max" then
-                quant = 1 -- Fallback seguro caso falhe
+            if _G.EggMultiplier == "Max" then
                 pcall(function()
-                    local Client = ReplicatedStorage:FindFirstChild("Library") and ReplicatedStorage.Library:FindFirstChild("Client")
-                    local EggCmds = Client and Client:FindFirstChild("EggCmds")
-                    if EggCmds then
-                        local mod = require(EggCmds)
-                        if mod and mod.GetMaxHatch then 
-                            quant = mod.GetMaxHatch() 
-                        end
-                    end
+                    quant = EggCmds.GetMaxHatch()
                 end)
+                if type(quant) ~= "number" then quant = 1 end
             else
-                quant = tonumber(quant) or 1
+                quant = tonumber(_G.EggMultiplier) or 1
             end
 
             pcall(function()
-                -- O _G.EggSelected agora já possui o nome limpo extraído no Dropdown
-                Network.Invoke("Eggs_RequestPurchase", _G.EggSelected, quant)
+                Network.Invoke("Eggs_RequestPurchase", ovoSelecionado, quant)
             end)
         end
-        task.wait(0.2) -- Delay de 200ms para evitar kick por Overload
+        task.wait(0.2) -- Retornamos ao delay um pouco mais suave (200ms) para não sobrecarregar
     end
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO CLAIM FREE GIFTS
+-- LÓGICA AUTO CLAIM FREE GIFTS
 -- ============================================================================
 task.spawn(function()
     while true do
         if _G.AutoGift then
             for i = 1, 12 do
                 if not _G.AutoGift then break end
-                pcall(function()
-                    Network.Invoke("Redeem Free Gift", i)
-                end)
+                pcall(function() Network.Invoke("Redeem Free Gift", i) end)
                 task.wait(5)
             end
         end
@@ -536,7 +403,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: ANTI-AFK (VirtualInputManager) - 15 MINUTOS
+-- ANTI-AFK
 -- ============================================================================
 task.spawn(function()
     local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -551,7 +418,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: GERENCIADOR E BUSCA DO MYSTERY MERCHANT
+-- LÓGICA MERCHANT
 -- ============================================================================
 local function findMysteryMerchant()
     local map = Workspace:FindFirstChild("Map")
@@ -560,9 +427,7 @@ local function findMysteryMerchant()
             local interact = zone:FindFirstChild("INTERACT")
             local machines = interact and interact:FindFirstChild("Machines")
             local merchant = machines and machines:FindFirstChild("MysteryMerchant")
-            if merchant then
-                return merchant
-            end
+            if merchant then return merchant end
         end
     end
     return nil
@@ -574,44 +439,26 @@ task.spawn(function()
             local merchant = findMysteryMerchant()
             if merchant and not hasBoughtThisSpawn then
                 hasBoughtThisSpawn = true
-                
                 local primaryPart = merchant.PrimaryPart or merchant:FindFirstChildWhichIsA("BasePart")
                 local character = Players.LocalPlayer.Character
                 local rootPart = character and character:FindFirstChild("HumanoidRootPart")
                 
                 if rootPart and primaryPart then
-                    if _G.AutoEgg and EggToggle then
-                        wasEggActiveBeforeMerchant = true
-                        EggToggle:Set(false)
-                    end
-                    
+                    if _G.AutoEgg and EggToggle then wasEggActiveBeforeMerchant = true EggToggle:Set(false) end
                     local returnCFrame = TeleportSettings.Home or rootPart.CFrame
-                    
                     rootPart.CFrame = primaryPart.CFrame * CFrame.new(0, 3, 0)
                     task.wait(0.5)
                     
                     for slot = 1, 6 do
                         for i = 1, 10 do
-                            task.spawn(function()
-                                pcall(function()
-                                    Network.Invoke("Merchant_RequestPurchase", "MysteryMerchant", slot)
-                                end)
-                            end)
+                            task.spawn(function() pcall(function() Network.Invoke("Merchant_RequestPurchase", "MysteryMerchant", slot) end) end)
                         end
                     end
-                    
                     task.wait(1)
-                    
                     local modernChar = Players.LocalPlayer.Character
                     local modernRoot = modernChar and modernChar:FindFirstChild("HumanoidRootPart")
-                    if modernRoot then
-                        modernRoot.CFrame = returnCFrame
-                    end
-                    
-                    if wasEggActiveBeforeMerchant and EggToggle then
-                        EggToggle:Set(true)
-                        wasEggActiveBeforeMerchant = false
-                    end
+                    if modernRoot then modernRoot.CFrame = returnCFrame end
+                    if wasEggActiveBeforeMerchant and EggToggle then EggToggle:Set(true) wasEggActiveBeforeMerchant = false end
                 end
             elseif not merchant then
                 hasBoughtThisSpawn = false
@@ -621,23 +468,15 @@ task.spawn(function()
     end
 end)
 
--- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: AUTO MERCHANT REGULAR (30 MINUTOS)
--- ============================================================================
 task.spawn(function()
     while true do
         if _G.AutoMerchantBuy then
             for numeroItem = 1, 6 do
                 if not _G.AutoMerchantBuy then break end
                 for i = 1, 10 do
-                    task.spawn(function()
-                        pcall(function()
-                            Network.Invoke("Merchant_RequestPurchase", "RegularMerchant", numeroItem)
-                        end)
-                    end)
+                    task.spawn(function() pcall(function() Network.Invoke("Merchant_RequestPurchase", "RegularMerchant", numeroItem) end) end)
                 end
             end
-            
             for segundo = 1, 1800 do
                 if not _G.AutoMerchantBuy then break end
                 task.wait(1)
@@ -649,7 +488,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO DIG AVANÇADO
+-- LÓGICA AUTO DIG
 -- ============================================================================
 task.spawn(function()
     while true do
@@ -668,10 +507,8 @@ task.spawn(function()
                 local active = container and container:FindFirstChild("Active")
                 local digsite = active and active:FindFirstChild("Digsite")
                 local important = digsite and digsite:FindFirstChild("Important")
-                
                 local activeBlocksPath = important and important:FindFirstChild("ActiveBlocks")
                 local activeChestsPath = important and important:FindFirstChild("ActiveChests")
-                
                 if not activeBlocksPath or not activeChestsPath then return end
                 
                 local validTargets = {}
@@ -684,16 +521,12 @@ task.spawn(function()
                     for _, block in ipairs(allBlocks) do
                         if block.Name == "Part" and block:IsA("BasePart") then
                             local coord = block:GetAttribute("Coord")
-                            if coord and coord.Y > 1 and coord.Y < minY then
-                                minY = coord.Y
-                                shallowestBlock = block
-                            end
+                            if coord and coord.Y > 1 and coord.Y < minY then minY = coord.Y shallowestBlock = block end
                         end
                     end
                     if shallowestBlock then
                         local coord = shallowestBlock:GetAttribute("Coord")
-                        shaftX = math.floor(coord.X + 0.5)
-                        shaftZ = math.floor(coord.Z + 0.5)
+                        shaftX = math.floor(coord.X + 0.5) shaftZ = math.floor(coord.Z + 0.5)
                     end
                 end
                 
@@ -703,29 +536,21 @@ task.spawn(function()
                         if block.Name == "Part" and block:IsA("BasePart") and not MiningNow[block] then
                             local coord = block:GetAttribute("Coord")
                             if coord and coord.Y > 1 and coord.Y < DigSettings.TargetLayer then
-                                local posX = math.floor(coord.X + 0.5)
-                                local posZ = math.floor(coord.Z + 0.5)
-                                if posX == shaftX and posZ == shaftZ then
-                                    table.insert(shaftBlocks, { Instance = block, Coord = coord, IsChest = false })
-                                end
+                                local posX = math.floor(coord.X + 0.5) local posZ = math.floor(coord.Z + 0.5)
+                                if posX == shaftX and posZ == shaftZ then table.insert(shaftBlocks, { Instance = block, Coord = coord, IsChest = false }) end
                             end
                         end
                     end
-                    
                     if #shaftBlocks > 0 then
                         table.sort(shaftBlocks, function(a, b) return a.Coord.Y < b.Coord.Y end)
                         table.insert(validTargets, shaftBlocks[1])
-                        
                         local currentShaftY = shaftBlocks[1].Coord.Y
                         for _, chest in ipairs(allChests) do
                             if not MiningNow[chest] then
                                 local coord = chest:GetAttribute("Coord") or (chest:IsA("Model") and chest.PrimaryPart and chest.PrimaryPart:GetAttribute("Coord"))
                                 if coord and coord.Y == currentShaftY then
-                                    local cX = math.floor(coord.X + 0.5)
-                                    local cZ = math.floor(coord.Z + 0.5)
-                                    if cX == shaftX and cZ == shaftZ then
-                                        table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true })
-                                    end
+                                    local cX = math.floor(coord.X + 0.5) local cZ = math.floor(coord.Z + 0.5)
+                                    if cX == shaftX and cZ == shaftZ then table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true }) end
                                 end
                             end
                         end
@@ -734,20 +559,15 @@ task.spawn(function()
                         for _, block in ipairs(allBlocks) do
                             if block.Name == "Part" and block:IsA("BasePart") and not MiningNow[block] then
                                 RunningCoord = block:GetAttribute("Coord")
-                                if RunningCoord and RunningCoord.Y == DigSettings.TargetLayer then
-                                    table.insert(targetLayerBlocks, { Instance = block, Coord = RunningCoord, IsChest = false })
-                                end
+                                if RunningCoord and RunningCoord.Y == DigSettings.TargetLayer then table.insert(targetLayerBlocks, { Instance = block, Coord = RunningCoord, IsChest = false }) end
                             end
                         end
-                        
                         if #targetLayerBlocks > 0 then
                             for _, bData in ipairs(targetLayerBlocks) do table.insert(validTargets, bData) end
                             for _, chest in ipairs(allChests) do
                                 if not MiningNow[chest] then
                                     local coord = chest:GetAttribute("Coord") or (chest:IsA("Model") and chest.PrimaryPart and chest.PrimaryPart:GetAttribute("Coord"))
-                                    if coord and coord.Y == DigSettings.TargetLayer then
-                                        table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true })
-                                    end
+                                    if coord and coord.Y == DigSettings.TargetLayer then table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true }) end
                                 end
                             end
                         else
@@ -755,58 +575,41 @@ task.spawn(function()
                             for _, chest in ipairs(allChests) do
                                 if not MiningNow[chest] then
                                     local coord = chest:GetAttribute("Coord") or (chest:IsA("Model") and chest.PrimaryPart and chest.PrimaryPart:GetAttribute("Coord"))
-                                    if coord and coord.Y > 1 and coord.Y <= DigSettings.TargetLayer then
-                                        table.insert(leftBehindChests, { Instance = chest, Coord = coord, IsChest = true })
-                                    end
+                                    if coord and coord.Y > 1 and coord.Y <= DigSettings.TargetLayer then table.insert(leftBehindChests, { Instance = chest, Coord = coord, IsChest = true }) end
                                 end
                             end
-                            
                             if #leftBehindChests > 0 then
                                 for _, cData in ipairs(leftBehindChests) do table.insert(validTargets, cData) end
                             else
-                                local blocksByLayer = {}
-                                local layersOrder = {}
+                                local blocksByLayer = {} local layersOrder = {}
                                 for _, block in ipairs(allBlocks) do
                                     if block.Name == "Part" and block:IsA("BasePart") and not MiningNow[block] then
                                         local coord = block:GetAttribute("Coord")
                                         if coord and coord.Y > DigSettings.TargetLayer then
                                             local layerY = coord.Y
-                                            if not blocksByLayer[layerY] then
-                                                blocksByLayer[layerY] = {}
-                                                table.insert(layersOrder, layerY)
-                                            end
+                                            if not blocksByLayer[layerY] then blocksByLayer[layerY] = {} table.insert(layersOrder, layerY) end
                                             table.insert(blocksByLayer[layerY], { Instance = block, Coord = coord, IsChest = false })
                                         end
                                     end
                                 end
-                                
                                 table.sort(layersOrder, function(a, b) return a < b end)
-                                
                                 local nextActiveY = nil
                                 for _, y in ipairs(layersOrder) do
                                     for _, bData in ipairs(blocksByLayer[y]) do
-                                        local posX = math.floor(bData.Coord.X + 0.5)
-                                        local posZ = math.floor(bData.Coord.Z + 0.5)
-                                        if (posX + posZ) % 2 == 0 then
-                                            nextActiveY = y
-                                            break
-                                        end
+                                        local posX = math.floor(bData.Coord.X + 0.5) local posZ = math.floor(bData.Coord.Z + 0.5)
+                                        if (posX + posZ) % 2 == 0 then nextActiveY = y break end
                                     end
                                     if nextActiveY then break end
                                 end
-                                
                                 if nextActiveY then
                                     for _, bData in ipairs(blocksByLayer[nextActiveY]) do
-                                        local posX = math.floor(bData.Coord.X + 0.5)
-                                        local posZ = math.floor(bData.Coord.Z + 0.5)
+                                        local posX = math.floor(bData.Coord.X + 0.5) local posZ = math.floor(bData.Coord.Z + 0.5)
                                         if (posX + posZ) % 2 == 0 then table.insert(validTargets, bData) end
                                     end
                                     for _, chest in ipairs(allChests) do
                                         if not MiningNow[chest] then
                                             local coord = chest:GetAttribute("Coord") or (chest:IsA("Model") and chest.PrimaryPart and chest.PrimaryPart:GetAttribute("Coord"))
-                                            if coord and coord.Y == nextActiveY then
-                                                table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true })
-                                            end
+                                            if coord and coord.Y == nextActiveY then table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true }) end
                                         end
                                     end
                                 end
@@ -814,34 +617,24 @@ task.spawn(function()
                         end
                     end
                 else
-                    local blocksByLayer = {}
-                    local layersOrder = {}
+                    local blocksByLayer = {} local layersOrder = {}
                     for _, block in ipairs(allBlocks) do
                         if block.Name == "Part" and block:IsA("BasePart") and not MiningNow[block] then
                             local coord = block:GetAttribute("Coord")
                             if coord and coord.Y > 1 then
                                 local layerY = coord.Y
-                                if not blocksByLayer[layerY] then
-                                    blocksByLayer[layerY] = {}
-                                    table.insert(layersOrder, layerY)
-                                end
+                                if not blocksByLayer[layerY] then blocksByLayer[layerY] = {} table.insert(layersOrder, layerY) end
                                 table.insert(blocksByLayer[layerY], { Instance = block, Coord = coord, IsChest = false })
                             end
                         end
                     end
-                    
                     table.sort(layersOrder, function(a, b) return a < b end)
                     local nextActiveY = layersOrder[1]
-                    
-                    if nextActiveY then
-                        for _, bData in ipairs(blocksByLayer[nextActiveY]) do table.insert(validTargets, bData) end
-                    end
+                    if nextActiveY then for _, bData in ipairs(blocksByLayer[nextActiveY]) do table.insert(validTargets, bData) end end
                     for _, chest in ipairs(allChests) do
                         if not MiningNow[chest] then
                             local coord = chest:GetAttribute("Coord") or (chest:IsA("Model") and chest.PrimaryPart and chest.PrimaryPart:GetAttribute("Coord"))
-                            if coord and coord.Y > 1 then
-                                table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true })
-                            end
+                            if coord and coord.Y > 1 then table.insert(validTargets, 1, { Instance = chest, Coord = coord, IsChest = true }) end
                         end
                     end
                 end
@@ -849,29 +642,20 @@ task.spawn(function()
                 local processedCount = 0
                 for _, targetData in ipairs(validTargets) do
                     if not targetData.IsChest and DigSettings.MaxBlocks > 0 and processedCount >= DigSettings.MaxBlocks then break end
-                    local target = targetData.Instance
-                    local coord = targetData.Coord
-                    local isChest = targetData.IsChest
-                    
-                    MiningNow[target] = true
-                    if not isChest then processedCount = processedCount + 1 end
+                    local target = targetData.Instance local coord = targetData.Coord local isChest = targetData.IsChest
+                    MiningNow[target] = true if not isChest then processedCount = processedCount + 1 end
                     
                     task.spawn(function()
                         local exists = isChest and target:IsDescendantOf(activeChestsPath) or (not isChest and target and target.Parent == activeBlocksPath)
                         if exists then
                             local blockVector = vector.create(coord.X, coord.Y, coord.Z)
                             local comandoRede = isChest and "DigChest" or "DigBlock"
-                            
-                            for i = 1, DigSettings.HitsPerBlock do
-                                LibraryNetwork.Fire("Instancing_FireCustomFromClient", "Digsite", comandoRede, blockVector)
-                            end
-                            
+                            for i = 1, DigSettings.HitsPerBlock do LibraryNetwork.Fire("Instancing_FireCustomFromClient", "Digsite", comandoRede, blockVector) end
                             local frameTimeout = 0
                             while frameTimeout < (isChest and 20 or 10) do
                                 local stillExists = isChest and target:IsDescendantOf(activeChestsPath) or (not isChest and target and target.Parent == activeBlocksPath)
                                 if not stillExists then break end
-                                task.wait()
-                                frameTimeout = frameTimeout + 1
+                                task.wait() frameTimeout = frameTimeout + 1
                             end
                         end
                         MiningNow[target] = nil
@@ -884,31 +668,30 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- CRIAÇÃO DAS ABAS E ELEMENTOS DA INTERFACE (Rayfield Elements)
+-- INTERFACE (Rayfield Elements)
 -- ============================================================================
 
--- 1. ABA FARM
 local FarmTab = Window:CreateTab("Farm", 4483362458)
-
 FarmTab:CreateToggle({
    Name = "Auto Collect Orbs & Lootbags",
    CurrentValue = false,
    Flag = "ToggleAutoCollect",
-   Callback = function(Value)
-      _G.AutoCollect = Value
-   end,
+   Callback = function(Value) _G.AutoCollect = Value end,
 })
 
--- 2. ABA EGGS 
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
-
 EggsTab:CreateDropdown({
    Name = "Selecionar Egg",
    Options = eggOptions,
    CurrentOption = eggOptions[1] or "",
    Flag = "EggSelectedDropdown",
    Callback = function(Option)
-      _G.EggSelected = Option
+      -- Desembaraça o bug da table no Rayfield
+      if type(Option) == "table" then
+          _G.EggSelected = Option[1]
+      else
+          _G.EggSelected = Option
+      end
    end,
 })
 
@@ -918,21 +701,23 @@ EggsTab:CreateDropdown({
    CurrentOption = "1",
    Flag = "EggMultiplierManualSelect",
    Callback = function(Option)
-      if Option == "Max" then 
+      -- Mesmo tratamento pra evitar bug
+      local opt = type(Option) == "table" and Option[1] or Option
+      if opt == "Max" then 
           _G.EggMultiplier = "Max"
       else 
-          _G.EggMultiplier = tonumber(Option) or 1 
+          _G.EggMultiplier = tonumber(opt) or 1 
       end
    end,
 })
 
 EggsTab:CreateInput({
    Name = "Digitar Qtd Ovos Customizada",
-   PlaceholderText = "Digite o valor numérico (Ex: 5)",
+   PlaceholderText = "Ex: Se tiver gamepass, digite 4",
    RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      local num = tonumber(Text)
-      if num then _G.EggMultiplier = num end
+   Callback = function(Text) 
+       local num = tonumber(Text) 
+       if num then _G.EggMultiplier = num end 
    end,
 })
 
@@ -940,158 +725,98 @@ EggToggle = EggsTab:CreateToggle({
    Name = "Auto Abrir Eggs",
    CurrentValue = false,
    Flag = "ToggleAutoEgg",
-   Callback = function(Value)
-      _G.AutoEgg = Value
-   end,
+   Callback = function(Value) _G.AutoEgg = Value end,
 })
 
--- 3. ABA DIG
 local DigTab = Window:CreateTab("Auto Dig", 4483362458)
-
 DigTab:CreateToggle({
    Name = "Ativar Auto-Dig",
    CurrentValue = false,
    Flag = "AutoDigActive",
    Callback = function(Value)
       DigSettings.Enabled = Value
-      if not Value then 
-          table.clear(MiningNow) 
-          shaftX = nil
-          shaftZ = nil
-      end
+      if not Value then table.clear(MiningNow) shaftX = nil shaftZ = nil end
    end,
 })
-
 DigTab:CreateToggle({
    Name = "Modo Xadrez Avançado",
    CurrentValue = false,
    Flag = "ChessboardMode",
-   Callback = function(Value)
-      DigSettings.Chessboard = Value
-      if not Value then
-          shaftX = nil
-          shaftZ = nil
-      end
-   end,
+   Callback = function(Value) DigSettings.Chessboard = Value if not Value then shaftX = nil shaftZ = nil end end,
 })
-
 DigTab:CreateInput({
    Name = "Começar Xadrez na Camada:",
    PlaceholderText = "Ex: 70",
    RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      local num = tonumber(Text)
-      if num then DigSettings.TargetLayer = num end
-   end,
+   Callback = function(Text) local num = tonumber(Text) if num then DigSettings.TargetLayer = num end end,
 })
-
 DigTab:CreateInput({
    Name = "Velocidade Mineração (Segundos)",
    PlaceholderText = "Padrão: 0.01",
    RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      local num = tonumber(Text)
-      if num then DigSettings.Delay = num end
-   end,
+   Callback = function(Text) local num = tonumber(Text) if num then DigSettings.Delay = num end end,
 })
-
 DigTab:CreateInput({
    Name = "Blocos Simultâneos",
    PlaceholderText = "Padrão: 8",
    RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      local num = tonumber(Text)
-      if num then DigSettings.MaxBlocks = num end
-   end,
+   Callback = function(Text) local num = tonumber(Text) if num then DigSettings.MaxBlocks = num end end,
 })
 
--- 4. ABA AUTO CLICK
 local AutoClickTab = Window:CreateTab("Auto Click", 4483362458)
-
 AutoClickTab:CreateToggle({
    Name = "Ativar Auto Click Perfeito",
    CurrentValue = false,
    Flag = "AutoClickPerfectState",
-   Callback = function(Value)
-      ClickSettings.Enabled = Value
-   end,
+   Callback = function(Value) ClickSettings.Enabled = Value end,
 })
-
 AutoClickTab:CreateInput({
-   Name = "Qtd Breakables por Vez (1 = Modo Único)",
-   PlaceholderText = "Digite a quantidade (Padrão: 1)",
+   Name = "Qtd Breakables por Vez",
+   PlaceholderText = "Padrão: 1",
    RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      local num = tonumber(Text)
-      if num then ClickSettings.MaxBreakables = num end
-   end,
+   Callback = function(Text) local num = tonumber(Text) if num then ClickSettings.MaxBreakables = num end end,
 })
-
 AutoClickTab:CreateInput({
    Name = "Velocidade do Clique (Segundos)",
-   PlaceholderText = "Digite o delay (Padrão: 0.1)",
+   PlaceholderText = "Padrão: 0.1",
    RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      local num = tonumber(Text)
-      if num then ClickSettings.Delay = num end
-   end,
+   Callback = function(Text) local num = tonumber(Text) if num then ClickSettings.Delay = num end end,
 })
 
--- 5. ABA TELEPORTE
 local TeleportTab = Window:CreateTab("Teleporte", 4483362458)
 local TPDropdown 
-
 local function AtualizarListaDropdown()
     local ids = {}
-    for i = 1, #TeleportSettings.Points do
-        table.insert(ids, TeleportSettings.Points[i].id)
-    end
-    if TPDropdown then
-        TPDropdown:Refresh(ids, true)
-    end
+    for i = 1, #TeleportSettings.Points do table.insert(ids, TeleportSettings.Points[i].id) end
+    if TPDropdown then TPDropdown:Refresh(ids, true) end
 end
 
 TeleportTab:CreateToggle({
    Name = "Ativar Loop de Rotas",
    CurrentValue = false,
    Flag = "RouteLoopActive",
-   Callback = function(Value)
-      TeleportSettings.Enabled = Value
-   end,
+   Callback = function(Value) TeleportSettings.Enabled = Value end,
 })
-
 TeleportTab:CreateButton({
    Name = "Definir Coordenada 'Home'",
    Callback = function()
-      local character = Players.LocalPlayer.Character
-      local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-      if rootPart then
-          TeleportSettings.Home = rootPart.CFrame
-          saveTeleportData() 
-      end
+      local character = Players.LocalPlayer.Character local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+      if rootPart then TeleportSettings.Home = rootPart.CFrame saveTeleportData() end
    end,
 })
-
 TeleportTab:CreateButton({
    Name = "Salvar Coordenada Atual da Rota",
-   Callback = function()
-      task.spawn(function()
-          MonitorarTempoParado()
-          AtualizarListaDropdown()
-      end)
-   end,
+   Callback = function() task.spawn(function() MonitorarTempoParado() AtualizarListaDropdown() end) end,
 })
-
 TPDropdown = TeleportTab:CreateDropdown({
    Name = "Gerenciar Pontos Salvos",
    Options = {},
    CurrentOption = "",
    Flag = "PointRouteList",
    Callback = function(Option)
-      TeleportSettings.SelectedPoint = Option
+       if type(Option) == "table" then TeleportSettings.SelectedPoint = Option[1] else TeleportSettings.SelectedPoint = Option end
    end,
 })
-
 AtualizarListaDropdown()
 
 TeleportTab:CreateButton({
@@ -1099,49 +824,33 @@ TeleportTab:CreateButton({
    Callback = function()
       if TeleportSettings.SelectedPoint then
           for i = #TeleportSettings.Points, 1, -1 do
-              if TeleportSettings.Points[i].id == TeleportSettings.SelectedPoint then
-                  table.remove(TeleportSettings.Points, i)
-                  break
-              end
+              if TeleportSettings.Points[i].id == TeleportSettings.SelectedPoint then table.remove(TeleportSettings.Points, i) break end
           end
-          TeleportSettings.SelectedPoint = nil
-          saveTeleportData() 
-          AtualizarListaDropdown()
+          TeleportSettings.SelectedPoint = nil saveTeleportData() AtualizarListaDropdown()
       end
    end,
 })
 
--- 6. ABA MERCHANT
 local MerchantTab = Window:CreateTab("Merchant", 4483362458)
-
 MerchantTab:CreateToggle({
    Name = "Merchant Mystery",
    CurrentValue = false,
    Flag = "ToggleAutoMysteryMerchant",
-   Callback = function(Value)
-      _G.AutoMysteryMerchant = Value
-   end,
+   Callback = function(Value) _G.AutoMysteryMerchant = Value end,
 })
-
 MerchantTab:CreateToggle({
    Name = "Merchant Normal",
    CurrentValue = false,
    Flag = "ToggleAutoMerchantBuy",
-   Callback = function(Value)
-      _G.AutoMerchantBuy = Value
-   end,
+   Callback = function(Value) _G.AutoMerchantBuy = Value end,
 })
 
--- 7. ABA MISC
 local MiscTab = Window:CreateTab("Misc", 4483362458)
-
 MiscTab:CreateToggle({
    Name = "Auto Claim Free Gifts",
    CurrentValue = false,
    Flag = "ToggleAutoGift",
-   Callback = function(Value)
-      _G.AutoGift = Value
-   end,
+   Callback = function(Value) _G.AutoGift = Value end,
 })
 
 Rayfield:LoadConfiguration()
