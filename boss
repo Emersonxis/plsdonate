@@ -1,10 +1,10 @@
 -- =============================================================================
--- HUB VERSÃO: 0.0.8 "Clean Egg Name Purchase Fix"
+-- HUB VERSÃO: 0.0.9 "Ultimate Egg Purchase Verification & Fix"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
 -- =============================================================================
 
 -- =============================================================================
--- 1. ANTI-REJOIN / ANTI-TELEPORT (Bloqueio Nativo Injetado no Topo)
+-- 1. ANTI-REJOIN / ANTI-TELEPORT
 -- =============================================================================
 local TeleportService = game:GetService("TeleportService")
 local metodosTeleporte = {"Teleport", "TeleportToPlaceInstance", "TeleportAsync", "TeleportToSpawnPoint", "TeleportToPrivateServer"}
@@ -12,9 +12,7 @@ local metodosTeleporte = {"Teleport", "TeleportToPlaceInstance", "TeleportAsync"
 for _, nomeMetodo in ipairs(metodosTeleporte) do
     pcall(function()
         if TeleportService[nomeMetodo] then
-            hookfunction(TeleportService[nomeMetodo], function(...)
-                return nil
-            end)
+            hookfunction(TeleportService[nomeMetodo], function(...) return nil end)
         end
     end)
 end
@@ -25,7 +23,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.0.8",
+   Name = "FrancesS Tools | v0.0.9",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -33,9 +31,7 @@ local Window = Rayfield:CreateWindow({
       FolderName = "FrancesSToolsConfigs",
       FileName = "saveconfig"
    },
-   Discord = {
-      Enabled = false
-   }
+   Discord = { Enabled = false }
 })
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -89,29 +85,10 @@ _G.AutoGift = false
 _G.AutoMysteryMerchant = false
 _G.AutoMerchantBuy = false
 
-local DigSettings = {
-    Enabled = false,
-    Delay = 0.01,
-    MaxBlocks = 8,
-    HitsPerBlock = 3,
-    Chessboard = false,
-    TargetLayer = 70,
-}
+local DigSettings = { Enabled = false, Delay = 0.01, MaxBlocks = 8, HitsPerBlock = 3, Chessboard = false, TargetLayer = 70 }
+local ClickSettings = { Enabled = false, Multipler = 1, Delay = 0.1, MaxDistance = 100, MaxBreakables = 1 }
+local TeleportSettings = { Enabled = false, Home = nil, Points = {}, SelectedPoint = nil }
 
-local ClickSettings = {
-    Enabled = false,
-    Multipler = 1,        
-    Delay = 0.1,          
-    MaxDistance = 100,    
-    MaxBreakables = 1,    
-}
-
-local TeleportSettings = {
-    Enabled = false,
-    Home = nil,
-    Points = {}, 
-    SelectedPoint = nil
-}
 local wasEggActiveBeforeRoute = false 
 local wasEggActiveBeforeMerchant = false
 local hasBoughtThisSpawn = false
@@ -122,22 +99,24 @@ local shaftX, shaftZ = nil, nil
 local FILE_NAME = "FrancesSTools_Teleports.json"
 
 -- ============================================================================
--- FUNÇÃO CORRIGIDA: LIMPEZA ABSOLUTA DO NOME DO EGG (EX: "1 | Cracked Egg" -> "Cracked Egg")
+-- FUNÇÃO DE LIMPEZA ULTRA-AGRESSIVA PARA SANEAMENTO DO NOME DO EGG
 -- ============================================================================
 local function getEggPurchaseName(eggSelectedStr)
     if not eggSelectedStr or eggSelectedStr == "" then return "" end
     
-    -- Se contiver uma barra vertical '|', captura apenas o que estiver depois dela
-    if string.find(eggSelectedStr, "|") then
-        local clean = string.match(eggSelectedStr, "|%s*(.+)")
-        if clean then
-            -- Remove possíveis espaços extras nas pontas e retorna
-            return string.gsub(clean, "^%s*(.-)%s*$", "%1")
-        end
+    local clean = eggSelectedStr
+    -- Se tiver o pipe '|', isola o lado direito
+    if string.find(clean, "|") then
+        clean = string.match(clean, "|%s*(.+)") or clean
     end
     
-    -- Se não tiver barra, remove apenas espaços extras e envia direto
-    return string.gsub(eggSelectedStr, "^%s*(.-)%s*$", "%1")
+    -- Se ainda houver números grudados na frente por algum motivo, remove
+    clean = string.gsub(clean, "^%d+%s*", "")
+    
+    -- Corta espaços inúteis antes e depois do nome textual
+    clean = string.gsub(clean, "^%s*(.-)%s*$", "%1")
+    
+    return clean
 end
 
 -- ============================================================================
@@ -396,39 +375,32 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO EGG COM ENVIO DE NOME TOTALMENTE LIMPO
+-- LÓGICA REFORMULADA: AUTO EGG DIRETO SEM DEPENDÊNCIAS DE SISTEMA EXTERNO
 -- ============================================================================
 task.spawn(function()
     while true do
         if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" and _G.EggSelected ~= "Nenhum Egg Encontrado" then
             local net = getNetwork()
             if net then
-                -- Obtém o nome 100% puro (Sem IDs na frente)
                 local nomeRealCompra = getEggPurchaseName(_G.EggSelected)
-                local quant = _G.EggMultiplier
                 
+                -- Se for Max, força temporariamente para 1 para evitar travar o require() móvel
+                local quant = _G.EggMultiplier
                 if quant == "Max" then
-                    pcall(function()
-                        local EggCmds = ReplicatedStorage:FindFirstChild("Library") and ReplicatedStorage.Library:FindFirstChild("Client") and ReplicatedStorage.Library.Client:FindFirstChild("EggCmds")
-                        if EggCmds then
-                            local mod = require(EggCmds)
-                            if mod and mod.GetMaxHatch then quant = mod.GetMaxHatch() end
-                        end
-                    end)
-                    if type(quant) ~= "number" then quant = 1 end
+                    quant = 1
+                else
+                    quant = tonumber(_G.EggMultiplier) or 1
                 end
                 
                 if nomeRealCompra and nomeRealCompra ~= "" then
-                    -- Dispara o Invoke idêntico ao modelo mapeado pelo SimpleSpy
-                    task.spawn(function()
-                        pcall(function()
-                            net.Invoke("Eggs_RequestPurchase", nomeRealCompra, quant)
-                        end)
+                    -- Chamada purificada idêntica ao SimpleSpy e sem fracionar em task.spawn interna
+                    pcall(function()
+                        net.Invoke("Eggs_RequestPurchase", nomeRealCompra, quant)
                     end)
                 end
             end
         end
-        task.wait(0.2) -- Mantém estabilidade móvel para evitar kicks
+        task.wait(0.3) -- Delay seguro para o processador mobile registrar a compra
     end
 end)
 
@@ -731,7 +703,7 @@ FarmTab:CreateToggle({
    Callback = function(Value) _G.AutoCollect = Value end,
 })
 
--- 2. ABA EGGS (NOME DO OVO CORRIGIDO!)
+-- 2. ABA EGGS (NOTIFICAÇÕES DE FEEDBACK INCLUSAS)
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
 EggsTab:CreateDropdown({
    Name = "Selecionar Egg",
@@ -739,7 +711,11 @@ EggsTab:CreateDropdown({
    CurrentOption = eggOptions[1] or "",
    Flag = "EggSelectedDropdown",
    Callback = function(Option)
-      if Option ~= "Nenhum Egg Encontrado" then _G.EggSelected = Option else _G.EggSelected = "" end
+      if Option ~= "Nenhum Egg Encontrado" then 
+          _G.EggSelected = Option 
+      else 
+          _G.EggSelected = "" 
+      end
    end,
 })
 
@@ -749,8 +725,11 @@ EggsTab:CreateDropdown({
    CurrentOption = "1x",
    Flag = "EggMultiplierManualSelect",
    Callback = function(Option)
-      if Option == "Max" then _G.EggMultiplier = "Max"
-      else _G.EggMultiplier = tonumber(string.match(Option, "%d+")) or 1 end
+      if Option == "Max" then 
+          _G.EggMultiplier = "Max"
+      else 
+          _G.EggMultiplier = tonumber(string.match(Option, "%d+")) or 1 
+      end
    end,
 })
 
@@ -758,14 +737,30 @@ EggsTab:CreateInput({
    Name = "Digitar Qtd Ovos Customizada",
    PlaceholderText = "Digite o valor numérico (Ex: 2)",
    RemoveTextAfterFocusLost = false,
-   Callback = function(Text) local num = tonumber(Text) if num then _G.EggMultiplier = num end end,
+   Callback = function(Text) 
+       local num = tonumber(Text) 
+       if num then 
+           _G.EggMultiplier = num 
+       end 
+   end,
 })
 
 EggToggle = EggsTab:CreateToggle({
    Name = "Auto Abrir Eggs (Distância Global)",
    CurrentValue = false,
    Flag = "ToggleAutoEgg",
-   Callback = function(Value) _G.AutoEgg = Value end,
+   Callback = function(Value) 
+       _G.AutoEgg = Value 
+       if Value then
+           local nomeLimpo = getEggPurchaseName(_G.EggSelected)
+           Rayfield:Notify({
+               Title = "Auto Egg Ativado!",
+               Content = "Alvo: " .. tostring(nomeLimpo) .. " | Qtd: " .. tostring(_G.EggMultiplier),
+               Duration = 4,
+               Image = 4483362458,
+           })
+       end
+   end,
 })
 
 -- 3. ABA DIG
