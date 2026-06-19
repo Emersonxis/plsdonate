@@ -1,5 +1,5 @@
 -- =============================================================================
--- HUB VERSÃO: 0.0.5 "Fixed Egg Structure & Merchant Restored"
+-- HUB VERSÃO: 0.0.6 "Global Distance Hatch Test"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
 -- =============================================================================
 
@@ -25,7 +25,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.0.5",
+   Name = "FrancesS Tools | v0.0.6",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -111,24 +111,8 @@ local LibraryNetwork = Network
 local FILE_NAME = "FrancesSTools_Teleports.json"
 
 -- ============================================================================
--- FUNÇÕES DE TRATAMENTO DOS EGGS (PONTE INTERFACE -> WORKSPACE)
+-- FUNÇÕES DE TRATAMENTO DOS EGGS (EXTRAÇÃO DO NOME LIMPO)
 -- ============================================================================
-local function getEggCapsule(eggSelectedStr)
-    if not eggSelectedStr or eggSelectedStr == "" or eggSelectedStr == "Nenhum Egg Encontrado" then return nil end
-    local num = string.match(eggSelectedStr, "^(%d+)")
-    if not num then return nil end
-    
-    local capsuleName = num .. " - Egg Capsule"
-    local things = Workspace:FindFirstChild("__THINGS")
-    local eggsFolder = things and things:FindFirstChild("Eggs")
-    local mainEggs = eggsFolder and eggsFolder:FindFirstChild("Main")
-    
-    if mainEggs then
-        return mainEggs:FindFirstChild(capsuleName)
-    end
-    return nil
-end
-
 local function getEggPurchaseName(eggSelectedStr)
     if not eggSelectedStr or eggSelectedStr == "" then return "" end
     local cleanName = string.match(eggSelectedStr, "^%d+%s*|%s*(.+)")
@@ -389,31 +373,18 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: VALIDADOR DINÂMICO DE EGG COM CORREÇÃO DE INFRAESTRUTURA
+-- LÓGICA INTERNA: AUTO EGG SEM TRAVA DE PROXIMIDADE (TESTE INFINITO)
 -- ============================================================================
 task.spawn(function()
     while true do
         if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" and _G.EggSelected ~= "Nenhum Egg Encontrado" then
-            local dentroDoRaio = false
             local nomeRealCompra = ""
             
             pcall(function()
-                local capsule = getEggCapsule(_G.EggSelected)
                 nomeRealCompra = getEggPurchaseName(_G.EggSelected)
-                
-                if capsule then
-                    local character = Players.LocalPlayer.Character
-                    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-                    if rootPart then
-                        local capsulePos = capsule:GetPivot().Position
-                        if (rootPart.Position - capsulePos).Magnitude <= 50 then
-                            dentroDoRaio = true
-                        end
-                    end
-                end
             end)
             
-            if dentroDoRaio and nomeRealCompra ~= "" then
+            if nomeRealCompra and nomeRealCompra ~= "" then
                 pcall(function()
                     local quant = _G.EggMultiplier
                     if quant == "Max" then
@@ -426,6 +397,7 @@ task.spawn(function()
                         end)
                         if type(quant) ~= "number" then quant = 1 end
                     end
+                    -- Dispara diretamente sem checar distância do jogador
                     Network.Invoke("Eggs_RequestPurchase", nomeRealCompra, quant)
                 end)
             end
@@ -466,7 +438,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: GERENCIADOR E BUSCA DO MYSTERY MERCHANT (RESTAURADO!)
+-- SCRIPT DE SEGUNDO PLANO: GERENCIADOR E BUSCA DO MYSTERY MERCHANT
 -- ============================================================================
 local function findMysteryMerchant()
     local map = Workspace:FindFirstChild("Map")
@@ -517,7 +489,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: AUTO MERCHANT REGULAR (RESTAURADO!)
+-- SCRIPT DE SEGUNDO PLANO: AUTO MERCHANT REGULAR
 -- ============================================================================
 task.spawn(function()
     while true do
@@ -731,7 +703,7 @@ FarmTab:CreateToggle({
    Callback = function(Value) _G.AutoCollect = Value end,
 })
 
--- 2. ABA EGGS (FIXED E REAL!)
+-- 2. ABA EGGS (HATCH SEM DISTÂNCIA)
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
 EggsTab:CreateDropdown({
    Name = "Selecionar Egg",
@@ -762,7 +734,7 @@ EggsTab:CreateInput({
 })
 
 EggToggle = EggsTab:CreateToggle({
-   Name = "Auto Abrir Eggs (Max 50 Studs)",
+   Name = "Auto Abrir Eggs (Distância Global)",
    CurrentValue = false,
    Flag = "ToggleAutoEgg",
    Callback = function(Value) _G.AutoEgg = Value end,
@@ -872,7 +844,7 @@ TeleportTab:CreateButton({
    end,
 })
 
--- 6. ABA MERCHANT (RESTAURADA INTEGRALMENTE)
+-- 6. ABA MERCHANT
 local MerchantTab = Window:CreateTab("Merchant", 4483362458)
 MerchantTab:CreateToggle({
    Name = "Merchant Mystery",
