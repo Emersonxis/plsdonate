@@ -1,7 +1,7 @@
 -- =============================================================================
--- HUB VERSÃO: 0.0.4 "Pet Squad Y"
+-- HUB VERSÃO: 0.0.5 "Pet Squad Y"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
--- NOTA: Blindagem contra Infinite Yields para garantir carregamento imediato.
+-- CORREÇÃO: Sistema dinâmico e inteligente de detecção de proximidade de Eggs
 -- =============================================================================
 
 -- =============================================================================
@@ -26,7 +26,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.0.4",
+   Name = "FrancesS Tools | v0.0.5",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -280,7 +280,7 @@ task.spawn(function()
                             end
                         end)
                         
-                        local inicio = os.clock()
+                        local inicio = os clock()
                         while os.clock() - inicio < ClickSettings.Delay and not foiQuebrado and ClickSettings.Enabled do
                             task.wait() 
                         end
@@ -496,12 +496,16 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: VALIDADOR DE DISTÂNCIA E COMPRA DO EGG (MÁXIMO 50 STUDS)
+-- LÓGICA INTERNA: VALIDADOR DE DISTÂNCIA E COMPRA DO EGG (CORRIGIDO v0.0.5)
 -- ============================================================================
+local function limparNomeEgg(nome)
+    if not nome then return "" end
+    return string.gsub(nome, "^%d+%s*[%-%|%s]+", "")
+end
+
 local function getEggCapsule(eggName)
     if not eggName or eggName == "" then return nil end
-    local prefix = string.match(eggName, "^([^%s|%-]+)")
-    if not prefix then return nil end
+    local nomeOvoLimpo = string.lower(limparNomeEgg(eggName))
     
     local things = Workspace:FindFirstChild("__THINGS")
     local zoneEggs = things and things:FindFirstChild("ZoneEggs")
@@ -509,8 +513,8 @@ local function getEggCapsule(eggName)
     
     if mainEggs then
         for _, capsule in ipairs(mainEggs:GetChildren()) do
-            local capPrefix = string.match(capsule.Name, "^([^%s|%-]+)")
-            if capPrefix == prefix then
+            local nomeCapsuleLimpo = string.lower(limparNomeEgg(capsule.Name))
+            if nomeOvoLimpo == nomeCapsuleLimpo or string.find(nomeOvoLimpo, nomeCapsuleLimpo, 1, true) or string.find(nomeCapsuleLimpo, nomeOvoLimpo, 1, true) then
                 return capsule
             end
         end
@@ -522,13 +526,15 @@ task.spawn(function()
     while true do
         if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" and Network then
             local dentroDoRaio = false
+            local capsuleEncontrada = nil
+            
             pcall(function()
-                local capsule = getEggCapsule(_G.EggSelected)
-                if capsule then
+                capsuleEncontrada = getEggCapsule(_G.EggSelected)
+                if capsuleEncontrada then
                     local character = Players.LocalPlayer.Character
                     local rootPart = character and character:FindFirstChild("HumanoidRootPart")
                     if rootPart then
-                        local capsulePos = capsule:GetPivot().Position
+                        local capsulePos = capsuleEncontrada:GetPivot().Position
                         if (rootPart.Position - capsulePos).Magnitude <= 50 then
                             dentroDoRaio = true
                         end
@@ -536,7 +542,7 @@ task.spawn(function()
                 end
             end)
             
-            if dentroDoRaio then
+            if dentroDoRaio and capsuleEncontrada then
                 pcall(function()
                     local finalAmount = _G.EggMultiplier
                     if finalAmount == "Max" then
@@ -548,11 +554,13 @@ task.spawn(function()
                     end
                     
                     finalAmount = (type(finalAmount) == "number" and finalAmount > 0) and finalAmount or 1
+                    
+                    -- Dispara o Invoke usando a seleção mapeada e limpa pelo script
                     Network.Invoke("Eggs_RequestPurchase", _G.EggSelected, finalAmount)
                 end)
             end
         end
-        task.wait(0.01)
+        task.wait(0.05)
     end
 end)
 
