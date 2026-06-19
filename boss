@@ -1,7 +1,7 @@
 -- =============================================================================
--- HUB VERSÃO: 0.0.1 "Pet Squad Y"
+-- HUB VERSÃO: 0.0.3 "Pet Squad Y"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
--- NOTA: Todos os logs/prints removidos para evitar vazamento de memória.
+-- NOTA: Foco em estabilidade e integração do módulo nativo EggCmds.
 -- =============================================================================
 
 -- =============================================================================
@@ -26,7 +26,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.0.1",
+   Name = "FrancesS Tools | v0.0.3",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -39,10 +39,48 @@ local Window = Rayfield:CreateWindow({
    }
 })
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local Network = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("Network"))
+
+-- [[ EXTRAÇÃO SEGURA DO MÓDULO EGGCMDS PARA VALIDAÇÃO ]]
+local EggCmds = nil
+pcall(function()
+    local library = ReplicatedStorage:WaitForChild("Library", 10)
+    local clientMod = library and library:WaitForChild("Client", 10)
+    if clientMod then
+        EggCmds = require(clientMod:WaitForChild("EggCmds", 10))
+    end
+end)
+
+-- [[ LEITURA DINÂMICA DA PASTA DE EGGS ]]
+local eggOptions = {}
+pcall(function()
+    local directory = ReplicatedStorage:WaitForChild("__DIRECTORY", 5)
+    local eggsFolder = directory and directory:WaitForChild("Eggs", 5)
+    if eggsFolder then
+        for _, egg in ipairs(eggsFolder:GetChildren()) do
+            table.insert(eggOptions, egg.Name)
+        end
+        table.sort(eggOptions, function(a, b)
+            local numA = tonumber(string.match(a, "^(%d+)")) or 0
+            local numB = tonumber(string.match(b, "^(%d+)")) or 0
+            if numA ~= numB then return numA < numB end
+            return a < b
+        end)
+    end
+end)
+
+if #eggOptions == 0 then
+    eggOptions = {"Nenhum Egg Encontrado"}
+end
+
 -- [[ VARIÁVEIS GLOBAIS E CONFIGURAÇÕES ]]
 _G.AutoCollect = false
 _G.AutoEgg = false
-_G.EggSelected = "Relic Egg"
+_G.EggSelected = eggOptions[1] ~= "Nenhum Egg Encontrado" and eggOptions[1] or ""
 _G.EggMultiplier = 1 
 _G.AutoGift = false   
 _G.AutoMysteryMerchant = false
@@ -77,12 +115,6 @@ local wasEggActiveBeforeRoute = false
 local wasEggActiveBeforeMerchant = false
 local hasBoughtThisSpawn = false
 local EggToggle = nil                  
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-local Network = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("Network"))
 
 local MiningNow = {}
 local shaftX, shaftZ = nil, nil
@@ -454,14 +486,64 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA INTERNA: AUTO EGG PURCHASER
+-- LÓGICA INTERNA: VALIDADOR DE DISTÂNCIA E COMPRA DO EGG (MÁXIMO 50 STUDS)
 -- ============================================================================
+local function getEggCapsule(eggName)
+    if not eggName or eggName == "" then return nil end
+    local prefix = string.match(eggName, "^([^%s|%-]+)")
+    if not prefix then return nil end
+    
+    local things = Workspace:FindFirstChild("__THINGS")
+    local zoneEggs = things and things:FindFirstChild("ZoneEggs")
+    local mainEggs = zoneEggs and zoneEggs:FindFirstChild("Main")
+    
+    if mainEggs then
+        for _, capsule in ipairs(mainEggs:GetChildren()) do
+            local capPrefix = string.match(capsule.Name, "^([^%s|%-]+)")
+            if capPrefix == prefix then
+                return capsule
+            end
+        end
+    end
+    return nil
+end
+
 task.spawn(function()
     while true do
         if _G.AutoEgg and _G.EggSelected and _G.EggSelected ~= "" then
+            local dentroDoRaio = false
             pcall(function()
-                Network.Invoke("Eggs_RequestPurchase", _G.EggSelected, _G.EggMultiplier)
+                local capsule = getEggCapsule(_G.EggSelected)
+                if capsule then
+                    local character = Players.LocalPlayer.Character
+                    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+                    if rootPart then
+                        local capsulePos = capsule:GetPivot().Position
+                        if (rootPart.Position - capsulePos).Magnitude <= 50 then
+                            dentroDoRaio = true
+                        end
+                    end
+                end
             end)
+            
+            if dentroDoRaio then
+                pcall(function()
+                    -- [[ SISTEMA ATUALIZADO V0.0.3: VERIFICAÇÃO DO LIMITE MÁXIMO NATIVO ]]
+                    local finalAmount = _G.EggMultiplier
+                    if finalAmount == "Max" then
+                        if EggCmds and EggCmds.GetMaxHatch then
+                            finalAmount = EggCmds.GetMaxHatch()[cite: 2]
+                        else
+                            finalAmount = 1
+                        end
+                    end
+                    
+                    -- Sanitização estrita do valor numérico final
+                    finalAmount = (type(finalAmount) == "number" and finalAmount > 0) and finalAmount or 1
+                    
+                    Network.Invoke("Eggs_RequestPurchase", _G.EggSelected, finalAmount)
+                end)
+            end
         end
         task.wait(0.01)
     end
@@ -849,27 +931,33 @@ FarmTab:CreateToggle({
    end,
 })
 
--- 2. ABA EGGS 
+-- 2. ABA EGGS (ATUALIZADA DINAMICAMENTE V0.0.3)
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
 
-EggsTab:CreateInput({
-   Name = "Nome do Egg",
-   PlaceholderText = "Digite o nome exato (Ex: Relic Egg)",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      _G.EggSelected = Text
+EggsTab:CreateDropdown({
+   Name = "Selecionar Egg",
+   Options = eggOptions,
+   CurrentOption = eggOptions[1] or "",
+   Flag = "EggSelectedDropdown",
+   Callback = function(Option)
+      if Option ~= "Nenhum Egg Encontrado" then
+          _G.EggSelected = Option
+      else
+          _G.EggSelected = ""
+      end
    end,
 })
 
 EggsTab:CreateDropdown({
-   Name = "Quantidade de Ovos (Manual)",
-   Options = {"1x", "2x", "3x"},
+   Name = "Quantidade de Ovos",
+   Options = {"1x", "2x", "3x", "Máximo Dinâmico (Módulo)"},
    CurrentOption = "1x",
    Flag = "EggMultiplierManualSelect",
    Callback = function(Option)
       if Option == "1x" then _G.EggMultiplier = 1
       elseif Option == "2x" then _G.EggMultiplier = 2
       elseif Option == "3x" then _G.EggMultiplier = 3
+      elseif Option == "Máximo Dinâmico (Módulo)" then _G.EggMultiplier = "Max"
       end
    end,
 })
@@ -885,7 +973,7 @@ EggsTab:CreateInput({
 })
 
 EggToggle = EggsTab:CreateToggle({
-   Name = "Auto Abrir Eggs",
+   Name = "Auto Abrir Eggs (Max 50 Studs)",
    CurrentValue = false,
    Flag = "ToggleAutoEgg",
    Callback = function(Value)
