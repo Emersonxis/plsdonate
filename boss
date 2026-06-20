@@ -531,7 +531,7 @@ task.spawn(function()
                         end
                         
                         -- Se passar de 300 segundos, ele desiste deste ovo
-                        if attemptCount > 9999900 then
+                        if attemptCount > 10900 then
                             break
                         end
                     end
