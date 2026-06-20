@@ -1,5 +1,5 @@
 -- =============================================================================
--- HUB VERSÃO: 0.1.7 "Pet Squad Y - Safe Memory Tracker"
+-- HUB VERSÃO: 0.1.8 "Pet Squad Y - The Master Index"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
 -- =============================================================================
 
@@ -23,7 +23,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.1.7",
+   Name = "FrancesS Tools | v0.1.8",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -362,132 +362,104 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA AUTO INDEX (MEMORY READ AVANÇADO)
+-- LÓGICA AUTO INDEX (MEMORY READ AVANÇADO PS99)
 -- ============================================================================
 
-local function playerHasPet(petId, saveData)
-    local found = false
+-- Verifica se o pet deve ser ignorado para o Index (Ovos com Huges/Titanics)
+local function isPetRequiredForIndex(petId)
+    local isRequired = true
     pcall(function()
-        local indexLocations = {
-            saveData.PetIndex, saveData.Index, saveData.UnlockedPets, saveData.Collection,
-            saveData.Save and saveData.Save.PetIndex,
-            saveData.Save and saveData.Save.UnlockedPets,
-            saveData.Save and saveData.Save.Collection
-        }
+        local dirPets = Directory.Pets
+        if type(dirPets) == "function" then dirPets = dirPets() end
         
-        for _, col in ipairs(indexLocations) do
-            if type(col) == "table" then
-                if col[petId] then found = true return end
-                for k, v in pairs(col) do
-                    if v == petId or k == petId then found = true return end
-                    if type(v) == "table" and (v.id == petId or v.Id == petId or (v.data and v.data.id == petId)) then 
-                        found = true return 
-                    end
-                end
-            end
-        end
-        
-        local invLocations = {saveData.Inventory, saveData.Pets, saveData.Save and saveData.Save.Inventory}
-        for _, inv in ipairs(invLocations) do
-            if type(inv) == "table" then
-                for _, pData in pairs(inv) do
-                    if type(pData) == "table" and (pData.id == petId or pData.Id == petId or (pData.data and pData.data.id == petId)) then
-                        found = true return
-                    end
-                end
+        local petData = dirPets[petId]
+        if type(petData) == "table" then
+            -- Métrica oficial do PS99: ignora hidden, secret, huge, titanic e gargantuan
+            if petData.hidden == true or petData.secret == true or petData.exclusiveLevel ~= nil or petData.huge == true or petData.titanic == true or petData.gargantuan == true then
+                isRequired = false
             end
         end
     end)
-    return found
+    return isRequired
 end
 
-local function getPetsForEgg(eggName)
-    local petsList = {}
-    pcall(function()
-        local targetClean = string.gsub(string.lower(eggName), "[%s%p]", "")
-        
-        local dirEggs = Directory.Eggs
-        if type(dirEggs) == "function" then dirEggs = dirEggs() end
-        
-        if type(dirEggs) == "table" then
-            for k, v in pairs(dirEggs) do
-                local vName = type(v) == "table" and (v.name or v.id or (v.data and v.data.id)) or tostring(k)
-                if string.gsub(string.lower(vName), "[%s%p]", "") == targetClean then
-                    local pList = v.pets or v.Pets or (v.data and (v.data.pets or v.data.Pets))
-                    if type(pList) == "table" then
-                        for _, petInfo in pairs(pList) do
-                            local pId = type(petInfo) == "string" and petInfo or (type(petInfo) == "table" and (petInfo[1] or petInfo.id or petInfo.Id))
-                            if pId then table.insert(petsList, pId) end
-                        end
-                    end
-                    break
-                end
-            end
-        end
-        
-        if #petsList == 0 then
-            local dirPets = Directory.Pets
-            if type(dirPets) == "function" then dirPets = dirPets() end
-            
-            if type(dirPets) == "table" then
-                for k, v in pairs(dirPets) do
-                    local eggSource = v.egg or v.Egg or (v.data and (v.data.egg or v.data.Egg))
-                    if eggSource then
-                        local sourceClean = string.gsub(string.lower(tostring(eggSource)), "[%s%p]", "")
-                        if sourceClean == targetClean then
-                            local petId = v.id or v.name or (v.data and v.data.id) or k
-                            if petId then
-                                table.insert(petsList, petId)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end)
-    return petsList
-end
-
-local function checkMissingLive(eggName)
+-- Verifica se o jogador pegou o Pet validando o "PetHatchCount" e "ItemIndex" oficiais
+local function checkMissingLive(eggId, eggName)
     local missing = false
     pcall(function()
         local saveData = SaveMod.Get()
         if not saveData then return end
+
+        local dirEggs = Directory.Eggs
+        if type(dirEggs) == "function" then dirEggs = dirEggs() end
         
-        local petsList = getPetsForEgg(eggName)
+        -- Busca o ovo pela Key exata, por nome limpo ou pelo ID (1 | Cracked Egg)
+        local eggData = dirEggs[eggName] or dirEggs[eggId .. " | " .. eggName]
+        if not eggData then
+            for k, v in pairs(dirEggs) do
+                local vName = type(v) == "table" and (v.name or v.id) or tostring(k)
+                if vName == eggName or string.find(tostring(k), eggName) then
+                    eggData = v
+                    break
+                end
+            end
+        end
+
+        if not eggData then return end
         
-        if #petsList == 0 then return end
-        
-        for _, petId in ipairs(petsList) do
-            if not playerHasPet(petId, saveData) then
-                missing = true
-                return
+        local pList = eggData.pets or eggData.Pets
+        if type(pList) ~= "table" then return end
+
+        local petHatchCount = saveData.PetHatchCount or {}
+        local itemIndex = (saveData.ItemIndex and saveData.ItemIndex.Pet) or {}
+
+        for _, petInfo in pairs(pList) do
+            local petId = type(petInfo) == "string" and petInfo or (type(petInfo) == "table" and (petInfo[1] or petInfo.id))
+            
+            -- Se for um pet válido (Não-Huge/Não-Titanic)
+            if petId and isPetRequiredForIndex(petId) then
+                local isDiscovered = false
+                
+                -- Checagem oficial de descoberta na memória
+                if (tonumber(petHatchCount[petId]) or 0) > 0 then
+                    isDiscovered = true
+                elseif itemIndex[petId] ~= nil then
+                    isDiscovered = true
+                end
+                
+                if not isDiscovered then
+                    missing = true
+                    return -- Falta um, o ovo ainda não está completo
+                end
             end
         end
     end)
     return missing
 end
 
+-- Formata a String do Parágrafo com os ovos faltantes
 local function GetMissingEggsString(eggsTable)
     local missing = {}
     pcall(function()
         for _, eggFolder in ipairs(eggsTable) do
-            local _, namePart = string.match(eggFolder.Name, "^(%d+)%s*|%s*(.+)")
-            if not namePart then namePart = eggFolder.Name end
+            local idStr, namePart = string.match(eggFolder.Name, "^(%d+)%s*|%s*(.+)")
+            if not namePart then namePart = eggFolder.Name idStr = "9999" end
             namePart = string.gsub(namePart, "^%s*(.-)%s*$", "%1")
 
+            -- Ignorar Exclusivos na String para manter limpo
             if not string.find(string.lower(namePart), "exclusive") then
-                if checkMissingLive(namePart) then
+                if checkMissingLive(idStr, namePart) then
                     table.insert(missing, namePart)
                 end
             end
         end
     end)
     
-    if #missing == 0 then return "🎉 Todos os pets normais indexados!" end
+    if #missing == 0 then return "🎉 Todos os pets normais indexados (100%)!" end
     return table.concat(missing, ", ")
 end
 
+-- Loop Principal Inteligente
 task.spawn(function()
     while true do
         if _G.AutoIndex then
@@ -517,9 +489,10 @@ task.spawn(function()
                 local id = idStr
                 local name = namePart
                 
+                -- Ignora completamente os Ovos Exclusivos (Esses não contam pro Index F2P)
                 if string.find(string.lower(name), "exclusive") then continue end
                 
-                if checkMissingLive(name) then
+                if checkMissingLive(idStr, name) then
                     achouAlgoIncompleto = true
                     
                     if CurrentEggLabel then CurrentEggLabel:Set("Abrindo: " .. name) end
@@ -546,15 +519,18 @@ task.spawn(function()
                     _G.AutoEgg = true
                     if EggToggle then EggToggle:Set(true) end
                     
+                    -- Failsafe: Evita travamentos caso o jogo mude de ideia
                     local attemptCount = 0
                     while _G.AutoIndex and not _G.SkipCurrentEgg do
                         task.wait(1)
                         attemptCount = attemptCount + 1
                         
-                        if not checkMissingLive(name) then 
+                        -- Se checkMissingLive der FALSO (Ovo 100%), ele sai na hora
+                        if not checkMissingLive(idStr, name) then 
                             break 
                         end
                         
+                        -- Se passar de 300 segundos, ele desiste deste ovo
                         if attemptCount > 300 then
                             break
                         end
@@ -923,6 +899,7 @@ EggToggle = EggsTab:CreateToggle({
    Callback = function(Value) _G.AutoEgg = Value end,
 })
 
+-- ABA INDEX (Com Design Profissional)
 local IndexTab = Window:CreateTab("Index", 4483362458)
 
 CurrentEggLabel = IndexTab:CreateLabel("Abrindo: Nenhum")
@@ -952,7 +929,7 @@ IndexTab:CreateButton({
 })
 
 MissingEggsParagraph = IndexTab:CreateParagraph({
-   Title = "Ovos com Pets Faltando:",
+   Title = "Ovos Incompletos:",
    Content = "Inicie o Auto Index para verificar..."
 })
 
