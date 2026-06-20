@@ -52,7 +52,6 @@ pcall(function()
     local sortableEggs = {}
     
     for _, egg in ipairs(dirEggs:GetChildren()) do
-        -- Extrai o ID e o Nome (Ex: "1 | Cracked Egg" -> id="1", name="Cracked Egg")
         local idStr, namePart = string.match(egg.Name, "^(%d+)%s*|%s*(.+)")
         
         if not namePart then
@@ -60,13 +59,11 @@ pcall(function()
             idStr = "999"
         end
         
-        -- Garante que não há espaços sobrando
         namePart = string.gsub(namePart, "^%s*(.-)%s*$", "%1")
         
         table.insert(sortableEggs, { id = tonumber(idStr) or 999, name = namePart })
     end
     
-    -- Ordena a lista do ovo 1 até o último
     table.sort(sortableEggs, function(a, b) return a.id < b.id end)
     
     for _, data in ipairs(sortableEggs) do
@@ -92,7 +89,8 @@ local TeleportSettings = { Enabled = false, Home = nil, Points = {}, SelectedPoi
 local wasEggActiveBeforeRoute = false 
 local wasEggActiveBeforeMerchant = false
 local hasBoughtThisSpawn = false
-local EggToggle = nil                  
+local EggToggle = nil
+local EggDropdown = nil -- Variável para atualizar o dropdown pelo botão "Pular"                  
 
 local MiningNow = {}
 local shaftX, shaftZ = nil, nil
@@ -362,7 +360,6 @@ end)
 -- ============================================================================
 task.spawn(function()
     while true do
-        -- Proteção contra envio de Tabelas do Rayfield e Nulos
         local ovoSelecionado = _G.EggSelected
         if type(ovoSelecionado) == "table" then ovoSelecionado = ovoSelecionado[1] end
         
@@ -382,7 +379,7 @@ task.spawn(function()
                 Network.Invoke("Eggs_RequestPurchase", ovoSelecionado, quant)
             end)
         end
-        task.wait(0.2) -- Retornamos ao delay um pouco mais suave (200ms) para não sobrecarregar
+        task.wait(0.2) 
     end
 end)
 
@@ -680,13 +677,12 @@ FarmTab:CreateToggle({
 })
 
 local EggsTab = Window:CreateTab("Eggs", 4483362458)
-EggsTab:CreateDropdown({
+EggDropdown = EggsTab:CreateDropdown({
    Name = "Selecionar Egg",
    Options = eggOptions,
    CurrentOption = eggOptions[1] or "",
    Flag = "EggSelectedDropdown",
    Callback = function(Option)
-      -- Desembaraça o bug da table no Rayfield
       if type(Option) == "table" then
           _G.EggSelected = Option[1]
       else
@@ -701,7 +697,6 @@ EggsTab:CreateDropdown({
    CurrentOption = "1",
    Flag = "EggMultiplierManualSelect",
    Callback = function(Option)
-      -- Mesmo tratamento pra evitar bug
       local opt = type(Option) == "table" and Option[1] or Option
       if opt == "Max" then 
           _G.EggMultiplier = "Max"
@@ -726,6 +721,38 @@ EggToggle = EggsTab:CreateToggle({
    CurrentValue = false,
    Flag = "ToggleAutoEgg",
    Callback = function(Value) _G.AutoEgg = Value end,
+})
+
+-- ABA INDEX (Recriada com a lógica de Pular)
+local IndexTab = Window:CreateTab("Index", 4483362458)
+IndexTab:CreateButton({
+   Name = "Pular para o Próximo Egg",
+   Callback = function()
+      -- Encontra onde estamos na lista
+      local indexAtual = 1
+      local selecionado = type(_G.EggSelected) == "table" and _G.EggSelected[1] or _G.EggSelected
+      
+      for i, nomeOvo in ipairs(eggOptions) do
+          if nomeOvo == selecionado then
+              indexAtual = i
+              break
+          end
+      end
+      
+      -- Pula pro próximo
+      local proximoIndex = indexAtual + 1
+      if proximoIndex > #eggOptions then
+          proximoIndex = 1 -- Volta pro início se passar do limite
+      end
+      
+      local proximoOvo = eggOptions[proximoIndex]
+      _G.EggSelected = proximoOvo
+      
+      -- Atualiza a interface visualmente na aba Eggs
+      if EggDropdown then
+          EggDropdown:Set({proximoOvo})
+      end
+   end,
 })
 
 local DigTab = Window:CreateTab("Auto Dig", 4483362458)
