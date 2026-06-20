@@ -1,5 +1,5 @@
 -- =============================================================================
--- HUB VERSÃO: 0.1.4 "Pet Squad Y - Auto Index Fix"
+-- HUB VERSÃO: 0.1.5 "Pet Squad Y - Smart Index Tracker"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
 -- =============================================================================
 
@@ -23,7 +23,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.1.4",
+   Name = "FrancesS Tools | v0.1.5",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -81,12 +81,14 @@ local TeleportSettings = { Enabled = false, Home = nil, Points = {}, SelectedPoi
 local wasEggActiveBeforeRoute = false 
 local wasEggActiveBeforeMerchant = false
 local hasBoughtThisSpawn = false
+
 local EggToggle = nil
 local EggDropdown = nil
 local EggMultiplierDropdown = nil
 local AutoIndexToggle = nil
 local CurrentEggLabel = nil
 local StatusLabel = nil
+local MissingEggsParagraph = nil
 
 local MiningNow = {}
 local shaftX, shaftZ = nil, nil
@@ -358,8 +360,59 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA AUTO INDEX CORRIGIDA
+-- LÓGICA AUTO INDEX CORRIGIDA COM TRACKER
 -- ============================================================================
+
+-- Função para listar quais ovos ainda faltam
+local function GetMissingEggsString(eggsTable)
+    local missing = {}
+    local machine = Players.LocalPlayer.PlayerGui:FindFirstChild("_MACHINES") and Players.LocalPlayer.PlayerGui._MACHINES:FindFirstChild("PetIndexMachine")
+    
+    if not machine then return "Abra a máquina do Index pelo menos 1 vez!" end
+
+    for _, eggFolder in ipairs(eggsTable) do
+        local _, namePart = string.match(eggFolder.Name, "^(%d+)%s*|%s*(.+)")
+        if not namePart then namePart = eggFolder.Name end
+        namePart = string.gsub(namePart, "^%s*(.-)%s*$", "%1")
+
+        local eUI = machine.Frame.Renders.Eggs:FindFirstChild(namePart)
+        if eUI and eUI:FindFirstChild("Main") and eUI.Main:FindFirstChild("PetOdds") then
+            for _, pet in ipairs(eUI.Main.PetOdds:GetChildren()) do
+                if pet:IsA("GuiObject") then
+                    local q = pet:FindFirstChild("IndexQuestion", true)
+                    -- Verifica se existe E se está visível
+                    if q and q.Visible then
+                        table.insert(missing, namePart)
+                        break -- Já achou 1 faltando nesse ovo, pula pro próximo ovo
+                    end
+                end
+            end
+        end
+    end
+    
+    if #missing == 0 then return "🎉 Todos os pets foram indexados (100%)!" end
+    return table.concat(missing, ", ")
+end
+
+-- Função para checar em tempo real o ovo atual
+local function checkMissingLive(eggName)
+    local machine = Players.LocalPlayer.PlayerGui:FindFirstChild("_MACHINES") and Players.LocalPlayer.PlayerGui._MACHINES:FindFirstChild("PetIndexMachine")
+    if not machine then return false end
+    
+    local eUI = machine.Frame.Renders.Eggs:FindFirstChild(eggName)
+    if eUI and eUI:FindFirstChild("Main") and eUI.Main:FindFirstChild("PetOdds") then
+        for _, pet in ipairs(eUI.Main.PetOdds:GetChildren()) do
+            if pet:IsA("GuiObject") then
+                local q = pet:FindFirstChild("IndexQuestion", true)
+                if q and q.Visible then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
 task.spawn(function()
     while true do
         if _G.AutoIndex then
@@ -373,102 +426,94 @@ task.spawn(function()
                 return idA < idB
             end)
 
-            local achouAlgoIncompleto = false
+            local indexMachine = Players.LocalPlayer.PlayerGui:FindFirstChild("_MACHINES") 
+                                 and Players.LocalPlayer.PlayerGui._MACHINES:FindFirstChild("PetIndexMachine")
 
-            for _, eggFolder in ipairs(eggs) do
-                if not _G.AutoIndex then break end 
-                if _G.SkipCurrentEgg then _G.SkipCurrentEgg = false end 
+            if indexMachine then
+                -- Atualiza o painel com a lista de todos os ovos faltando
+                if MissingEggsParagraph then 
+                    MissingEggsParagraph:Set({Title = "Ovos com Pets Faltando:", Content = GetMissingEggsString(eggs)}) 
+                end
+                
+                local achouAlgoIncompleto = false
 
-                local idStr, namePart = string.match(eggFolder.Name, "^(%d+)%s*|%s*(.+)")
-                if not namePart then namePart = eggFolder.Name idStr = "9999" end
-                namePart = string.gsub(namePart, "^%s*(.-)%s*$", "%1")
-                
-                local id = idStr
-                local name = namePart
-                
-                local indexMachine = Players.LocalPlayer.PlayerGui:FindFirstChild("_MACHINES") 
-                                     and Players.LocalPlayer.PlayerGui._MACHINES:FindFirstChild("PetIndexMachine")
-                
-                if indexMachine then
-                    -- Procura a UI do ovo específico
-                    local eggUI = indexMachine.Frame.Renders.Eggs:FindFirstChild(name)
-                    if eggUI and eggUI:FindFirstChild("Main") and eggUI.Main:FindFirstChild("PetOdds") then
+                for _, eggFolder in ipairs(eggs) do
+                    if not _G.AutoIndex then break end 
+                    if _G.SkipCurrentEgg then _G.SkipCurrentEgg = false end 
+
+                    local idStr, namePart = string.match(eggFolder.Name, "^(%d+)%s*|%s*(.+)")
+                    if not namePart then namePart = eggFolder.Name idStr = "9999" end
+                    namePart = string.gsub(namePart, "^%s*(.-)%s*$", "%1")
+                    
+                    local id = idStr
+                    local name = namePart
+                    
+                    -- Se o ovo atual ainda tem pet faltando
+                    if checkMissingLive(name) then
+                        achouAlgoIncompleto = true
+                        if CurrentEggLabel then CurrentEggLabel:Set("Abrindo: " .. name) end
+                        if StatusLabel then StatusLabel:Set("Status: Indexando...") end
                         
-                        -- Função para checar em tempo real se ainda falta pet
-                        local function hasMissingPets()
-                            local isMissing = false
-                            for _, pet in ipairs(eggUI.Main.PetOdds:GetChildren()) do
-                                if pet:IsA("GuiObject") then
-                                    -- O ', true' faz uma busca profunda (acha a interrogação mesmo escondida dentro de outro frame)
-                                    if pet:FindFirstChild("IndexQuestion", true) then
-                                        isMissing = true
-                                        break
-                                    end
-                                end
-                            end
-                            return isMissing
+                        -- Força MÁXIMO DE OVOS e atualiza UI
+                        _G.EggMultiplier = "Max"
+                        if EggMultiplierDropdown then EggMultiplierDropdown:Set({"Max"}) end
+                        
+                        -- TP para a cápsula do ovo físico
+                        local eggWorld = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Eggs") and Workspace.__THINGS.Eggs:FindFirstChild("Main")
+                        local eggCapsule = eggWorld and eggWorld:FindFirstChild(id .. " - Egg Capsule")
+                        if eggCapsule then
+                            local rootPart = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                            if rootPart then rootPart.CFrame = eggCapsule:GetPivot() end
                         end
 
-                        if hasMissingPets() then
-                            achouAlgoIncompleto = true
-                            if CurrentEggLabel then CurrentEggLabel:Set("Abrindo: " .. name) end
-                            if StatusLabel then StatusLabel:Set("Status: Indexando...") end
-                            
-                            -- Força MÁXIMO DE OVOS e atualiza UI
-                            _G.EggMultiplier = "Max"
-                            if EggMultiplierDropdown then EggMultiplierDropdown:Set({"Max"}) end
-                            
-                            -- TP para a cápsula do ovo físico
-                            local eggWorld = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Eggs") and Workspace.__THINGS.Eggs:FindFirstChild("Main")
-                            local eggCapsule = eggWorld and eggWorld:FindFirstChild(id .. " - Egg Capsule")
-                            if eggCapsule then
-                                local rootPart = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                                if rootPart then rootPart.CFrame = eggCapsule:GetPivot() end
+                        _G.EggSelected = name
+                        if EggDropdown then EggDropdown:Set({name}) end 
+                        
+                        _G.AutoEgg = true
+                        if EggToggle then EggToggle:Set(true) end
+                        
+                        -- Trava aqui abrindo ovos até que TODOS os pets percam a interrogação
+                        while _G.AutoIndex and not _G.SkipCurrentEgg do
+                            task.wait(0.5)
+                            -- A mágica do Smart Skip acontece aqui:
+                            if not checkMissingLive(name) then 
+                                break -- Sai do loop, pula pro próximo ovo automaticamente!
                             end
-
-                            _G.EggSelected = name
-                            if EggDropdown then EggDropdown:Set({name}) end 
-                            
-                            _G.AutoEgg = true
-                            if EggToggle then EggToggle:Set(true) end
-                            
-                            -- Trava aqui abrindo ovos até que TODOS os pets percam a interrogação
-                            while _G.AutoIndex and not _G.SkipCurrentEgg do
-                                task.wait(1)
-                                if not hasMissingPets() then 
-                                    break -- Sai do loop, ovo está 100% completo!
-                                end
-                            end
-                            
-                            -- Quando terminar ou for pulado, desliga pra ir pro próximo
-                            _G.AutoEgg = false
-                            if EggToggle then EggToggle:Set(false) end
-                            
-                            if _G.SkipCurrentEgg then
-                                _G.SkipCurrentEgg = false
-                                if StatusLabel then StatusLabel:Set("Status: Egg Pulado!") end
-                                task.wait(1)
-                            end
+                        end
+                        
+                        -- Quando terminar ou for pulado, desliga pra ir pro próximo
+                        _G.AutoEgg = false
+                        if EggToggle then EggToggle:Set(false) end
+                        
+                        -- Atualiza a lista do painel logo após completar/pular um ovo
+                        if _G.AutoIndex and MissingEggsParagraph then
+                            MissingEggsParagraph:Set({Title = "Ovos com Pets Faltando:", Content = GetMissingEggsString(eggs)})
+                        end
+                        
+                        if _G.SkipCurrentEgg then
+                            _G.SkipCurrentEgg = false
+                            if StatusLabel then StatusLabel:Set("Status: Egg Pulado!") end
                             task.wait(1)
                         end
+                        task.wait(1)
                     end
-                else
-                    -- Trava de segurança caso a UI não tenha carregado
-                    if StatusLabel then StatusLabel:Set("Erro: Abra o Index 1x!") end
-                    task.wait(2)
                 end
-            end
-            
-            -- Finalização geral
-            if _G.AutoIndex then
-                if not achouAlgoIncompleto then
-                    if StatusLabel then StatusLabel:Set("Status: 100% Completo ou UI Fechada!") end
-                else
-                    if StatusLabel then StatusLabel:Set("Status: Varredura Concluída!") end
+                
+                -- Finalização geral
+                if _G.AutoIndex then
+                    if not achouAlgoIncompleto then
+                        if StatusLabel then StatusLabel:Set("Status: 100% Completo!") end
+                    else
+                        if StatusLabel then StatusLabel:Set("Status: Varredura Concluída!") end
+                    end
+                    if CurrentEggLabel then CurrentEggLabel:Set("Abrindo: Nenhum") end
+                    _G.AutoIndex = false
+                    if AutoIndexToggle then AutoIndexToggle:Set(false) end
                 end
-                if CurrentEggLabel then CurrentEggLabel:Set("Abrindo: Nenhum") end
-                _G.AutoIndex = false
-                if AutoIndexToggle then AutoIndexToggle:Set(false) end
+            else
+                -- Trava de segurança caso a UI não tenha carregado
+                if StatusLabel then StatusLabel:Set("Erro: Abra o Index 1x!") end
+                task.wait(2)
             end
         else
             task.wait(1)
@@ -831,6 +876,12 @@ IndexTab:CreateButton({
            StatusLabel:Set("Status: Pulando...")
        end
    end,
+})
+
+-- Novo Painel Listando os ovos faltantes
+MissingEggsParagraph = IndexTab:CreateParagraph({
+   Title = "Ovos com Pets Faltando:",
+   Content = "Inicie o Auto Index para verificar..."
 })
 
 local DigTab = Window:CreateTab("Auto Dig", 4483362458)
