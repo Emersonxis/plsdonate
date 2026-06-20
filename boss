@@ -1,10 +1,10 @@
 -- =============================================================================
--- HUB VERSÃO: 0.1.0 "Pet Squad Y - Max Hatch & Auto List Fix"
+-- HUB VERSÃO: 0.1.4 "Pet Squad Y - Auto Index Fix"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
 -- =============================================================================
 
 -- =============================================================================
--- 1. ANTI-REJOIN / ANTI-TELEPORT (Bloqueio Nativo Injetado no Topo)
+-- ANTI-REJOIN / ANTI-TELEPORT
 -- =============================================================================
 local TeleportService = game:GetService("TeleportService")
 local metodosTeleporte = {"Teleport", "TeleportToPlaceInstance", "TeleportAsync", "TeleportToSpawnPoint", "TeleportToPrivateServer"}
@@ -18,12 +18,12 @@ for _, nomeMetodo in ipairs(metodosTeleporte) do
 end
 
 -- =============================================================================
--- INTERFACE PRINCIPAL & CONFIGURAÇÕES (Rayfield Framework)
+-- INTERFACE PRINCIPAL & CONFIGURAÇÕES
 -- =============================================================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.1.0",
+   Name = "FrancesS Tools | v0.1.4",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -39,12 +39,11 @@ local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 
--- IMPORTAÇÃO FIXA E SEGURA DOS MÓDULOS (Baseada na versão funcional)
 local Network = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("Network"))
 local EggCmds = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("EggCmds"))
 
 -- ============================================================================
--- LEITURA DINÂMICA DA PASTA DE EGGS (JÁ LIMPANDO O NOME)
+-- LEITURA DINÂMICA DA PASTA DE EGGS
 -- ============================================================================
 local eggOptions = {}
 pcall(function()
@@ -53,27 +52,18 @@ pcall(function()
     
     for _, egg in ipairs(dirEggs:GetChildren()) do
         local idStr, namePart = string.match(egg.Name, "^(%d+)%s*|%s*(.+)")
-        
-        if not namePart then
-            namePart = egg.Name
-            idStr = "999"
-        end
-        
+        if not namePart then namePart = egg.Name idStr = "9999" end
         namePart = string.gsub(namePart, "^%s*(.-)%s*$", "%1")
-        
-        table.insert(sortableEggs, { id = tonumber(idStr) or 999, name = namePart })
+        table.insert(sortableEggs, { id = tonumber(idStr) or 9999, name = namePart })
     end
     
     table.sort(sortableEggs, function(a, b) return a.id < b.id end)
-    
-    for _, data in ipairs(sortableEggs) do
-        table.insert(eggOptions, data.name)
-    end
+    for _, data in ipairs(sortableEggs) do table.insert(eggOptions, data.name) end
 end)
 
 if #eggOptions == 0 then table.insert(eggOptions, "Nenhum Egg Encontrado") end
 
--- [[ VARIÁVEIS GLOBAIS E CONFIGURAÇÕES ]]
+-- [[ VARIÁVEIS GLOBAIS ]]
 _G.AutoCollect = false
 _G.AutoEgg = false
 _G.EggSelected = eggOptions[1] or ""
@@ -81,6 +71,8 @@ _G.EggMultiplier = 1
 _G.AutoGift = false   
 _G.AutoMysteryMerchant = false
 _G.AutoMerchantBuy = false
+_G.AutoIndex = false
+_G.SkipCurrentEgg = false
 
 local DigSettings = { Enabled = false, Delay = 0.01, MaxBlocks = 8, HitsPerBlock = 3, Chessboard = false, TargetLayer = 70 }
 local ClickSettings = { Enabled = false, Multipler = 1, Delay = 0.1, MaxDistance = 100, MaxBreakables = 1 }
@@ -90,7 +82,11 @@ local wasEggActiveBeforeRoute = false
 local wasEggActiveBeforeMerchant = false
 local hasBoughtThisSpawn = false
 local EggToggle = nil
-local EggDropdown = nil -- Variável para atualizar o dropdown pelo botão "Pular"                  
+local EggDropdown = nil
+local EggMultiplierDropdown = nil
+local AutoIndexToggle = nil
+local CurrentEggLabel = nil
+local StatusLabel = nil
 
 local MiningNow = {}
 local shaftX, shaftZ = nil, nil
@@ -98,7 +94,7 @@ local LibraryNetwork = Network
 local FILE_NAME = "FrancesSTools_Teleports.json"
 
 -- ============================================================================
--- ARQUIVO LOCAL: SISTEMA DE SALVAMENTO DE CFRAMES CUSTOMIZADO
+-- SISTEMA DE SALVAMENTO DE CFRAMES CUSTOMIZADO
 -- ============================================================================
 local function cframeToTable(cf) if not cf then return nil end return {cf:GetComponents()} end
 local function tableToCFrame(tbl) if not tbl then return nil end return CFrame.new(unpack(tbl)) end
@@ -128,14 +124,11 @@ end
 loadTeleportData()
 
 -- ============================================================================
--- SCRIPT DE SEGUNDO PLANO: ANTI-EGG ANIMATION & PET SPEED HACK
+-- ANTI-EGG ANIMATION & PET SPEED HACK
 -- ============================================================================
 task.spawn(function()
     pcall(function()
-        local LibraryMod = ReplicatedStorage:WaitForChild("Library")
-        local ClientMod = LibraryMod:WaitForChild("Client")
-        local PlayerPet = require(ClientMod:WaitForChild("PlayerPet"))
-
+        local PlayerPet = require(ReplicatedStorage:WaitForChild("Library"):WaitForChild("Client"):WaitForChild("PlayerPet"))
         if replaceclosure or hookfunction then
             (replaceclosure or hookfunction)(PlayerPet.CalculateSpeedMultiplier, function(...) return 201 end)
         end
@@ -152,19 +145,6 @@ task.spawn(function()
                     break
                 end
             end
-
-            if not desativado then
-                for _, v in ipairs(getgc()) do
-                    if type(v) == "function" and islclosure(v) then
-                        local info = debug.getinfo(v)
-                        if info.name == "PlayEggAnimation" or (info.source and string.find(info.source, "Egg Opening")) then
-                            hookfunction(v, function(...) return end)
-                            desativado = true
-                            break
-                        end
-                    end
-                end
-            end
         end)
         if desativado then break end
         task.wait(0.5)
@@ -178,8 +158,7 @@ task.spawn(function()
     while true do
         if ClickSettings.Enabled then
             local player = Players.LocalPlayer
-            local character = player.Character
-            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+            local rootPart = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
             local breakablesFolder = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Breakables")
             
             if rootPart and breakablesFolder then
@@ -356,7 +335,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA AUTO EGG (CORRIGIDA COM MAX HATCH)
+-- LÓGICA AUTO EGG (MAX HATCH)
 -- ============================================================================
 task.spawn(function()
     while true do
@@ -365,21 +344,135 @@ task.spawn(function()
         
         if _G.AutoEgg and type(ovoSelecionado) == "string" and ovoSelecionado ~= "" and ovoSelecionado ~= "Nenhum Egg Encontrado" then
             local quant = 1
-            
             if _G.EggMultiplier == "Max" then
-                pcall(function()
-                    quant = EggCmds.GetMaxHatch()
-                end)
+                pcall(function() quant = EggCmds.GetMaxHatch() end)
                 if type(quant) ~= "number" then quant = 1 end
             else
                 quant = tonumber(_G.EggMultiplier) or 1
             end
 
-            pcall(function()
-                Network.Invoke("Eggs_RequestPurchase", ovoSelecionado, quant)
-            end)
+            pcall(function() Network.Invoke("Eggs_RequestPurchase", ovoSelecionado, quant) end)
         end
-        task.wait(0.2) 
+        task.wait(0.2)
+    end
+end)
+
+-- ============================================================================
+-- LÓGICA AUTO INDEX CORRIGIDA
+-- ============================================================================
+task.spawn(function()
+    while true do
+        if _G.AutoIndex then
+            local dirEggs = ReplicatedStorage:WaitForChild("__DIRECTORY"):WaitForChild("Eggs")
+            local eggs = dirEggs:GetChildren()
+            
+            -- Ordenar eggs pelo ID
+            table.sort(eggs, function(a, b)
+                local idA = tonumber(string.match(a.Name, "^(%d+)")) or 9999
+                local idB = tonumber(string.match(b.Name, "^(%d+)")) or 9999
+                return idA < idB
+            end)
+
+            local achouAlgoIncompleto = false
+
+            for _, eggFolder in ipairs(eggs) do
+                if not _G.AutoIndex then break end 
+                if _G.SkipCurrentEgg then _G.SkipCurrentEgg = false end 
+
+                local idStr, namePart = string.match(eggFolder.Name, "^(%d+)%s*|%s*(.+)")
+                if not namePart then namePart = eggFolder.Name idStr = "9999" end
+                namePart = string.gsub(namePart, "^%s*(.-)%s*$", "%1")
+                
+                local id = idStr
+                local name = namePart
+                
+                local indexMachine = Players.LocalPlayer.PlayerGui:FindFirstChild("_MACHINES") 
+                                     and Players.LocalPlayer.PlayerGui._MACHINES:FindFirstChild("PetIndexMachine")
+                
+                if indexMachine then
+                    -- Procura a UI do ovo específico
+                    local eggUI = indexMachine.Frame.Renders.Eggs:FindFirstChild(name)
+                    if eggUI and eggUI:FindFirstChild("Main") and eggUI.Main:FindFirstChild("PetOdds") then
+                        
+                        -- Função para checar em tempo real se ainda falta pet
+                        local function hasMissingPets()
+                            local isMissing = false
+                            for _, pet in ipairs(eggUI.Main.PetOdds:GetChildren()) do
+                                if pet:IsA("GuiObject") then
+                                    -- O ', true' faz uma busca profunda (acha a interrogação mesmo escondida dentro de outro frame)
+                                    if pet:FindFirstChild("IndexQuestion", true) then
+                                        isMissing = true
+                                        break
+                                    end
+                                end
+                            end
+                            return isMissing
+                        end
+
+                        if hasMissingPets() then
+                            achouAlgoIncompleto = true
+                            if CurrentEggLabel then CurrentEggLabel:Set("Abrindo: " .. name) end
+                            if StatusLabel then StatusLabel:Set("Status: Indexando...") end
+                            
+                            -- Força MÁXIMO DE OVOS e atualiza UI
+                            _G.EggMultiplier = "Max"
+                            if EggMultiplierDropdown then EggMultiplierDropdown:Set({"Max"}) end
+                            
+                            -- TP para a cápsula do ovo físico
+                            local eggWorld = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("Eggs") and Workspace.__THINGS.Eggs:FindFirstChild("Main")
+                            local eggCapsule = eggWorld and eggWorld:FindFirstChild(id .. " - Egg Capsule")
+                            if eggCapsule then
+                                local rootPart = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                                if rootPart then rootPart.CFrame = eggCapsule:GetPivot() end
+                            end
+
+                            _G.EggSelected = name
+                            if EggDropdown then EggDropdown:Set({name}) end 
+                            
+                            _G.AutoEgg = true
+                            if EggToggle then EggToggle:Set(true) end
+                            
+                            -- Trava aqui abrindo ovos até que TODOS os pets percam a interrogação
+                            while _G.AutoIndex and not _G.SkipCurrentEgg do
+                                task.wait(1)
+                                if not hasMissingPets() then 
+                                    break -- Sai do loop, ovo está 100% completo!
+                                end
+                            end
+                            
+                            -- Quando terminar ou for pulado, desliga pra ir pro próximo
+                            _G.AutoEgg = false
+                            if EggToggle then EggToggle:Set(false) end
+                            
+                            if _G.SkipCurrentEgg then
+                                _G.SkipCurrentEgg = false
+                                if StatusLabel then StatusLabel:Set("Status: Egg Pulado!") end
+                                task.wait(1)
+                            end
+                            task.wait(1)
+                        end
+                    end
+                else
+                    -- Trava de segurança caso a UI não tenha carregado
+                    if StatusLabel then StatusLabel:Set("Erro: Abra o Index 1x!") end
+                    task.wait(2)
+                end
+            end
+            
+            -- Finalização geral
+            if _G.AutoIndex then
+                if not achouAlgoIncompleto then
+                    if StatusLabel then StatusLabel:Set("Status: 100% Completo ou UI Fechada!") end
+                else
+                    if StatusLabel then StatusLabel:Set("Status: Varredura Concluída!") end
+                end
+                if CurrentEggLabel then CurrentEggLabel:Set("Abrindo: Nenhum") end
+                _G.AutoIndex = false
+                if AutoIndexToggle then AutoIndexToggle:Set(false) end
+            end
+        else
+            task.wait(1)
+        end
     end
 end)
 
@@ -492,18 +585,13 @@ task.spawn(function()
         if DigSettings.Enabled then
             pcall(function()
                 if not LibraryNetwork then
-                    local lib = ReplicatedStorage:FindFirstChild("Library")
-                    local client = lib and lib:FindFirstChild("Client")
-                    local netMod = client and client:FindFirstChild("Network")
+                    local netMod = ReplicatedStorage:FindFirstChild("Library") and ReplicatedStorage.Library:FindFirstChild("Client") and ReplicatedStorage.Library.Client:FindFirstChild("Network")
                     if netMod then LibraryNetwork = require(netMod) end
                 end
                 if not LibraryNetwork then return end
                 
-                local things = Workspace:FindFirstChild("__THINGS")
-                local container = things and things:FindFirstChild("__INSTANCE_CONTAINER")
-                local active = container and container:FindFirstChild("Active")
-                local digsite = active and active:FindFirstChild("Digsite")
-                local important = digsite and digsite:FindFirstChild("Important")
+                local active = Workspace:FindFirstChild("__THINGS") and Workspace.__THINGS:FindFirstChild("__INSTANCE_CONTAINER") and Workspace.__THINGS.__INSTANCE_CONTAINER:FindFirstChild("Active")
+                local important = active and active:FindFirstChild("Digsite") and active.Digsite:FindFirstChild("Important")
                 local activeBlocksPath = important and important:FindFirstChild("ActiveBlocks")
                 local activeChestsPath = important and important:FindFirstChild("ActiveChests")
                 if not activeBlocksPath or not activeChestsPath then return end
@@ -664,6 +752,7 @@ task.spawn(function()
     end
 end)
 
+
 -- ============================================================================
 -- INTERFACE (Rayfield Elements)
 -- ============================================================================
@@ -683,26 +772,18 @@ EggDropdown = EggsTab:CreateDropdown({
    CurrentOption = eggOptions[1] or "",
    Flag = "EggSelectedDropdown",
    Callback = function(Option)
-      if type(Option) == "table" then
-          _G.EggSelected = Option[1]
-      else
-          _G.EggSelected = Option
-      end
+      if type(Option) == "table" then _G.EggSelected = Option[1] else _G.EggSelected = Option end
    end,
 })
 
-EggsTab:CreateDropdown({
+EggMultiplierDropdown = EggsTab:CreateDropdown({
    Name = "Quantidade de Ovos",
    Options = {"1", "2", "3", "Max"},
    CurrentOption = "1",
    Flag = "EggMultiplierManualSelect",
    Callback = function(Option)
       local opt = type(Option) == "table" and Option[1] or Option
-      if opt == "Max" then 
-          _G.EggMultiplier = "Max"
-      else 
-          _G.EggMultiplier = tonumber(opt) or 1 
-      end
+      if opt == "Max" then _G.EggMultiplier = "Max" else _G.EggMultiplier = tonumber(opt) or 1 end
    end,
 })
 
@@ -723,35 +804,32 @@ EggToggle = EggsTab:CreateToggle({
    Callback = function(Value) _G.AutoEgg = Value end,
 })
 
--- ABA INDEX (Recriada com a lógica de Pular)
+-- ABA INDEX (Com Design Profissional)
 local IndexTab = Window:CreateTab("Index", 4483362458)
+
+CurrentEggLabel = IndexTab:CreateLabel("Abrindo: Nenhum")
+StatusLabel = IndexTab:CreateLabel("Status: Parado...")
+
+AutoIndexToggle = IndexTab:CreateToggle({
+   Name = "Iniciar Auto Index",
+   CurrentValue = false,
+   Flag = "ToggleAutoIndex",
+   Callback = function(Value) 
+       _G.AutoIndex = Value
+       if not Value then 
+           _G.AutoEgg = false 
+           if EggToggle then EggToggle:Set(false) end
+       end 
+   end,
+})
+
 IndexTab:CreateButton({
-   Name = "Pular para o Próximo Egg",
-   Callback = function()
-      -- Encontra onde estamos na lista
-      local indexAtual = 1
-      local selecionado = type(_G.EggSelected) == "table" and _G.EggSelected[1] or _G.EggSelected
-      
-      for i, nomeOvo in ipairs(eggOptions) do
-          if nomeOvo == selecionado then
-              indexAtual = i
-              break
-          end
-      end
-      
-      -- Pula pro próximo
-      local proximoIndex = indexAtual + 1
-      if proximoIndex > #eggOptions then
-          proximoIndex = 1 -- Volta pro início se passar do limite
-      end
-      
-      local proximoOvo = eggOptions[proximoIndex]
-      _G.EggSelected = proximoOvo
-      
-      -- Atualiza a interface visualmente na aba Eggs
-      if EggDropdown then
-          EggDropdown:Set({proximoOvo})
-      end
+   Name = "Skip Egg",
+   Callback = function() 
+       if _G.AutoIndex then
+           _G.SkipCurrentEgg = true 
+           StatusLabel:Set("Status: Pulando...")
+       end
    end,
 })
 
