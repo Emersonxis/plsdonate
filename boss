@@ -1,5 +1,5 @@
 -- =============================================================================
--- HUB VERSÃO: 0.2.0 "Pet Squad Y - The Merchant's Patience"
+-- HUB VERSÃO: 0.2.1 "Pet Squad Y - Auto Free Items Update"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
 -- =============================================================================
 
@@ -23,7 +23,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.2.0",
+   Name = "FrancesS Tools | v0.2.1",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -75,6 +75,7 @@ _G.AutoMysteryMerchant = false
 _G.AutoMerchantBuy = false
 _G.AutoIndex = false
 _G.SkipCurrentEgg = false
+_G.AutoFreeItems = false
 
 local DigSettings = { Enabled = false, Delay = 0.01, MaxBlocks = 8, HitsPerBlock = 3, Chessboard = false, TargetLayer = 70 }
 local ClickSettings = { Enabled = false, Multipler = 1, Delay = 0.1, MaxDistance = 100, MaxBreakables = 1 }
@@ -224,7 +225,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA DE TELEPORTE
+-- LÓGICA DE TELEPORTE (ROTAS)
 -- ============================================================================
 local function interruptibleWait(seconds)
     local start = os.clock()
@@ -280,11 +281,83 @@ task.spawn(function()
                 if wasEggActiveBeforeRoute and EggToggle then EggToggle:Set(true) wasEggActiveBeforeRoute = false end
                 interruptibleWait(601)
             else
-                if wasEggActiveBeforeRoute and EggToggle then EggToggle:Set(true) wasEggActiveBeforeRoute = false end
+                if wasEggActiveBeforeRoute and EggToggle and not TeleportSettings.Enabled then EggToggle:Set(true) wasEggActiveBeforeRoute = false end
                 task.wait(1)
             end
         else
             if wasEggActiveBeforeRoute and EggToggle and not TeleportSettings.Enabled then EggToggle:Set(true) wasEggActiveBeforeRoute = false end
+            task.wait(1)
+        end
+    end
+end)
+
+-- ============================================================================
+-- LÓGICA AUTO FREE ITEMS (V0.2.1)
+-- ============================================================================
+local freeItemsCoords = {
+    CFrame.new(1786, 16, -134),
+    CFrame.new(3289, 16, -323),
+    CFrame.new(4500, 14, -674),
+    CFrame.new(4045, 16, 55)
+}
+
+task.spawn(function()
+    while true do
+        if _G.AutoFreeItems then
+            local character = Players.LocalPlayer.Character
+            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+            
+            if rootPart then
+                -- Salva estado do Egg e desliga o Egg Toggle
+                local wasEggActiveFreeItems = false
+                if _G.AutoEgg and EggToggle then 
+                    wasEggActiveFreeItems = true 
+                    EggToggle:Set(false) 
+                end
+                
+                -- Salva posição de fallback caso não tenha Home setado
+                local fallbackHome = rootPart.CFrame
+                
+                -- Loop pelas 4 coordenadas
+                for _, coord in ipairs(freeItemsCoords) do
+                    if not _G.AutoFreeItems then break end
+                    local char = Players.LocalPlayer.Character
+                    local root = char and char:FindFirstChild("HumanoidRootPart")
+                    if root then root.CFrame = coord end
+                    task.wait(2) -- Delay de 2 segundos entre cada ponto
+                end
+                
+                -- Voltando para o Home
+                if _G.AutoFreeItems then
+                    local char = Players.LocalPlayer.Character
+                    local root = char and char:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        if TeleportSettings.Home then
+                            root.CFrame = TeleportSettings.Home
+                        else
+                            root.CFrame = fallbackHome
+                        end
+                    end
+                    task.wait(1.5) -- Espera um pouco pra estabilizar no Home
+                end
+                
+                -- Reativa o Egg
+                if wasEggActiveFreeItems and EggToggle and _G.AutoFreeItems then
+                    EggToggle:Set(true)
+                end
+                
+                -- Espera 30 Minutos e 10 Segundos (1810 segundos) antes do próximo ciclo
+                if _G.AutoFreeItems then
+                    local waitStart = os.clock()
+                    while os.clock() - waitStart < 1810 do
+                        if not _G.AutoFreeItems then break end
+                        task.wait(1)
+                    end
+                end
+            else
+                task.wait(1)
+            end
+        else
             task.wait(1)
         end
     end
@@ -362,7 +435,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA AUTO INDEX (MEMORY READ AVANÇADO SEM LIMITE DE TEMPO)
+-- LÓGICA AUTO INDEX (MEMORY READ AVANÇADO)
 -- ============================================================================
 
 local function isPetRequiredForIndex(petId)
@@ -509,7 +582,6 @@ task.spawn(function()
                     _G.AutoEgg = true
                     if EggToggle then EggToggle:Set(true) end
                     
-                    -- Loop Infinito da Paciência (V0.2.0)
                     while _G.AutoIndex and not _G.SkipCurrentEgg do
                         task.wait(1.5)
                         if not checkMissingLive(idStr, name) then 
@@ -584,7 +656,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA MERCHANT (ATUALIZADA)
+-- LÓGICA MERCHANT
 -- ============================================================================
 local function findMysteryMerchant()
     local map = Workspace:FindFirstChild("Map")
@@ -599,7 +671,6 @@ local function findMysteryMerchant()
     return nil
 end
 
--- MYSTERY MERCHANT COM ESPERA E COMPRA SEQUENCIAL
 task.spawn(function()
     while true do
         if _G.AutoMysteryMerchant then
@@ -614,15 +685,14 @@ task.spawn(function()
                     if _G.AutoEgg and EggToggle then wasEggActiveBeforeMerchant = true EggToggle:Set(false) end
                     local returnCFrame = TeleportSettings.Home or rootPart.CFrame
                     
-                    -- Para ao lado do Merchant para não bugar o hitbox
                     rootPart.CFrame = primaryPart.CFrame * CFrame.new(3, 3, 0)
-                    task.wait(1.5) -- Espera o servidor registrar que você está perto do mercador
+                    task.wait(1.5) 
                     
                     for slot = 1, 6 do
                         if not _G.AutoMysteryMerchant then break end
                         for i = 1, 10 do
                             pcall(function() Network.Invoke("Merchant_RequestPurchase", "MysteryMerchant", slot) end)
-                            task.wait(0.2) -- Delay de 0.2 entre cada ação
+                            task.wait(0.2) 
                         end
                     end
                     
@@ -640,7 +710,6 @@ task.spawn(function()
     end
 end)
 
--- REGULAR MERCHANT COM INTERVALO E DELAY DE LOOP
 task.spawn(function()
     while true do
         if _G.AutoMerchantBuy then
@@ -649,11 +718,10 @@ task.spawn(function()
                 for i = 1, 10 do
                     if not _G.AutoMerchantBuy then break end
                     pcall(function() Network.Invoke("Merchant_RequestPurchase", "RegularMerchant", numeroItem) end)
-                    task.wait(0.5) -- Delay de 0.5 entre cada compra
+                    task.wait(0.5) 
                 end
             end
             
-            -- Espera 10 minutos (600 segundos) para tentar novamente
             for segundo = 1, 600 do
                 if not _G.AutoMerchantBuy then break end
                 task.wait(1)
@@ -987,6 +1055,14 @@ local function AtualizarListaDropdown()
     for i = 1, #TeleportSettings.Points do table.insert(ids, TeleportSettings.Points[i].id) end
     if TPDropdown then TPDropdown:Refresh(ids, true) end
 end
+
+-- Toggle de Auto Free Items adicionado AQUI
+TeleportTab:CreateToggle({
+   Name = "Auto Coletar Free Items",
+   CurrentValue = false,
+   Flag = "AutoFreeItemsToggle",
+   Callback = function(Value) _G.AutoFreeItems = Value end,
+})
 
 TeleportTab:CreateToggle({
    Name = "Ativar Loop de Rotas",
