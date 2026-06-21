@@ -1,5 +1,5 @@
 -- =============================================================================
--- HUB VERSÃO: 0.1.8 "Pet Squad Y - The Master Index"
+-- HUB VERSÃO: 0.2.0 "Pet Squad Y - The Merchant's Patience"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
 -- =============================================================================
 
@@ -23,7 +23,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.1.8",
+   Name = "FrancesS Tools | v0.2.0",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -362,10 +362,9 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA AUTO INDEX (MEMORY READ AVANÇADO PS99)
+-- LÓGICA AUTO INDEX (MEMORY READ AVANÇADO SEM LIMITE DE TEMPO)
 -- ============================================================================
 
--- Verifica se o pet deve ser ignorado para o Index (Ovos com Huges/Titanics)
 local function isPetRequiredForIndex(petId)
     local isRequired = true
     pcall(function()
@@ -374,7 +373,6 @@ local function isPetRequiredForIndex(petId)
         
         local petData = dirPets[petId]
         if type(petData) == "table" then
-            -- Métrica oficial do PS99: ignora hidden, secret, huge, titanic e gargantuan
             if petData.hidden == true or petData.secret == true or petData.exclusiveLevel ~= nil or petData.huge == true or petData.titanic == true or petData.gargantuan == true then
                 isRequired = false
             end
@@ -383,7 +381,6 @@ local function isPetRequiredForIndex(petId)
     return isRequired
 end
 
--- Verifica se o jogador pegou o Pet validando o "PetHatchCount" e "ItemIndex" oficiais
 local function checkMissingLive(eggId, eggName)
     local missing = false
     pcall(function()
@@ -393,7 +390,6 @@ local function checkMissingLive(eggId, eggName)
         local dirEggs = Directory.Eggs
         if type(dirEggs) == "function" then dirEggs = dirEggs() end
         
-        -- Busca o ovo pela Key exata, por nome limpo ou pelo ID (1 | Cracked Egg)
         local eggData = dirEggs[eggName] or dirEggs[eggId .. " | " .. eggName]
         if not eggData then
             for k, v in pairs(dirEggs) do
@@ -416,11 +412,9 @@ local function checkMissingLive(eggId, eggName)
         for _, petInfo in pairs(pList) do
             local petId = type(petInfo) == "string" and petInfo or (type(petInfo) == "table" and (petInfo[1] or petInfo.id))
             
-            -- Se for um pet válido (Não-Huge/Não-Titanic)
             if petId and isPetRequiredForIndex(petId) then
                 local isDiscovered = false
                 
-                -- Checagem oficial de descoberta na memória
                 if (tonumber(petHatchCount[petId]) or 0) > 0 then
                     isDiscovered = true
                 elseif itemIndex[petId] ~= nil then
@@ -429,7 +423,7 @@ local function checkMissingLive(eggId, eggName)
                 
                 if not isDiscovered then
                     missing = true
-                    return -- Falta um, o ovo ainda não está completo
+                    return 
                 end
             end
         end
@@ -437,7 +431,6 @@ local function checkMissingLive(eggId, eggName)
     return missing
 end
 
--- Formata a String do Parágrafo com os ovos faltantes
 local function GetMissingEggsString(eggsTable)
     local missing = {}
     pcall(function()
@@ -446,7 +439,6 @@ local function GetMissingEggsString(eggsTable)
             if not namePart then namePart = eggFolder.Name idStr = "9999" end
             namePart = string.gsub(namePart, "^%s*(.-)%s*$", "%1")
 
-            -- Ignorar Exclusivos na String para manter limpo
             if not string.find(string.lower(namePart), "exclusive") then
                 if checkMissingLive(idStr, namePart) then
                     table.insert(missing, namePart)
@@ -459,7 +451,6 @@ local function GetMissingEggsString(eggsTable)
     return table.concat(missing, ", ")
 end
 
--- Loop Principal Inteligente
 task.spawn(function()
     while true do
         if _G.AutoIndex then
@@ -489,7 +480,6 @@ task.spawn(function()
                 local id = idStr
                 local name = namePart
                 
-                -- Ignora completamente os Ovos Exclusivos (Esses não contam pro Index F2P)
                 if string.find(string.lower(name), "exclusive") then continue end
                 
                 if checkMissingLive(idStr, name) then
@@ -519,20 +509,11 @@ task.spawn(function()
                     _G.AutoEgg = true
                     if EggToggle then EggToggle:Set(true) end
                     
-                    -- Failsafe: Evita travamentos caso o jogo mude de ideia
-                    local attemptCount = 0
+                    -- Loop Infinito da Paciência (V0.2.0)
                     while _G.AutoIndex and not _G.SkipCurrentEgg do
-                        task.wait(1)
-                        attemptCount = attemptCount + 1
-                        
-                        -- Se checkMissingLive der FALSO (Ovo 100%), ele sai na hora
+                        task.wait(1.5)
                         if not checkMissingLive(idStr, name) then 
                             break 
-                        end
-                        
-                        -- Se passar de 300 segundos, ele desiste deste ovo
-                        if attemptCount > 10900 then
-                            break
                         end
                     end
                     
@@ -603,7 +584,7 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA MERCHANT
+-- LÓGICA MERCHANT (ATUALIZADA)
 -- ============================================================================
 local function findMysteryMerchant()
     local map = Workspace:FindFirstChild("Map")
@@ -618,6 +599,7 @@ local function findMysteryMerchant()
     return nil
 end
 
+-- MYSTERY MERCHANT COM ESPERA E COMPRA SEQUENCIAL
 task.spawn(function()
     while true do
         if _G.AutoMysteryMerchant then
@@ -631,14 +613,19 @@ task.spawn(function()
                 if rootPart and primaryPart then
                     if _G.AutoEgg and EggToggle then wasEggActiveBeforeMerchant = true EggToggle:Set(false) end
                     local returnCFrame = TeleportSettings.Home or rootPart.CFrame
-                    rootPart.CFrame = primaryPart.CFrame * CFrame.new(0, 3, 0)
-                    task.wait(0.5)
+                    
+                    -- Para ao lado do Merchant para não bugar o hitbox
+                    rootPart.CFrame = primaryPart.CFrame * CFrame.new(3, 3, 0)
+                    task.wait(1.5) -- Espera o servidor registrar que você está perto do mercador
                     
                     for slot = 1, 6 do
+                        if not _G.AutoMysteryMerchant then break end
                         for i = 1, 10 do
-                            task.spawn(function() pcall(function() Network.Invoke("Merchant_RequestPurchase", "MysteryMerchant", slot) end) end)
+                            pcall(function() Network.Invoke("Merchant_RequestPurchase", "MysteryMerchant", slot) end)
+                            task.wait(0.2) -- Delay de 0.2 entre cada ação
                         end
                     end
+                    
                     task.wait(1)
                     local modernChar = Players.LocalPlayer.Character
                     local modernRoot = modernChar and modernChar:FindFirstChild("HumanoidRootPart")
@@ -653,16 +640,21 @@ task.spawn(function()
     end
 end)
 
+-- REGULAR MERCHANT COM INTERVALO E DELAY DE LOOP
 task.spawn(function()
     while true do
         if _G.AutoMerchantBuy then
             for numeroItem = 1, 6 do
                 if not _G.AutoMerchantBuy then break end
                 for i = 1, 10 do
-                    task.spawn(function() pcall(function() Network.Invoke("Merchant_RequestPurchase", "RegularMerchant", numeroItem) end) end)
+                    if not _G.AutoMerchantBuy then break end
+                    pcall(function() Network.Invoke("Merchant_RequestPurchase", "RegularMerchant", numeroItem) end)
+                    task.wait(0.5) -- Delay de 0.5 entre cada compra
                 end
             end
-            for segundo = 1, 1800 do
+            
+            -- Espera 10 minutos (600 segundos) para tentar novamente
+            for segundo = 1, 600 do
                 if not _G.AutoMerchantBuy then break end
                 task.wait(1)
             end
@@ -899,7 +891,7 @@ EggToggle = EggsTab:CreateToggle({
    Callback = function(Value) _G.AutoEgg = Value end,
 })
 
--- ABA INDEX (Com Design Profissional)
+-- ABA INDEX 
 local IndexTab = Window:CreateTab("Index", 4483362458)
 
 CurrentEggLabel = IndexTab:CreateLabel("Abrindo: Nenhum")
