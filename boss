@@ -1,5 +1,5 @@
 -- =============================================================================
--- HUB VERSÃO: 0.2.1 "Pet Squad Y - Auto Free Items Update"
+-- HUB VERSÃO: 0.2.2 "Pet Squad Y - The Daily Collector"
 -- REQUISITOS: Otimizado para Delta Executor (Mobile Stability)
 -- =============================================================================
 
@@ -23,7 +23,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FrancesS Tools | v0.2.1",
+   Name = "FrancesS Tools | v0.2.2",
    LoadingTitle = "Carregando FrancesS Tools...",
    LoadingSubtitle = "Pet Squad Y",
    ConfigurationSaving = {
@@ -281,7 +281,7 @@ task.spawn(function()
                 if wasEggActiveBeforeRoute and EggToggle then EggToggle:Set(true) wasEggActiveBeforeRoute = false end
                 interruptibleWait(601)
             else
-                if wasEggActiveBeforeRoute and EggToggle and not TeleportSettings.Enabled then EggToggle:Set(true) wasEggActiveBeforeRoute = false end
+                if wasEggActiveBeforeRoute and EggToggle then EggToggle:Set(true) wasEggActiveBeforeRoute = false end
                 task.wait(1)
             end
         else
@@ -292,13 +292,13 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- LÓGICA AUTO FREE ITEMS (V0.2.1)
+-- LÓGICA AUTO FREE ITEMS (V0.2.2 - THE DAILY COLLECTOR)
 -- ============================================================================
-local freeItemsCoords = {
-    CFrame.new(1786, 16, -134),
-    CFrame.new(3289, 16, -323),
-    CFrame.new(4500, 14, -674),
-    CFrame.new(4045, 16, 55)
+local freeItemsData = {
+    { coord = CFrame.new(1786, 16, -134), remoteArg = "DailyItems1" },
+    { coord = CFrame.new(3289, 16, -323), remoteArg = "DailyPotions1" },
+    { coord = CFrame.new(4500, 14, -674), remoteArg = "DailyItems2" },
+    { coord = CFrame.new(4045, 16, 55),   remoteArg = "DailyPotions2" }
 }
 
 task.spawn(function()
@@ -308,26 +308,40 @@ task.spawn(function()
             local rootPart = character and character:FindFirstChild("HumanoidRootPart")
             
             if rootPart then
-                -- Salva estado do Egg e desliga o Egg Toggle
+                -- Salva estado do Egg e desliga o Egg Toggle temporariamente
                 local wasEggActiveFreeItems = false
                 if _G.AutoEgg and EggToggle then 
                     wasEggActiveFreeItems = true 
                     EggToggle:Set(false) 
                 end
                 
-                -- Salva posição de fallback caso não tenha Home setado
+                -- Salva posição atual caso não tenha o "Home" configurado
                 local fallbackHome = rootPart.CFrame
                 
-                -- Loop pelas 4 coordenadas
-                for _, coord in ipairs(freeItemsCoords) do
+                -- Loop pelas 4 coordenadas com Resgate Direto
+                for _, itemData in ipairs(freeItemsData) do
                     if not _G.AutoFreeItems then break end
+                    
                     local char = Players.LocalPlayer.Character
                     local root = char and char:FindFirstChild("HumanoidRootPart")
-                    if root then root.CFrame = coord end
-                    task.wait(2) -- Delay de 2 segundos entre cada ponto
+                    
+                    if root then 
+                        -- 1. Teleporta para a coordenada
+                        root.CFrame = itemData.coord 
+                    end
+                    
+                    -- 2. Espera 3 segundos para garantir carregamento e evitar kicks do anti-cheat
+                    task.wait(3) 
+                    
+                    if not _G.AutoFreeItems then break end
+                    
+                    -- 3. Dispara o Remote para resgatar o item da máquina atual
+                    pcall(function()
+                        Network.Invoke("DailyRewards_Redeem", itemData.remoteArg)
+                    end)
                 end
                 
-                -- Voltando para o Home
+                -- 4. Retorna para o Home
                 if _G.AutoFreeItems then
                     local char = Players.LocalPlayer.Character
                     local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -338,18 +352,18 @@ task.spawn(function()
                             root.CFrame = fallbackHome
                         end
                     end
-                    task.wait(1.5) -- Espera um pouco pra estabilizar no Home
+                    task.wait(1.5) -- Espera estabilizar a volta
                 end
                 
-                -- Reativa o Egg
+                -- Reativa a abertura de Ovos, caso estivesse ativada antes do loop
                 if wasEggActiveFreeItems and EggToggle and _G.AutoFreeItems then
                     EggToggle:Set(true)
                 end
                 
-                -- Espera 30 Minutos e 10 Segundos (1810 segundos) antes do próximo ciclo
+                -- 5. Pausa Segura de 30:01 (1801 segundos) até o próximo ciclo
                 if _G.AutoFreeItems then
                     local waitStart = os.clock()
-                    while os.clock() - waitStart < 1810 do
+                    while os.clock() - waitStart < 1801 do
                         if not _G.AutoFreeItems then break end
                         task.wait(1)
                     end
@@ -1056,7 +1070,6 @@ local function AtualizarListaDropdown()
     if TPDropdown then TPDropdown:Refresh(ids, true) end
 end
 
--- Toggle de Auto Free Items adicionado AQUI
 TeleportTab:CreateToggle({
    Name = "Auto Coletar Free Items",
    CurrentValue = false,
