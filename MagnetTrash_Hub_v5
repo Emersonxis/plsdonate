@@ -1,0 +1,872 @@
+-- Carrega a biblioteca Rayfield UI
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- Cria a janela principal do menu
+local Window = Rayfield:CreateWindow({
+   Name = "Magnet Trash - versão",
+   LoadingTitle = "Iniciando Painel...",
+   LoadingSubtitle = "by FrancesS",
+   ConfigurationSaving = {
+      Enabled = false
+   },
+   Discord = {
+      Enabled = false
+   },
+   KeySystem = false
+})
+
+-- ==========================================
+-- SERVICES (cached uma vez)
+-- ==========================================
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterPlayer = game:GetService("StarterPlayer")
+
+local player = Players.LocalPlayer
+local RemoteEvents = ReplicatedStorage:WaitForChild("Events"):WaitForChild("RemoteEvents")
+local PetEvent = RemoteEvents:WaitForChild("PetEvent")
+local FarmEvent = RemoteEvents:WaitForChild("FarmEvent")
+local SellEvent = RemoteEvents:WaitForChild("SellEvent")
+local QuestEvent = RemoteEvents:WaitForChild("QuestEvent")
+local PlayTimeRewardsEvent = RemoteEvents:WaitForChild("PlayTimeRewardsEvent")
+local EggEvent = RemoteEvents:WaitForChild("EggEvent")
+local HatEvent = RemoteEvents:WaitForChild("HatEvent")
+local CrateEvent = RemoteEvents:WaitForChild("CrateEvent")
+local RelicsEvent = RemoteEvents:WaitForChild("RelicsEvent")
+
+local DataClient = require(StarterPlayer.StarterPlayerScripts.ClientModules.DataClient)
+local FruitStats = require(ReplicatedStorage.StatsModules.FruitStats)
+local RelicStats = require(ReplicatedStorage.StatsModules.Relics)
+local QuestsStats = require(ReplicatedStorage.StatsModules.QuestsStats)
+
+-- ==========================================
+-- VARIÁVEIS DE ESTADO
+-- ==========================================
+local State = {
+    AutoTrash = false,
+    TrashRadius = 100,
+    AutoOrbs = false,
+    AutoChests = false,
+    SenseiAura = false,
+    OriginalSenseiCFrame = nil,
+    
+    AutoEgg = false,
+    EggName = "",
+    AutoCrate = false,
+    CrateName = "",
+    
+    AutoCraft = false,
+    AutoFarm = false,
+    FarmSeed = "",
+    
+    LimitedSellFixed = false,
+    OriginalLimitedCFrame = nil,
+    AutoLimitedSell = false,
+    
+    AutoQuest = false,
+    AutoPlayTime = false,
+    
+    AutoDeleteRelics = false,
+    RelicsToDelete = {},
+}
+
+-- ==========================================
+-- OBTER LISTA DE FRUTAS DO MODULE
+-- ==========================================
+local FruitList = {}
+pcall(function()
+    if FruitStats and FruitStats.Fruits then
+        for fruitName, _ in pairs(FruitStats.Fruits) do
+            FruitList[#FruitList + 1] = fruitName
+        end
+        table.sort(FruitList)
+    end
+end)
+
+-- ==========================================
+-- OBTER LISTA DE RELICS DO MODULE
+-- ==========================================
+local RelicList = {}
+pcall(function()
+    if RelicStats and RelicStats.Relics then
+        for relicName, _ in pairs(RelicStats.Relics) do
+            RelicList[#RelicList + 1] = relicName
+        end
+        table.sort(RelicList)
+    end
+end)
+
+-- ==========================================
+-- HELPER: pegar rootPart do player
+-- ==========================================
+local function getRootPart()
+    local character = player.Character
+    if not character then return nil end
+    return character:FindFirstChild("HumanoidRootPart")
+end
+
+-- ==========================================
+-- HELPER: checar se quest está pronta para claim
+-- ==========================================
+local function isQuestReady()
+    local ok, result = pcall(function()
+        local questData = (DataClient.Data.Quests.Wizard or {}).Quest or {}
+        if not next(questData) then return false end
+        local requirements = questData.Requirements or {}
+        local questName = questData.Name or ""
+        local questStats = QuestsStats.NPCs.Wizard.Quests[questName]
+        if not questStats then return false end
+        for i, req in ipairs(requirements) do
+            if questStats.Requirements[i].Amount > (req.Progress or 0) then
+                return false
+            end
+        end
+        return true
+    end)
+    return ok and result
+end
+
+-- ==========================================
+-- HELPER: checar se tem quest ativa
+-- ==========================================
+local function hasActiveQuest()
+    local ok, result = pcall(function()
+        local questData = (DataClient.Data.Quests.Wizard or {}).Quest or {}
+        for _, v in pairs(questData) do
+            if v then return true end
+        end
+        return false
+    end)
+    return ok and result
+end
+
+-- ==========================================
+-- HELPER: checar se PlayTime reward está pronto
+-- ==========================================
+local function isPlayTimeReady()
+    local ok, result = pcall(function()
+        local osTime = ReplicatedStorage:FindFirstChild("OsTime")
+        local currentTime = osTime and osTime.Value or 0
+        local claimableOn = player:GetAttribute("EggClaimableOn") or 0
+        return (claimableOn - currentTime) <= 0
+    end)
+    return ok and result
+end
+
+-- ==========================================
+-- CRIAÇÃO DAS ABAS (TABS)
+-- ==========================================
+local MainTab = Window:CreateTab("Principal", 4483362458)
+local MiscTab = Window:CreateTab("Misc", 4483362458)
+local UnboxTab = Window:CreateTab("Auto Egg/Crate", 4483362458)
+local CraftTab = Window:CreateTab("Auto Craft", 4483362458)
+local FarmTab = Window:CreateTab("Farm", 4483362458)
+local RelicTab = Window:CreateTab("Relic", 4483362458)
+
+-- ==========================================
+-- ABA PRINCIPAL
+-- ==========================================
+MainTab:CreateButton({
+   Name = "Ativar ClickDetectors (Artifacts)",
+   Callback = function()
+       pcall(function()
+           for _, item in ipairs(workspace.Scriptable.Artifacts:GetDescendants()) do
+               if item:IsA("ClickDetector") and fireclickdetector then
+                   fireclickdetector(item)
+               end
+           end
+       end)
+   end,
+})
+
+MainTab:CreateSection("Teleportes Automáticos")
+
+MainTab:CreateToggle({
+   Name = "Auto Puxar Trashes (Lixos)",
+   CurrentValue = false,
+   Flag = "ToggleTrash",
+   Callback = function(Value)
+       State.AutoTrash = Value
+   end,
+})
+
+MainTab:CreateInput({
+   Name = "Raio do Teleport (Trashes)",
+   PlaceholderText = "Padrão: 100",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+       State.TrashRadius = tonumber(Text) or 100
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "Auto Puxar Orbs (Mapa Todo)",
+   CurrentValue = false,
+   Flag = "ToggleOrbs",
+   Callback = function(Value)
+       State.AutoOrbs = Value
+   end,
+})
+
+MainTab:CreateSection("Utilitários")
+
+MainTab:CreateToggle({
+   Name = "Auto Abrir Baús (A cada 8s)",
+   CurrentValue = false,
+   Flag = "ToggleChests",
+   Callback = function(Value)
+       State.AutoChests = Value
+   end,
+})
+
+-- ==========================================
+-- ABA MISC
+-- ==========================================
+MiscTab:CreateSection("Limited Sell")
+
+MiscTab:CreateToggle({
+   Name = "Fixar Limited Sell (Embaixo dos Pés)",
+   CurrentValue = false,
+   Flag = "ToggleLimitedFixed",
+   Callback = function(Value)
+       State.LimitedSellFixed = Value
+       if not Value and State.OriginalLimitedCFrame then
+           pcall(function()
+               local limitedModel = workspace.Scriptable.Sells:FindFirstChild("Limited")
+               if limitedModel then
+                   if limitedModel:IsA("Model") then
+                       limitedModel:PivotTo(State.OriginalLimitedCFrame)
+                   else
+                       limitedModel.CFrame = State.OriginalLimitedCFrame
+                   end
+               end
+           end)
+           State.OriginalLimitedCFrame = nil
+       end
+   end,
+})
+
+MiscTab:CreateToggle({
+   Name = "Auto Sell Limited (Vende Automaticamente)",
+   CurrentValue = false,
+   Flag = "ToggleAutoLimitedSell",
+   Callback = function(Value)
+       State.AutoLimitedSell = Value
+   end,
+})
+
+MiscTab:CreateSection("Auras / Automáticos")
+
+MiscTab:CreateToggle({
+   Name = "Auto Sensei Bob (Fome/Dormindo)",
+   CurrentValue = false,
+   Flag = "ToggleSensei",
+   Callback = function(Value)
+       State.SenseiAura = Value
+       if not Value and State.OriginalSenseiCFrame then
+           pcall(function()
+               local senseiPart = workspace.Scriptable.SenseiBob.Hitbox.Part
+               senseiPart.CFrame = State.OriginalSenseiCFrame
+           end)
+       end
+   end,
+})
+
+MiscTab:CreateSection("Quests & Rewards")
+
+MiscTab:CreateToggle({
+   Name = "Auto Quest (Pegar + Coletar)",
+   CurrentValue = false,
+   Flag = "ToggleAutoQuest",
+   Callback = function(Value)
+       State.AutoQuest = Value
+   end,
+})
+
+MiscTab:CreateToggle({
+   Name = "Auto PlayTime Reward (Coletar Egg)",
+   CurrentValue = false,
+   Flag = "ToggleAutoPlayTime",
+   Callback = function(Value)
+       State.AutoPlayTime = Value
+   end,
+})
+
+-- ==========================================
+-- ABA AUTO EGG/CRATE (SEPARADOS)
+-- ==========================================
+UnboxTab:CreateSection("Auto Egg")
+
+UnboxTab:CreateInput({
+   Name = "Nome do Egg",
+   PlaceholderText = "Ex: Release Egg",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+       State.EggName = Text
+   end,
+})
+
+UnboxTab:CreateToggle({
+   Name = "Ativar Auto Hatch Egg (Max)",
+   CurrentValue = false,
+   Flag = "ToggleAutoEgg",
+   Callback = function(Value)
+       State.AutoEgg = Value
+   end,
+})
+
+UnboxTab:CreateSection("Auto Crate/Hat")
+
+UnboxTab:CreateInput({
+   Name = "Nome da Crate/Hat",
+   PlaceholderText = "Ex: Common Crate",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+       State.CrateName = Text
+   end,
+})
+
+UnboxTab:CreateToggle({
+   Name = "Ativar Auto Open Crate (Max)",
+   CurrentValue = false,
+   Flag = "ToggleAutoCrate",
+   Callback = function(Value)
+       State.AutoCrate = Value
+   end,
+})
+
+-- ==========================================
+-- ABA AUTO CRAFT
+-- ==========================================
+CraftTab:CreateSection("Auto Craft Pets")
+
+CraftTab:CreateToggle({
+   Name = "Ativar Auto Craft (Normal > Golden > Ruby)",
+   CurrentValue = false,
+   Flag = "ToggleAutoCraft",
+   Callback = function(Value)
+       State.AutoCraft = Value
+   end,
+})
+
+-- ==========================================
+-- ABA FARM
+-- ==========================================
+FarmTab:CreateSection("Auto Farm")
+
+FarmTab:CreateDropdown({
+   Name = "Selecionar Fruta",
+   Options = FruitList,
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "DropdownFarmSeed",
+   Callback = function(Options)
+       State.FarmSeed = Options[1] or ""
+   end,
+})
+
+FarmTab:CreateToggle({
+   Name = "Ativar Auto Farm (Plantar + Colher)",
+   CurrentValue = false,
+   Flag = "ToggleAutoFarm",
+   Callback = function(Value)
+       State.AutoFarm = Value
+   end,
+})
+
+-- ==========================================
+-- ABA RELIC
+-- ==========================================
+RelicTab:CreateSection("Auto Delete Relics")
+
+RelicTab:CreateDropdown({
+   Name = "Selecionar Relics para Deletar",
+   Options = RelicList,
+   CurrentOption = {},
+   MultipleOptions = true,
+   Flag = "DropdownRelicsDelete",
+   Callback = function(Options)
+       State.RelicsToDelete = Options or {}
+   end,
+})
+
+RelicTab:CreateToggle({
+   Name = "Ativar Auto Delete (Deleta Relics Selecionados)",
+   CurrentValue = false,
+   Flag = "ToggleAutoDeleteRelics",
+   Callback = function(Value)
+       State.AutoDeleteRelics = Value
+   end,
+})
+
+-- ==========================================
+-- BACKGROUND TASKS (OTIMIZADOS)
+-- ==========================================
+
+-- [1]: Bloquear Animações (Ovos, Caixas e CRAFT) - executa UMA vez
+task.spawn(function()
+    -- Desabilitar conexões de animação
+    if getconnections then
+        for _, eventName in ipairs({"EggEvent", "HatEvent", "CrateEvent"}) do
+            local event = RemoteEvents:FindFirstChild(eventName)
+            if event then
+                for _, conn in pairs(getconnections(event.OnClientEvent)) do
+                    conn:Disable()
+                end
+            end
+        end
+    end
+    
+    -- Esconder GUIs de Craft (CraftingRollingFrame + CraftingFrame)
+    pcall(function()
+        local menus = player.PlayerGui.Main.Menus
+        local craftingRollingFrame = menus:FindFirstChild("CraftingRollingFrame")
+        local craftingFrame = menus:FindFirstChild("CraftingFrame")
+        
+        if craftingRollingFrame then
+            craftingRollingFrame.Visible = false
+            craftingRollingFrame:GetPropertyChangedSignal("Visible"):Connect(function()
+                if State.AutoCraft then
+                    craftingRollingFrame.Visible = false
+                end
+            end)
+        end
+        
+        if craftingFrame then
+            craftingFrame:GetPropertyChangedSignal("Visible"):Connect(function()
+                if State.AutoCraft then
+                    craftingFrame.Visible = false
+                end
+            end)
+        end
+    end)
+    
+    -- Hook modules de animação
+    if hookfunction then
+        local function hookModule(moduleName, funcNames)
+            pcall(function()
+                local mod = require(player.PlayerScripts.ClientModules:FindFirstChild(moduleName))
+                if mod then
+                    for _, funcName in ipairs(funcNames) do
+                        if mod[funcName] then
+                            hookfunction(mod[funcName], function() return end)
+                        end
+                    end
+                end
+            end)
+        end
+        hookModule("EggClient", {"AnimateEggs", "RenderEggBatch"})
+        hookModule("HatClient", {"AnimateHats", "RenderHatBatch", "AnimateCrates", "RenderCrateBatch"})
+        hookModule("CrateClient", {"AnimateCrates", "RenderCrateBatch", "AnimateHats", "RenderHatBatch"})
+    end
+    
+    -- Destruir modelos de animação na câmera
+    workspace.CurrentCamera.ChildAdded:Connect(function(child)
+        task.defer(function()
+            if child and child.Parent then
+                child:Destroy()
+            end
+        end)
+    end)
+end)
+
+-- [2]: Auto Colher Frutas (a cada 3s)
+task.spawn(function()
+    local FarmFolder = workspace:WaitForChild("Scriptable"):WaitForChild("Farm"):WaitForChild("GrowSpots")
+    
+    while task.wait(3) do
+        pcall(function()
+            for i = 1, 25 do
+                local spot = FarmFolder:FindFirstChild(tostring(i))
+                if spot then
+                    for _, obj in ipairs(spot:GetDescendants()) do
+                        if obj:IsA("ProximityPrompt") and obj.Name == "HarvestPrompt" and obj.Enabled and obj.Parent then
+                            fireproximityprompt(obj, 1)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- [3]: Auto Egg (separado)
+task.spawn(function()
+    while task.wait(0.15) do
+        if State.AutoEgg and State.EggName ~= "" then
+            pcall(function()
+                EggEvent:FireServer("HatchMax", State.EggName)
+            end)
+        end
+    end
+end)
+
+-- [4]: Auto Crate/Hat (separado)
+task.spawn(function()
+    while task.wait(0.15) do
+        if State.AutoCrate and State.CrateName ~= "" then
+            pcall(function()
+                HatEvent:FireServer("HatchMax", State.CrateName)
+                HatEvent:FireServer("OpenMax", State.CrateName)
+                CrateEvent:FireServer("HatchMax", State.CrateName)
+                CrateEvent:FireServer("OpenMax", State.CrateName)
+            end)
+        end
+    end
+end)
+
+-- [5]: Trashes + Orbs (a cada 1.5s, unificado)
+task.spawn(function()
+    while task.wait(1.5) do
+        if not State.AutoTrash and not State.AutoOrbs then continue end
+        
+        local rootPart = getRootPart()
+        if not rootPart then continue end
+        local rootCFrame = rootPart.CFrame
+        local rootPos = rootPart.Position
+        
+        pcall(function()
+            if State.AutoTrash then
+                local radius = State.TrashRadius
+                for _, item in ipairs(workspace.Scriptable.Trashes:GetChildren()) do
+                    local pos
+                    if item:IsA("Model") then
+                        pos = item:GetPivot().Position
+                    elseif item:IsA("BasePart") then
+                        pos = item.Position
+                    end
+                    if pos and (rootPos - pos).Magnitude <= radius then
+                        if item:IsA("Model") then
+                            item:PivotTo(rootCFrame)
+                        else
+                            item.CFrame = rootCFrame
+                        end
+                    end
+                end
+            end
+            
+            if State.AutoOrbs then
+                local orbs = workspace.Scriptable.Orbs:GetChildren()
+                local count = #orbs
+                if count > 0 then
+                    for i, orb in ipairs(orbs) do
+                        local angle = (i / count) * math.pi * 2
+                        local offsetX = math.cos(angle) * 2
+                        local offsetZ = math.sin(angle) * 2
+                        local targetCFrame = CFrame.new(rootPos.X + offsetX, rootPos.Y + 1.5, rootPos.Z + offsetZ)
+                        if orb:IsA("Model") then
+                            orb:PivotTo(targetCFrame)
+                        elseif orb:IsA("BasePart") then
+                            orb.CFrame = targetCFrame
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- [6]: Baús (a cada 8s)
+task.spawn(function()
+    while task.wait(8) do
+        if not State.AutoChests then continue end
+        pcall(function()
+            for _, chest in ipairs(workspace.Scriptable.LittleChests:GetChildren()) do
+                local prompt = chest:FindFirstChild("Prompt")
+                prompt = prompt and prompt:FindFirstChild("Attachment")
+                prompt = prompt and prompt:FindFirstChild("ProximityPrompt")
+                if prompt and fireproximityprompt then
+                    fireproximityprompt(prompt)
+                end
+            end
+        end)
+    end
+end)
+
+-- [7]: Sensei Bob (a cada 1s)
+task.spawn(function()
+    while task.wait(1) do
+        if not State.SenseiAura then continue end
+        
+        local rootPart = getRootPart()
+        if not rootPart then continue end
+        
+        pcall(function()
+            local senseiBob = workspace.Scriptable:FindFirstChild("SenseiBob")
+            if not senseiBob then return end
+            
+            local senseiPart = senseiBob:FindFirstChild("Hitbox")
+            senseiPart = senseiPart and senseiPart:FindFirstChild("Part")
+            if not senseiPart or not senseiPart:IsA("BasePart") then return end
+            
+            local ring = senseiBob:FindFirstChild("Ring")
+            local circle = ring and ring:FindFirstChild("Circle")
+            local attachment = circle and circle:FindFirstChild("Attachment")
+            local billboard = attachment and attachment:FindFirstChild("BillboardGui")
+            local stateGui = billboard and billboard:FindFirstChild("state")
+            if not stateGui then return end
+            
+            if not State.OriginalSenseiCFrame then
+                State.OriginalSenseiCFrame = senseiPart.CFrame
+            end
+
+            if stateGui.Text == "Hungry!" then
+                senseiPart.CanCollide = false 
+                senseiPart.CFrame = rootPart.CFrame
+            elseif stateGui.Text == "Sleeping..." then
+                if State.OriginalSenseiCFrame then
+                    senseiPart.CFrame = State.OriginalSenseiCFrame
+                end
+            end
+        end)
+    end
+end)
+
+-- [8]: Limited Sell Fixo + Auto Sell (a cada 1s)
+task.spawn(function()
+    while task.wait(1) do
+        if not State.LimitedSellFixed and not State.AutoLimitedSell then continue end
+        
+        local rootPart = getRootPart()
+        if not rootPart then continue end
+        
+        pcall(function()
+            local sellsFolder = workspace.Scriptable:FindFirstChild("Sells")
+            if not sellsFolder then return end
+            
+            local limitedModel = sellsFolder:FindFirstChild("Limited")
+            if not limitedModel then return end
+            
+            if State.LimitedSellFixed then
+                if not State.OriginalLimitedCFrame then
+                    if limitedModel:IsA("Model") then
+                        State.OriginalLimitedCFrame = limitedModel:GetPivot()
+                    else
+                        State.OriginalLimitedCFrame = limitedModel.CFrame
+                    end
+                end
+                
+                local targetCFrame = CFrame.new(rootPart.Position.X, rootPart.Position.Y - 3, rootPart.Position.Z)
+                if limitedModel:IsA("Model") then
+                    limitedModel:PivotTo(targetCFrame)
+                else
+                    limitedModel.CFrame = targetCFrame
+                end
+            end
+            
+            if State.AutoLimitedSell then
+                local billboard = limitedModel:FindFirstChild("Circle")
+                billboard = billboard and billboard:FindFirstChild("Attachment")
+                billboard = billboard and billboard:FindFirstChild("LimitedSellBillboardTemplate")
+                
+                if billboard then
+                    local multiplierIndex = 2
+                    local timeLeft = 120
+                    
+                    local multiplierLabel = billboard:FindFirstChild("Multiplier") or billboard:FindFirstChild("MultiplierText")
+                    if multiplierLabel then
+                        local num = tonumber((multiplierLabel.Text or ""):match("%d+"))
+                        if num then multiplierIndex = num end
+                    end
+                    
+                    local timerLabel = billboard:FindFirstChild("Timer") or billboard:FindFirstChild("TimeLeft")
+                    if timerLabel then
+                        local num = tonumber((timerLabel.Text or ""):match("%d+"))
+                        if num then timeLeft = num end
+                    end
+                    
+                    SellEvent:FireServer("Sell", {
+                        ["MultiplierIndex"] = multiplierIndex,
+                        ["Model"] = limitedModel,
+                        ["WorldName"] = "Spawn",
+                        ["TimeLeft"] = timeLeft,
+                        ["BillboardGui"] = billboard
+                    }, true)
+                end
+            end
+        end)
+    end
+end)
+
+-- [9]: Auto Craft (a cada 3s) - com bloqueio de GUI
+task.spawn(function()
+    while task.wait(3) do
+        if not State.AutoCraft then continue end
+        
+        pcall(function()
+            -- Forçar fechar GUIs de craft enquanto auto craft está ativo
+            local menus = player.PlayerGui:FindFirstChild("Main")
+            if menus then
+                menus = menus:FindFirstChild("Menus")
+                if menus then
+                    local rolling = menus:FindFirstChild("CraftingRollingFrame")
+                    local crafting = menus:FindFirstChild("CraftingFrame")
+                    if rolling then rolling.Visible = false end
+                    if crafting then crafting.Visible = false end
+                end
+            end
+            
+            local playerData = DataClient.GetPlayerData()
+            if not playerData or not playerData.Pets then return end
+            
+            -- Agrupar pets por nome+tier+size
+            local groups = {}
+            for petId, petData in pairs(playerData.Pets) do
+                if not petData.Equipped then
+                    local tier = petData.CraftTier or 0
+                    local size = petData.PetSize or 0
+                    local key = petData.PetName .. "|" .. tier .. "|" .. size
+                    
+                    if not groups[key] then
+                        groups[key] = { name = petData.PetName, tier = tier, size = size, ids = {} }
+                    end
+                    groups[key].ids[#groups[key].ids + 1] = petId
+                end
+            end
+            
+            -- Normal -> Golden (8 pets)
+            for _, group in pairs(groups) do
+                if not State.AutoCraft then return end
+                if group.tier == 0 and #group.ids >= 8 then
+                    local selected = {}
+                    for i = 1, 8 do
+                        selected[group.ids[i]] = true
+                    end
+                    PetEvent:FireServer("CraftPet", {
+                        [1] = group.name,
+                        [2] = selected,
+                        [3] = "Golden",
+                        [4] = group.size
+                    })
+                    task.wait(2)
+                end
+            end
+            
+            -- Re-buscar dados para Golden -> Ruby
+            if not State.AutoCraft then return end
+            task.wait(1)
+            
+            playerData = DataClient.GetPlayerData()
+            if not playerData or not playerData.Pets then return end
+            
+            local groups2 = {}
+            for petId, petData in pairs(playerData.Pets) do
+                if not petData.Equipped then
+                    local tier = petData.CraftTier or 0
+                    local size = petData.PetSize or 0
+                    local key = petData.PetName .. "|" .. tier .. "|" .. size
+                    
+                    if not groups2[key] then
+                        groups2[key] = { name = petData.PetName, tier = tier, size = size, ids = {} }
+                    end
+                    groups2[key].ids[#groups2[key].ids + 1] = petId
+                end
+            end
+            
+            -- Golden -> Ruby (6 pets)
+            for _, group in pairs(groups2) do
+                if not State.AutoCraft then return end
+                if group.tier == 1 and #group.ids >= 6 then
+                    local selected = {}
+                    for i = 1, 6 do
+                        selected[group.ids[i]] = true
+                    end
+                    PetEvent:FireServer("CraftPet", {
+                        [1] = group.name,
+                        [2] = selected,
+                        [3] = "Ruby",
+                        [4] = group.size
+                    })
+                    task.wait(2)
+                end
+            end
+        end)
+    end
+end)
+
+-- [10]: Auto Farm - Plantar (a cada 8s)
+task.spawn(function()
+    while task.wait(8) do
+        if not State.AutoFarm or State.FarmSeed == "" then continue end
+        
+        pcall(function()
+            local playerData = DataClient.GetPlayerData()
+            if not playerData then return end
+            
+            local farmMax = playerData.FarmMax or 5
+            local farmCrops = playerData.FarmCrops or {}
+            
+            local occupied = 0
+            for _ in pairs(farmCrops) do
+                occupied = occupied + 1
+            end
+            
+            local empty = farmMax - occupied
+            if empty > 0 then
+                for _ = 1, empty do
+                    if not State.AutoFarm then return end
+                    FarmEvent:FireServer("BuyCrop", State.FarmSeed)
+                    task.wait(0.5)
+                end
+            end
+        end)
+    end
+end)
+
+-- [11]: Auto Quest Inteligente (a cada 10s)
+task.spawn(function()
+    while task.wait(10) do
+        if not State.AutoQuest then continue end
+        
+        pcall(function()
+            if not hasActiveQuest() then
+                QuestEvent:FireServer("Get")
+            elseif isQuestReady() then
+                QuestEvent:FireServer("Claim")
+            end
+        end)
+    end
+end)
+
+-- [12]: Auto PlayTime Reward (a cada 15s)
+task.spawn(function()
+    while task.wait(15) do
+        if not State.AutoPlayTime then continue end
+        
+        pcall(function()
+            if isPlayTimeReady() then
+                PlayTimeRewardsEvent:FireServer("Claim")
+            end
+        end)
+    end
+end)
+
+-- [13]: Auto Delete Relics (a cada 5s)
+task.spawn(function()
+    while task.wait(5) do
+        if not State.AutoDeleteRelics or #State.RelicsToDelete == 0 then continue end
+        
+        pcall(function()
+            local playerData = DataClient.GetPlayerData()
+            if not playerData or not playerData.Relics or not playerData.Relics.Relics then return end
+            
+            local idsToDelete = {}
+            
+            for relicId, relicData in pairs(playerData.Relics.Relics) do
+                if relicData and not relicData.Equipped then
+                    local relicName = relicData.RelicName
+                    for _, targetName in ipairs(State.RelicsToDelete) do
+                        if relicName == targetName then
+                            idsToDelete[#idsToDelete + 1] = relicId
+                            break
+                        end
+                    end
+                end
+            end
+            
+            if #idsToDelete > 0 then
+                RelicsEvent:FireServer("Delete", idsToDelete)
+            end
+        end)
+    end
+end)
