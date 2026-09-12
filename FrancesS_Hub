@@ -1,21 +1,22 @@
 --[[
-    FrancesS Hub v5.3
+    FrancesS Hub v5.5
     Clicker Simulator By Grokzada
 
-    - Hatch / Craft / Pets (auto-delete) / Merchant / GUIs / Fishing
+    - Hatch / Craft / Pets / Event(RNG) / Merchant / GUIs / Fishing
     - Passivos: Click, Free Gifts, Rainbow Claim
+    - ConfigSaving: só Flags essenciais (Merchant). Demais SEM Flag (não auto-liga).
 ]]
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "FrancesS Hub v5.3",
+    Name = "FrancesS Hub v5.5",
     LoadingTitle = "FrancesS Hub",
     LoadingSubtitle = "Clicker Simulator By Grokzada",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "FrancesSHub",
-        FileName = "Config_v5.3"
+        FileName = "Config_v5.5"
     },
     Discord = { Enabled = false, Invite = "noinvitelink", RememberJoins = true },
     KeySystem = false,
@@ -50,6 +51,11 @@ local SummerChannel = nil
 pcall(function()
     SummerChannel = Network.Channel("SummerEvent2026")
 end)
+local ChannelRNG, ChannelCombine, ChannelRNGUpgrades, SkillTreeFrontend
+pcall(function() ChannelRNG = Network.Channel("RNG") end)
+pcall(function() ChannelCombine = Network.Channel("CombinePets") end)
+pcall(function() ChannelRNGUpgrades = Network.Channel("RNGUpgrades") end)
+pcall(function() SkillTreeFrontend = require(Client:WaitForChild("SkillTreeFrontend")) end)
 
 ----------------------------------------------------------------
 -- Estado
@@ -101,6 +107,13 @@ local fishBound = false
 
 local hatchThread, merchantThread = nil, nil
 local goldenThread, rainbowThread = nil, nil
+
+-- RNG Event
+local AutoRNGRoll = false
+local AutoRNGCraft = false
+local AutoRNGBoost = false
+local rngRollThread, rngCraftThread, rngBoostThread = nil, nil, nil
+local rngStats = { ok = 0, cd = 0 }
 
 ----------------------------------------------------------------
 -- Som "plim" (merchant novo)
@@ -590,7 +603,6 @@ EggDropdown = MainTab:CreateDropdown({
     Options = CurrentEggList,
     CurrentOption = { CurrentEggList[1] or "ToyEgg" },
     MultipleOptions = false,
-    Flag = "EggSelect",
     Callback = function(Option)
         SelectedEgg = Option[1]
     end,
@@ -600,7 +612,6 @@ MainTab:CreateInput({
     Name = "Ou digite o nome do Ovo",
     PlaceholderText = "Ex: DominusEgg, ToyEgg...",
     RemoveTextAfterFocusLost = false,
-    Flag = "ManualEggInput",
     Callback = function(Text)
         local clean = string.gsub(Text or "", "^%s*(.-)%s*$", "%1")
         if clean ~= "" then
@@ -614,7 +625,6 @@ MainTab:CreateInput({
     Name = "Quantidade",
     PlaceholderText = "Ex: 1, 3, 7, 8...",
     RemoveTextAfterFocusLost = false,
-    Flag = "AmountInput",
     Callback = function(Text)
         local num = tonumber(Text)
         if num and num >= 1 then Amount = math.floor(num) end
@@ -624,7 +634,6 @@ MainTab:CreateInput({
 MainTab:CreateToggle({
     Name = "Auto Hatch",
     CurrentValue = false,
-    Flag = "AutoHatch",
     Callback = function(Value)
         AutoHatch = Value
         if AutoHatch then
@@ -686,7 +695,6 @@ do
         Options = list0,
         CurrentOption = {},
         MultipleOptions = true,
-        Flag = "CraftPetSelect",
         Callback = function(opts)
             if CraftAllMode then return end
             SelectedCraftKeys = {}
@@ -715,7 +723,6 @@ CraftTab:CreateButton({
 CraftTab:CreateToggle({
     Name = "Todos os pets craftáveis",
     CurrentValue = false,
-    Flag = "CraftAllMode",
     Callback = function(v)
         CraftAllMode = v
         Rayfield:Notify({
@@ -732,7 +739,6 @@ CraftTab:CreateInput({
     Name = "Qtd Golden (0 = máximo)",
     PlaceholderText = "0 a 6",
     RemoveTextAfterFocusLost = false,
-    Flag = "GoldenQty",
     Callback = function(text)
         local n = tonumber(text)
         if n then GoldenQty = math.clamp(math.floor(n), 0, 6) end
@@ -743,7 +749,6 @@ CraftTab:CreateInput({
     Name = "Qtd Rainbow (0 = 6)",
     PlaceholderText = "0 a 6",
     RemoveTextAfterFocusLost = false,
-    Flag = "RainbowQty",
     Callback = function(text)
         local n = tonumber(text)
         if n then RainbowQty = math.clamp(math.floor(n), 0, 6) end
@@ -755,7 +760,6 @@ CraftTab:CreateSection("Auto")
 CraftTab:CreateToggle({
     Name = "Auto Golden",
     CurrentValue = false,
-    Flag = "AutoGolden",
     Callback = function(v)
         AutoGolden = v
         if v then
@@ -768,7 +772,6 @@ CraftTab:CreateToggle({
 CraftTab:CreateToggle({
     Name = "Auto Rainbow",
     CurrentValue = false,
-    Flag = "AutoRainbow",
     Callback = function(v)
         AutoRainbow = v
         if v then
@@ -943,7 +946,6 @@ do
         Options = list0,
         CurrentOption = {},
         MultipleOptions = true,
-        Flag = "DeletePetSelect",
         Callback = function(opts)
             SelectedDeleteKeys = {}
             if type(opts) == "table" then
@@ -971,21 +973,18 @@ PetsTab:CreateSection("Versões")
 PetsTab:CreateToggle({
     Name = "Delete Normal",
     CurrentValue = false,
-    Flag = "DelNormal",
     Callback = function(v) DeleteNormal = v end,
 })
 
 PetsTab:CreateToggle({
     Name = "Delete Golden",
     CurrentValue = true,
-    Flag = "DelGolden",
     Callback = function(v) DeleteGolden = v end,
 })
 
 PetsTab:CreateToggle({
     Name = "Delete Rainbow",
     CurrentValue = false,
-    Flag = "DelRainbow",
     Callback = function(v) DeleteRainbow = v end,
 })
 
@@ -994,13 +993,196 @@ PetsTab:CreateSection("Background")
 PetsTab:CreateToggle({
     Name = "Auto Delete (segundo plano)",
     CurrentValue = false,
-    Flag = "AutoDeletePets",
     Callback = function(v)
         AutoDeletePets = v
         if v then
             if deletePetsThread then return end
             deletePetsThread = task.spawn(AutoDeleteLoop)
         end
+    end,
+})
+
+----------------------------------------------------------------
+-- RNG helpers
+----------------------------------------------------------------
+local function RNGItemCount(id)
+    local total = 0
+    local ok, d = pcall(function() return Stats.Local() end)
+    if not ok or not d then return 0 end
+    if d.RNGDiceQueue and d.RNGDiceQueue[id] then
+        total += tonumber(d.RNGDiceQueue[id]) or 0
+    end
+    if d.Items then
+        local v = d.Items[id]
+        if type(v) == "number" then total += v
+        elseif type(v) == "table" then total += tonumber(v.Amount or v.amount or v.Count) or 0 end
+    end
+    return total
+end
+
+local function RNGDoRoll()
+    if not ChannelRNG then return false, "no channel" end
+    local okCall, a, b, c = pcall(function()
+        return ChannelRNG:InvokeServer("Roll")
+    end)
+    if not okCall then return false, tostring(a) end
+    if a == true then
+        rngStats.ok += 1
+        return true, nil, c
+    end
+    if b == "Cooldown" or (type(c) == "number" and c > workspace:GetServerTimeNow()) then
+        rngStats.cd += 1
+        return false, "Cooldown", c
+    end
+    return false, tostring(b or a), c
+end
+
+local function RNGCraft(index, isMax)
+    if not ChannelCombine then return false end
+    local ok, success = pcall(function()
+        return ChannelCombine:InvokeServer("Craft", "Dices", index, isMax == true)
+    end)
+    return ok and success == true
+end
+
+-- Lucky chain only (NO Rainbow): 1=x1K→100K, 2=100K→Golden, 3=Golden→x1M
+local RNG_DICE_CHAIN = {
+    { index = 1, from = "x1KDice", need = 30 },
+    { index = 2, from = "x100KDice", need = 9 },
+    { index = 3, from = "GoldenDice", need = 6 },
+}
+
+local function RNGRollLoop()
+    while AutoRNGRoll do
+        local ok, err, cd = RNGDoRoll()
+        if ok then
+            -- max
+        elseif err == "Cooldown" and type(cd) == "number" then
+            local w = cd - workspace:GetServerTimeNow()
+            if w > 0.03 then task.wait(w - 0.02)
+            elseif w > 0 then task.wait(w) end
+        else
+            task.wait(0.1)
+        end
+    end
+    rngRollThread = nil
+end
+
+local function RNGCraftLoop()
+    -- Sempre manda Craft pro server (igual botão 1x). Server valida inventário.
+    while AutoRNGCraft do
+        local did = false
+        for _, c in ipairs(RNG_DICE_CHAIN) do
+            if not AutoRNGCraft then break end
+            if RNGCraft(c.index, true) then did = true end
+            task.wait(0.15)
+        end
+        task.wait(did and 0.2 or 0.7)
+    end
+    rngCraftThread = nil
+end
+
+local function RNGBoostLoop()
+    local upgrades = { "LuckMultiplier", "PixelCoinsMultiplier", "BreakablesIncremental" }
+    local skills = {
+        "RNGFasterRolls", "RNGFasterRollsII", "RNGFasterRollsIII", "RNGFasterRollsIV",
+        "RNGBonusRoll", "RNGBonusRollII", "RNGBonusRollIII",
+        "RNGGoldenRoll", "RNGGoldenRollII", "RNGGoldenRollIII",
+    }
+    while AutoRNGBoost do
+        local did = false
+        if ChannelRNGUpgrades then
+            for _, id in ipairs(upgrades) do
+                if not AutoRNGBoost then break end
+                local ok = pcall(function()
+                    ChannelRNGUpgrades:InvokeServer("Purchase", id, 20)
+                end)
+                if ok then did = true end
+                task.wait(0.08)
+            end
+        end
+        if SkillTreeFrontend and SkillTreeFrontend.Purchase then
+            for _, id in ipairs(skills) do
+                if not AutoRNGBoost then break end
+                local ok = pcall(function() SkillTreeFrontend.Purchase(id, "RNG") end)
+                if ok then did = true end
+                task.wait(0.1)
+            end
+        end
+        task.wait(did and 0.4 or 1.5)
+    end
+    rngBoostThread = nil
+end
+
+----------------------------------------------------------------
+-- TAB: Event (RNG) — ao lado de Pets
+----------------------------------------------------------------
+local EventTab = Window:CreateTab("Event", 4483362458)
+EventTab:CreateSection("RNG Event")
+
+EventTab:CreateParagraph({
+    Title = "RNG",
+    Content = "Auto Roll rápido.\nAuto Craft Dice só até x1M Lucky (sem Rainbow).\nBoost = Upgrades + Skill Tree.",
+})
+
+EventTab:CreateToggle({
+    Name = "Auto Roll",
+    CurrentValue = false,
+    Callback = function(v)
+        AutoRNGRoll = v
+        if v then
+            if rngRollThread then return end
+            rngRollThread = task.spawn(RNGRollLoop)
+        end
+    end,
+})
+
+EventTab:CreateToggle({
+    Name = "Auto Craft Dice (até x1M)",
+    CurrentValue = false,
+    Callback = function(v)
+        AutoRNGCraft = v
+        if v then
+            if rngCraftThread then return end
+            rngCraftThread = task.spawn(RNGCraftLoop)
+        end
+    end,
+})
+
+EventTab:CreateToggle({
+    Name = "Auto Upgrades + Skill Tree",
+    CurrentValue = false,
+    Callback = function(v)
+        AutoRNGBoost = v
+        if v then
+            if rngBoostThread then return end
+            rngBoostThread = task.spawn(RNGBoostLoop)
+        end
+    end,
+})
+
+EventTab:CreateButton({
+    Name = "Ver Dice no inventário",
+    Callback = function()
+        local ids = { "x1KDice", "x100KDice", "x1MDice", "GoldenDice", "RainbowDice" }
+        local parts = {}
+        for _, id in ipairs(ids) do
+            table.insert(parts, id:gsub("Dice", "") .. "=" .. RNGItemCount(id))
+        end
+        Rayfield:Notify({ Title = "Dice", Content = table.concat(parts, " | "), Duration = 5 })
+    end,
+})
+
+EventTab:CreateButton({
+    Name = "Craft cadeia 1x agora",
+    Callback = function()
+        task.spawn(function()
+            for _, c in ipairs(RNG_DICE_CHAIN) do
+                RNGCraft(c.index, true)
+                task.wait(0.12)
+            end
+            Rayfield:Notify({ Title = "Craft", Content = "Rodada enviada", Duration = 2 })
+        end)
     end,
 })
 
@@ -1068,7 +1250,6 @@ GuiDropdown = GUITab:CreateDropdown({
     Options = GUIList,
     CurrentOption = { GUIList[1] or "Nenhum" },
     MultipleOptions = false,
-    Flag = "GUISelect",
     Callback = function(Option)
         SelectedGUI = Option[1]
     end,
@@ -1295,7 +1476,6 @@ FishTab:CreateParagraph({
 FishTab:CreateToggle({
     Name = "Pesca instantânea",
     CurrentValue = false,
-    Flag = "InstantReel",
     Callback = function(v)
         InstantReel = v
     end,
@@ -1304,7 +1484,6 @@ FishTab:CreateToggle({
 FishTab:CreateToggle({
     Name = "Auto Sell peixes",
     CurrentValue = false,
-    Flag = "AutoSellFish",
     Callback = function(v)
         AutoSellFish = v
     end,
@@ -1313,7 +1492,6 @@ FishTab:CreateToggle({
 FishTab:CreateToggle({
     Name = "Isca perto da vara",
     CurrentValue = true,
-    Flag = "PullBobber",
     Callback = function(v)
         PullBobber = v
     end,
@@ -1323,7 +1501,6 @@ FishTab:CreateInput({
     Name = "Distância da isca (studs)",
     PlaceholderText = "4",
     RemoveTextAfterFocusLost = false,
-    Flag = "BobberDist",
     Callback = function(text)
         local n = tonumber(text)
         if n then BobberDistance = math.clamp(n, 1, 30) end
@@ -1335,8 +1512,8 @@ FishTab:CreateInput({
 ----------------------------------------------------------------
 local InfoTab = Window:CreateTab("Info", 4483362458)
 InfoTab:CreateParagraph({
-    Title = "FrancesS Hub v5.3",
-    Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Merchant • GUIs • Fishing\nPassivos: Click + Free Gifts + Rainbow Claim",
+    Title = "FrancesS Hub v5.5",
+    Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Merchant • GUIs • Fishing\nPassivos: Click + Free Gifts + Rainbow Claim\nConfig: só Merchant salva (toggles perigosos não auto-ligam)",
 })
 
 InfoTab:CreateButton({
@@ -1404,7 +1581,7 @@ InfoTab:CreateButton({
 })
 
 Rayfield:Notify({
-    Title = "FrancesS Hub v5.3",
+    Title = "FrancesS Hub v5.5",
     Content = "Clicker Simulator By Grokzada",
     Duration = 3,
 })
