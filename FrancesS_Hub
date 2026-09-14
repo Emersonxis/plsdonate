@@ -1,5 +1,5 @@
 --[[
-    FrancesS Hub v5.5
+    FrancesS Hub v5.6
     Clicker Simulator By Grokzada
 
     - Hatch / Craft / Pets / Event(RNG) / Merchant / GUIs / Fishing
@@ -10,13 +10,13 @@
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "FrancesS Hub v5.5",
+    Name = "FrancesS Hub v5.6",
     LoadingTitle = "FrancesS Hub",
     LoadingSubtitle = "Clicker Simulator By Grokzada",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "FrancesSHub",
-        FileName = "Config_v5.5"
+        FileName = "Config_v5.6"
     },
     Discord = { Enabled = false, Invite = "noinvitelink", RememberJoins = true },
     KeySystem = false,
@@ -1006,18 +1006,19 @@ PetsTab:CreateToggle({
 -- RNG helpers
 ----------------------------------------------------------------
 local function RNGItemCount(id)
-    local total = 0
+    -- Dump: Items["x1KDice_1"] = number
     local ok, d = pcall(function() return Stats.Local() end)
-    if not ok or not d then return 0 end
-    if d.RNGDiceQueue and d.RNGDiceQueue[id] then
-        total += tonumber(d.RNGDiceQueue[id]) or 0
+    if not ok or not d or not d.Items then return 0 end
+    local key = id
+    if not string.find(id, "_") then
+        key = id .. "_1"
     end
-    if d.Items then
-        local v = d.Items[id]
-        if type(v) == "number" then total += v
-        elseif type(v) == "table" then total += tonumber(v.Amount or v.amount or v.Count) or 0 end
-    end
-    return total
+    local v = d.Items[key]
+    if type(v) == "number" then return v end
+    if type(v) == "table" then return tonumber(v.Amount or v.amount or v.Count) or 0 end
+    v = d.Items[id]
+    if type(v) == "number" then return v end
+    return 0
 end
 
 local function RNGDoRoll()
@@ -1045,11 +1046,12 @@ local function RNGCraft(index, isMax)
     return ok and success == true
 end
 
--- Lucky chain only (NO Rainbow): 1=x1K→100K, 2=100K→Golden, 3=Golden→x1M
+-- 15x x1K → 100K | 3x x100K → Golden | 2x Golden → Rainbow | 2x Rainbow → x1M
 local RNG_DICE_CHAIN = {
-    { index = 1, from = "x1KDice", need = 30 },
-    { index = 2, from = "x100KDice", need = 9 },
-    { index = 3, from = "GoldenDice", need = 6 },
+    { index = 1, from = "x1KDice", need = 15 },
+    { index = 2, from = "x100KDice", need = 3 },
+    { index = 3, from = "GoldenDice", need = 2 },
+    { index = 4, from = "RainbowDice", need = 2 },
 }
 
 local function RNGRollLoop()
@@ -1069,15 +1071,17 @@ local function RNGRollLoop()
 end
 
 local function RNGCraftLoop()
-    -- Sempre manda Craft pro server (igual botão 1x). Server valida inventário.
+    -- Só chama remote quando Items tem material (evita lag)
     while AutoRNGCraft do
         local did = false
         for _, c in ipairs(RNG_DICE_CHAIN) do
             if not AutoRNGCraft then break end
-            if RNGCraft(c.index, true) then did = true end
-            task.wait(0.15)
+            if RNGItemCount(c.from) >= c.need then
+                if RNGCraft(c.index, true) then did = true end
+                task.wait(0.12)
+            end
         end
-        task.wait(did and 0.2 or 0.7)
+        task.wait(did and 0.25 or 1.0)
     end
     rngCraftThread = nil
 end
@@ -1122,7 +1126,7 @@ EventTab:CreateSection("RNG Event")
 
 EventTab:CreateParagraph({
     Title = "RNG",
-    Content = "Auto Roll rápido.\nAuto Craft Dice só até x1M Lucky (sem Rainbow).\nBoost = Upgrades + Skill Tree.",
+    Content = "Auto Roll rápido.\nAuto Craft: 15x1K→100K→Golden→Rainbow→1M (com material).\nBoost = Upgrades + Skill Tree.",
 })
 
 EventTab:CreateToggle({
@@ -1177,11 +1181,18 @@ EventTab:CreateButton({
     Name = "Craft cadeia 1x agora",
     Callback = function()
         task.spawn(function()
+            local msg = {}
             for _, c in ipairs(RNG_DICE_CHAIN) do
-                RNGCraft(c.index, true)
-                task.wait(0.12)
+                local have = RNGItemCount(c.from)
+                if have >= c.need then
+                    local ok = RNGCraft(c.index, true)
+                    table.insert(msg, c.from .. (ok and " OK" or " fail"))
+                else
+                    table.insert(msg, c.from .. " " .. tostring(have) .. "/" .. tostring(c.need))
+                end
+                task.wait(0.1)
             end
-            Rayfield:Notify({ Title = "Craft", Content = "Rodada enviada", Duration = 2 })
+            Rayfield:Notify({ Title = "Craft", Content = table.concat(msg, " | "), Duration = 5 })
         end)
     end,
 })
@@ -1512,7 +1523,7 @@ FishTab:CreateInput({
 ----------------------------------------------------------------
 local InfoTab = Window:CreateTab("Info", 4483362458)
 InfoTab:CreateParagraph({
-    Title = "FrancesS Hub v5.5",
+    Title = "FrancesS Hub v5.6",
     Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Merchant • GUIs • Fishing\nPassivos: Click + Free Gifts + Rainbow Claim\nConfig: só Merchant salva (toggles perigosos não auto-ligam)",
 })
 
@@ -1581,7 +1592,7 @@ InfoTab:CreateButton({
 })
 
 Rayfield:Notify({
-    Title = "FrancesS Hub v5.5",
+    Title = "FrancesS Hub v5.6",
     Content = "Clicker Simulator By Grokzada",
     Duration = 3,
 })
