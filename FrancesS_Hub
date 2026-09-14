@@ -1,5 +1,5 @@
 --[[
-    FrancesS Hub v5.6
+    FrancesS Hub v5.7
     Clicker Simulator By Grokzada
 
     - Hatch / Craft / Pets / Event(RNG) / Merchant / GUIs / Fishing
@@ -10,13 +10,13 @@
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "FrancesS Hub v5.6",
+    Name = "FrancesS Hub v5.7",
     LoadingTitle = "FrancesS Hub",
     LoadingSubtitle = "Clicker Simulator By Grokzada",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "FrancesSHub",
-        FileName = "Config_v5.6"
+        FileName = "Config_v5.7"
     },
     Discord = { Enabled = false, Invite = "noinvitelink", RememberJoins = true },
     KeySystem = false,
@@ -51,10 +51,11 @@ local SummerChannel = nil
 pcall(function()
     SummerChannel = Network.Channel("SummerEvent2026")
 end)
-local ChannelRNG, ChannelCombine, ChannelRNGUpgrades, SkillTreeFrontend
+local ChannelRNG, ChannelCombine, ChannelRNGUpgrades, ChannelItems, SkillTreeFrontend
 pcall(function() ChannelRNG = Network.Channel("RNG") end)
 pcall(function() ChannelCombine = Network.Channel("CombinePets") end)
 pcall(function() ChannelRNGUpgrades = Network.Channel("RNGUpgrades") end)
+pcall(function() ChannelItems = Network.Channel("Items") end)
 pcall(function() SkillTreeFrontend = require(Client:WaitForChild("SkillTreeFrontend")) end)
 
 ----------------------------------------------------------------
@@ -112,7 +113,9 @@ local goldenThread, rainbowThread = nil, nil
 local AutoRNGRoll = false
 local AutoRNGCraft = false
 local AutoRNGBoost = false
-local rngRollThread, rngCraftThread, rngBoostThread = nil, nil, nil
+local AutoUseDice = false
+local SelectedUseDice = "x1MDice"
+local rngRollThread, rngCraftThread, rngBoostThread, rngUseDiceThread = nil, nil, nil, nil
 local rngStats = { ok = 0, cd = 0 }
 
 ----------------------------------------------------------------
@@ -1118,6 +1121,33 @@ local function RNGBoostLoop()
     rngBoostThread = nil
 end
 
+local function RNGUseDice(diceId, amount)
+    if not ChannelItems then return false end
+    amount = amount or 1
+    local ok, success = pcall(function()
+        return ChannelItems:InvokeServer("Use", diceId, 1, amount)
+    end)
+    return ok and success == true
+end
+
+local function RNGUseDiceLoop()
+    while AutoUseDice do
+        local id = SelectedUseDice
+        local have = RNGItemCount(id)
+        if have > 0 then
+            -- usa 1 por vez; loop consome todos disponíveis
+            if RNGUseDice(id, 1) then
+                task.wait(0.08)
+            else
+                task.wait(0.35)
+            end
+        else
+            task.wait(0.6)
+        end
+    end
+    rngUseDiceThread = nil
+end
+
 ----------------------------------------------------------------
 -- TAB: Event (RNG) — ao lado de Pets
 ----------------------------------------------------------------
@@ -1126,7 +1156,7 @@ EventTab:CreateSection("RNG Event")
 
 EventTab:CreateParagraph({
     Title = "RNG",
-    Content = "Auto Roll rápido.\nAuto Craft: 15x1K→100K→Golden→Rainbow→1M (com material).\nBoost = Upgrades + Skill Tree.",
+    Content = "Auto Roll / Craft / Use Dice / Boost.\nUse Dice: Items:Use(id, 1, qty) — enfileira pro roll.",
 })
 
 EventTab:CreateToggle({
@@ -1162,6 +1192,47 @@ EventTab:CreateToggle({
             if rngBoostThread then return end
             rngBoostThread = task.spawn(RNGBoostLoop)
         end
+    end,
+})
+
+EventTab:CreateSection("Auto Use Dice")
+
+EventTab:CreateDropdown({
+    Name = "Dice para usar",
+    Options = { "x1MDice", "RainbowDice", "GoldenDice", "x100KDice", "x1KDice" },
+    CurrentOption = { "x1MDice" },
+    MultipleOptions = false,
+    Callback = function(opt)
+        local v = type(opt) == "table" and opt[1] or opt
+        if type(v) == "string" and v ~= "" then
+            SelectedUseDice = v
+        end
+    end,
+})
+
+EventTab:CreateToggle({
+    Name = "Auto Use Dice",
+    CurrentValue = false,
+    Callback = function(v)
+        AutoUseDice = v
+        if v then
+            if rngUseDiceThread then return end
+            rngUseDiceThread = task.spawn(RNGUseDiceLoop)
+        end
+    end,
+})
+
+EventTab:CreateButton({
+    Name = "Usar 1x dice selecionado",
+    Callback = function()
+        local id = SelectedUseDice
+        local have = RNGItemCount(id)
+        if have <= 0 then
+            Rayfield:Notify({ Title = "Use Dice", Content = id .. " = 0 no inventário", Duration = 3 })
+            return
+        end
+        local ok = RNGUseDice(id, 1)
+        Rayfield:Notify({ Title = "Use Dice", Content = ok and (id .. " usado") or "falhou", Duration = 3 })
     end,
 })
 
@@ -1523,7 +1594,7 @@ FishTab:CreateInput({
 ----------------------------------------------------------------
 local InfoTab = Window:CreateTab("Info", 4483362458)
 InfoTab:CreateParagraph({
-    Title = "FrancesS Hub v5.6",
+    Title = "FrancesS Hub v5.7",
     Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Merchant • GUIs • Fishing\nPassivos: Click + Free Gifts + Rainbow Claim\nConfig: só Merchant salva (toggles perigosos não auto-ligam)",
 })
 
@@ -1592,7 +1663,7 @@ InfoTab:CreateButton({
 })
 
 Rayfield:Notify({
-    Title = "FrancesS Hub v5.6",
+    Title = "FrancesS Hub v5.7",
     Content = "Clicker Simulator By Grokzada",
     Duration = 3,
 })
