@@ -1,22 +1,22 @@
 --[[
-    FrancesS Hub v5.7
+    FrancesS Hub v5.8
     Clicker Simulator By Grokzada
 
-    - Hatch / Craft / Pets / Event(RNG) / Merchant / GUIs / Fishing
-    - Passivos: Click, Free Gifts, Rainbow Claim
-    - ConfigSaving: só Flags essenciais (Merchant). Demais SEM Flag (não auto-liga).
+    - Hatch / Craft / Pets / Event(RNG) / Potions / GUIs / Fishing
+    - Passivos: Click, Free Gifts, Rainbow Claim, Merchant buy, Potion claim
+    - ConfigSaving: sem auto-ligar toggles perigosos
 ]]
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "FrancesS Hub v5.7",
+    Name = "FrancesS Hub v5.8",
     LoadingTitle = "FrancesS Hub",
     LoadingSubtitle = "Clicker Simulator By Grokzada",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "FrancesSHub",
-        FileName = "Config_v5.7"
+        FileName = "Config_v5.8"
     },
     Discord = { Enabled = false, Invite = "noinvitelink", RememberJoins = true },
     KeySystem = false,
@@ -51,20 +51,31 @@ local SummerChannel = nil
 pcall(function()
     SummerChannel = Network.Channel("SummerEvent2026")
 end)
-local ChannelRNG, ChannelCombine, ChannelRNGUpgrades, ChannelItems, SkillTreeFrontend
+local ChannelRNG, ChannelCombine, ChannelRNGUpgrades, ChannelItems, ChannelPotion, SkillTreeFrontend, Directory
 pcall(function() ChannelRNG = Network.Channel("RNG") end)
 pcall(function() ChannelCombine = Network.Channel("CombinePets") end)
 pcall(function() ChannelRNGUpgrades = Network.Channel("RNGUpgrades") end)
 pcall(function() ChannelItems = Network.Channel("Items") end)
+pcall(function() ChannelPotion = Network.Channel("PotionCrafting") end)
 pcall(function() SkillTreeFrontend = require(Client:WaitForChild("SkillTreeFrontend")) end)
+pcall(function() Directory = require(Library:WaitForChild("Directory")) end)
 
 ----------------------------------------------------------------
 -- Estado
 ----------------------------------------------------------------
 local AutoHatch = false
-local AutoMerchant = false
 local AutoGolden = false
 local AutoRainbow = false
+
+-- Potions
+local AutoPotionCraftAll = false
+local PotionTargetTier = 5
+local PotionCraftAmount = 6
+local PotionSelectedFamilies = {}
+local PotionFamilies = {}
+local PotionFamilyLabels = {}
+local PotionLabelToFamily = {}
+local potionCraftThread = nil
 
 local SelectedEgg = "ToyEgg"
 local Amount = 7
@@ -83,7 +94,6 @@ local SelectedCraftKeys = {}
 local PetDropdown = nil
 local KeyFromLabel = {}
 local lastPetFingerprint = ""
-local lastMerchantActive = false
 
 -- Pets delete (separado do Craft pra não conflitar)
 local DeletePetDropdown = nil
@@ -117,20 +127,6 @@ local AutoUseDice = false
 local SelectedUseDice = "x1MDice"
 local rngRollThread, rngCraftThread, rngBoostThread, rngUseDiceThread = nil, nil, nil, nil
 local rngStats = { ok = 0, cd = 0 }
-
-----------------------------------------------------------------
--- Som "plim" (merchant novo)
-----------------------------------------------------------------
-local function PlayPlim()
-    local s = Instance.new("Sound")
-    s.SoundId = "rbxassetid://6895079853"
-    s.Volume = 1
-    s.Parent = SoundService
-    s:Play()
-    task.delay(2, function()
-        if s then s:Destroy() end
-    end)
-end
 
 ----------------------------------------------------------------
 -- Eggs
@@ -1269,54 +1265,243 @@ EventTab:CreateButton({
 })
 
 ----------------------------------------------------------------
--- TAB: Merchant
+-- Merchant PASSIVO (sem aba, sem plim, sem notify)
 ----------------------------------------------------------------
-local MerchantTab = Window:CreateTab("Merchant", 4483362458)
-MerchantTab:CreateSection("Travelling / Mysterious Merchant")
+task.spawn(function()
+    while true do
+        pcall(function()
+            if MerchantIsActive() then
+                BuyAllMerchantOffers()
+            end
+        end)
+        task.wait(1)
+    end
+end)
 
-MerchantTab:CreateParagraph({
-    Title = "Merchant",
-    Content = "Quando um merchant NOVO aparecer: som plim + aviso.\nCom Auto Buy: compra todo o stock disponível na hora (sem notify de compra).",
+----------------------------------------------------------------
+-- POTION helpers
+----------------------------------------------------------------
+local function PotionItemCount(itemId, tier)
+    local ok, d = pcall(function() return Stats.Local() end)
+    if not ok or not d or not d.Items then return 0 end
+    local key = string.format("%s_%s", tostring(itemId), tostring(tier or 1))
+    local v = d.Items[key]
+    if type(v) == "number" then return v end
+    if type(v) == "table" then return tonumber(v.Amount or v.amount) or 0 end
+    return 0
+end
+
+local function PotionGetSlot(slot)
+    local ok, d = pcall(function() return Stats.Local() end)
+    if not ok or not d or not d.PotionCrafts then return nil end
+    return d.PotionCrafts[tostring(slot)]
+end
+
+local function PotionCanAfford(recipeId, amount)
+    if not Directory or not Directory.PotionRecipes then return false end
+    local rec = Directory.PotionRecipes[recipeId]
+    if not rec or not rec.Ingredients then return false end
+    amount = amount or 1
+    for _, ing in pairs(rec.Ingredients) do
+        local need = (ing.Amount or 1) * amount
+        if PotionItemCount(ing.ItemId, ing.Tier or 1) < need then
+            return false
+        end
+    end
+    return true
+end
+
+local function PotionStartCraft(slot, recipeId, amount)
+    if not ChannelPotion then return false end
+    local ok, success = pcall(function()
+        return ChannelPotion:InvokeServer("StartCraft", slot, recipeId, amount)
+    end)
+    return ok and success == true
+end
+
+local function PotionClaimCraft(slot)
+    if not ChannelPotion then return false end
+    local ok, success = pcall(function()
+        return ChannelPotion:InvokeServer("ClaimCraft", slot)
+    end)
+    return ok and success == true
+end
+
+local function PotionBuildFamilies()
+    table.clear(PotionFamilies)
+    table.clear(PotionFamilyLabels)
+    table.clear(PotionLabelToFamily)
+    if not Directory or not Directory.PotionRecipes or not Directory.Items then return end
+    for id, data in pairs(Directory.PotionRecipes) do
+        if type(data) == "table" and data.ItemId and not data.PetId and not data.CurrencyId then
+            local item = Directory.Items[data.ItemId]
+            if item and item.Category == "Boosts" then
+                local tier = tonumber(data.Tier) or 1
+                local key = data.ItemId
+                if not PotionFamilies[key] then
+                    PotionFamilies[key] = { name = item.Name or key, tiers = {} }
+                end
+                PotionFamilies[key].tiers[tier] = id
+            end
+        end
+    end
+    local keys = {}
+    for k in pairs(PotionFamilies) do table.insert(keys, k) end
+    table.sort(keys, function(a, b)
+        return PotionFamilies[a].name < PotionFamilies[b].name
+    end)
+    for _, k in ipairs(keys) do
+        local f = PotionFamilies[k]
+        local maxT = 0
+        for ti in pairs(f.tiers) do if ti > maxT then maxT = ti end end
+        local label = string.format("%s (até T%d)", f.name, maxT)
+        table.insert(PotionFamilyLabels, label)
+        PotionLabelToFamily[label] = k
+    end
+end
+
+PotionBuildFamilies()
+
+-- Claim poções PASSIVO
+task.spawn(function()
+    while true do
+        if ChannelPotion then
+            for slot = 1, 6 do
+                local craft = PotionGetSlot(slot)
+                if craft and type(craft.EndTimestamp) == "number" then
+                    if workspace:GetServerTimeNow() >= craft.EndTimestamp then
+                        PotionClaimCraft(slot)
+                        task.wait(0.1)
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
+local function PotionEmptySlots()
+    local list = {}
+    for slot = 1, 6 do
+        if PotionGetSlot(slot) == nil then
+            table.insert(list, slot)
+        end
+    end
+    return list
+end
+
+local function PotionRecipeFor(familyKey, tier)
+    local f = PotionFamilies[familyKey]
+    if not f then return nil end
+    return f.tiers[tier]
+end
+
+-- 1 slot por família por passagem (todas as poções avançam)
+local function PotionStartOneSlot(recipeId)
+    if not recipeId then return false end
+    local rec = Directory.PotionRecipes[recipeId]
+    local maxA = rec and tonumber(rec.MaxAmount) or 6
+    local amount = math.clamp(PotionCraftAmount, 1, maxA)
+    if not PotionCanAfford(recipeId, amount) then return false end
+    local empties = PotionEmptySlots()
+    if #empties == 0 then return false end
+    return PotionStartCraft(empties[1], recipeId, amount)
+end
+
+local function PotionCraftAllLoop()
+    while AutoPotionCraftAll do
+        local any = false
+        for tier = 1, PotionTargetTier do
+            if not AutoPotionCraftAll then break end
+            for familyKey, on in pairs(PotionSelectedFamilies) do
+                if not AutoPotionCraftAll then break end
+                if on then
+                    local recipeId = PotionRecipeFor(familyKey, tier)
+                    if recipeId and PotionStartOneSlot(recipeId) then
+                        any = true
+                        task.wait(0.12)
+                    end
+                end
+            end
+        end
+        task.wait(any and 0.35 or 1.0)
+    end
+    potionCraftThread = nil
+end
+
+----------------------------------------------------------------
+-- TAB: Potions
+----------------------------------------------------------------
+local PotionTab = Window:CreateTab("Potions", 4483362458)
+PotionTab:CreateSection("Poções (Boosts)")
+
+PotionTab:CreateParagraph({
+    Title = "Passivo",
+    Content = "Claim de slots prontos é automático.\nCraft All: T1→Tier alvo, 1 slot por poção por rodada (todas avançam).",
 })
 
-MerchantTab:CreateButton({
-    Name = "Comprar tudo agora (1x)",
-    Callback = function()
-        BuyAllMerchantOffers()
+local potionDropOpts = #PotionFamilyLabels > 0 and PotionFamilyLabels or { "(nenhuma)" }
+
+PotionTab:CreateDropdown({
+    Name = "Poções (multi)",
+    Options = potionDropOpts,
+    CurrentOption = {},
+    MultipleOptions = true,
+    Callback = function(opts)
+        table.clear(PotionSelectedFamilies)
+        if type(opts) ~= "table" then return end
+        for _, label in ipairs(opts) do
+            local key = PotionLabelToFamily[label]
+            if key then PotionSelectedFamilies[key] = true end
+        end
     end,
 })
 
-MerchantTab:CreateToggle({
-    Name = "Auto Buy",
-    CurrentValue = false,
-    Flag = "AutoMerchant",
-    Callback = function(Value)
-        AutoMerchant = Value
-        if AutoMerchant then
-            if merchantThread then return end
-            merchantThread = task.spawn(function()
-                while AutoMerchant do
-                    local active = MerchantIsActive()
-                    if active and not lastMerchantActive then
-                        -- merchant acabou de aparecer
-                        PlayPlim()
-                        Rayfield:Notify({
-                            Title = "Merchant",
-                            Content = "Novo merchant disponível!",
-                            Duration = 4,
-                        })
-                    end
-                    lastMerchantActive = active
+PotionTab:CreateInput({
+    Name = "Tier alvo (1-5)",
+    PlaceholderText = "5",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(txt)
+        local n = tonumber(txt)
+        if n then PotionTargetTier = math.clamp(math.floor(n), 1, 5) end
+    end,
+})
 
-                    if active then
-                        BuyAllMerchantOffers()
-                    end
-                    task.wait(1)
+PotionTab:CreateInput({
+    Name = "Qtd por slot (1-6)",
+    PlaceholderText = "6",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(txt)
+        local n = tonumber(txt)
+        if n then PotionCraftAmount = math.clamp(math.floor(n), 1, 6) end
+    end,
+})
+
+PotionTab:CreateToggle({
+    Name = "Auto Craft All",
+    CurrentValue = false,
+    Callback = function(v)
+        AutoPotionCraftAll = v
+        if v then
+            if potionCraftThread then return end
+            potionCraftThread = task.spawn(PotionCraftAllLoop)
+        end
+    end,
+})
+
+PotionTab:CreateButton({
+    Name = "Craft individual (só Tier alvo)",
+    Callback = function()
+        local tier = PotionTargetTier
+        local n = 0
+        for familyKey, on in pairs(PotionSelectedFamilies) do
+            if on then
+                local recipeId = PotionRecipeFor(familyKey, tier)
+                if recipeId and PotionStartOneSlot(recipeId) then
+                    n += 1
+                    task.wait(0.12)
                 end
-                merchantThread = nil
-            end)
-        else
-            lastMerchantActive = false
+            end
         end
     end,
 })
@@ -1594,8 +1779,8 @@ FishTab:CreateInput({
 ----------------------------------------------------------------
 local InfoTab = Window:CreateTab("Info", 4483362458)
 InfoTab:CreateParagraph({
-    Title = "FrancesS Hub v5.7",
-    Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Merchant • GUIs • Fishing\nPassivos: Click + Free Gifts + Rainbow Claim\nConfig: só Merchant salva (toggles perigosos não auto-ligam)",
+    Title = "FrancesS Hub v5.8",
+    Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Potions • GUIs • Fishing\nPassivos: Click + Free Gifts + Rainbow Claim + Merchant + Potion Claim",
 })
 
 InfoTab:CreateButton({
@@ -1663,7 +1848,7 @@ InfoTab:CreateButton({
 })
 
 Rayfield:Notify({
-    Title = "FrancesS Hub v5.7",
+    Title = "FrancesS Hub v5.8",
     Content = "Clicker Simulator By Grokzada",
     Duration = 3,
 })
