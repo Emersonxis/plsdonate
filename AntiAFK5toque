@@ -1,0 +1,230 @@
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local SoundService = game:GetService("SoundService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+local CoreGui = game:GetService("CoreGui")
+local uiParent = pcall(function() return CoreGui.Name end) and CoreGui or player:WaitForChild("PlayerGui")
+
+if uiParent:FindFirstChild("BatterySaverAFK") then
+	uiParent["BatterySaverAFK"]:Destroy()
+end
+
+-- ==================== CONFIGURAÇÕES ====================
+local TEMPO_STANDBY = 60          -- segundos parado para ativar
+local cliquesParaSair = 5         -- cliques rápidos para sair
+local FPS_MAXIMO = 999            -- sempre o mais alto possível
+-- =======================================================
+
+_G.ModoAfkAtivado = false
+local ultimoMovimento = tick()
+local toques = 0
+local tempoUltimoToque = 0
+local screenGui, background
+
+local ultimaPosicao = Vector3.new()
+local ultimoLookVector = Vector3.new()
+
+-- Força FPS alto o tempo todo (importante para não atrasar a script de farm)
+local function forcarFPSAlto()
+	pcall(function()
+		setfpscap(FPS_MAXIMO)
+	end)
+end
+
+-- Aplica todas as otimizações de performance
+local function aplicarOtimizacoesPesadas()
+	-- Qualidade mínima
+	pcall(function()
+		settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+	end)
+
+	-- Lighting ultra reduzido
+	Lighting.GlobalShadows = false
+	Lighting.FogEnd = 9e9
+	Lighting.Brightness = 0
+	Lighting.Ambient = Color3.new(0, 0, 0)
+	Lighting.OutdoorAmbient = Color3.new(0, 0, 0)
+	pcall(function()
+		Lighting.Technology = Enum.Technology.Compatibility -- ou Legacy se preferir
+	end)
+
+	-- Remove efeitos de pós-processamento
+	for _, efeito in pairs(Lighting:GetChildren()) do
+		if efeito:IsA("PostEffect") or efeito:IsA("Atmosphere") or efeito:IsA("Sky") or efeito:IsA("BloomEffect") or efeito:IsA("BlurEffect") or efeito:IsA("ColorCorrectionEffect") or efeito:IsA("SunRaysEffect") then
+			efeito:Destroy()
+		end
+	end
+
+	-- Som desligado (economiza bastante)
+	SoundService.RespectFilteringEnabled = false
+	for _, som in pairs(SoundService:GetDescendants()) do
+		if som:IsA("Sound") then
+			som.Volume = 0
+			som:Stop()
+		end
+	end
+	pcall(function()
+		SoundService.AmbientReverb = Enum.ReverbType.NoReverb
+	end)
+
+	-- Otimiza partes do mapa
+	for _, obj in pairs(Workspace:GetDescendants()) do
+		if obj:IsA("BasePart") then
+			obj.Material = Enum.Material.SmoothPlastic
+			obj.Reflectance = 0
+			obj.CastShadow = false
+			obj.CanCollide = obj.CanCollide -- mantém colisão (importante pro farm)
+		elseif obj:IsA("Decal") or obj:IsA("Texture") then
+			obj.Transparency = 1
+		elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+			obj.Enabled = false
+		elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
+			obj.Enabled = false
+		end
+	end
+end
+
+local function ligarEconomia()
+	if _G.ModoAfkAtivado then return end
+	_G.ModoAfkAtivado = true
+
+	-- Esconde interface do Roblox
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+	end)
+
+	-- Tela preta pura
+	screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "BatterySaverAFK"
+	screenGui.IgnoreGuiInset = true
+	screenGui.DisplayOrder = 999999
+	screenGui.ResetOnSpawn = false
+	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	screenGui.Parent = uiParent
+
+	background = Instance.new("Frame")
+	background.Size = UDim2.new(1, 0, 1, 0)
+	background.BackgroundColor3 = Color3.new(0, 0, 0)
+	background.BackgroundTransparency = 0
+	background.BorderSizePixel = 0
+	background.Active = true
+	background.Parent = screenGui
+
+	aplicarOtimizacoesPesadas()
+	forcarFPSAlto()
+end
+
+local function desligarEconomia()
+	if not _G.ModoAfkAtivado then return end
+	_G.ModoAfkAtivado = false
+
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
+	end)
+
+	if screenGui then
+		screenGui:Destroy()
+		screenGui = nil
+	end
+
+	forcarFPSAlto()
+	ultimoMovimento = tick()
+
+	local character = player.Character
+	if character and character:FindFirstChild("HumanoidRootPart") then
+		ultimaPosicao = character.HumanoidRootPart.Position
+	end
+	ultimoLookVector = camera.CFrame.LookVector
+end
+
+-- 5 cliques rápidos para sair
+UserInputService.InputBegan:Connect(function(input)
+	if not _G.ModoAfkAtivado then return end
+
+	if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		local tempoAtual = tick()
+
+		if tempoAtual - tempoUltimoToque > 1.5 then
+			toques = 0
+		end
+
+		toques = toques + 1
+		tempoUltimoToque = tempoAtual
+
+		if toques >= cliquesParaSair then
+			toques = 0
+			desligarEconomia()
+		end
+	end
+end)
+
+-- Loop principal de detecção + manutenção
+task.spawn(function()
+	while true do
+		task.wait(1)
+
+		forcarFPSAlto() -- sempre força FPS alto
+
+		local mudouFisica = false
+		local character = player.Character
+
+		if character and character:FindFirstChild("HumanoidRootPart") then
+			local posAtual = character.HumanoidRootPart.Position
+			if (posAtual - ultimaPosicao).Magnitude > 0.1 then
+				mudouFisica = true
+				ultimaPosicao = posAtual
+			end
+		end
+
+		local lookAtual = camera.CFrame.LookVector
+		if (lookAtual - ultimoLookVector).Magnitude > 0.05 then
+			mudouFisica = true
+			ultimoLookVector = lookAtual
+		end
+
+		if mudouFisica then
+			if not _G.ModoAfkAtivado then
+				ultimoMovimento = tick()
+			end
+		else
+			if not _G.ModoAfkAtivado and (tick() - ultimoMovimento) >= TEMPO_STANDBY then
+				ligarEconomia()
+			end
+		end
+
+		-- Enquanto estiver no modo AFK, reaplica otimizações periodicamente
+		if _G.ModoAfkAtivado then
+			aplicarOtimizacoesPesadas()
+		end
+	end
+end)
+
+-- Otimiza objetos que spawnam durante o AFK
+Workspace.DescendantAdded:Connect(function(obj)
+	if not _G.ModoAfkAtivado then return end
+
+	if obj:IsA("BasePart") then
+		obj.Material = Enum.Material.SmoothPlastic
+		obj.Reflectance = 0
+		obj.CastShadow = false
+	elseif obj:IsA("Decal") or obj:IsA("Texture") then
+		obj.Transparency = 1
+	elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+		obj.Enabled = false
+	elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
+		obj.Enabled = false
+	elseif obj:IsA("Sound") then
+		obj.Volume = 0
+		obj:Stop()
+	end
+end)
+
+-- Força FPS alto também no início
+forcarFPSAlto()
