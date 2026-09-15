@@ -16,10 +16,10 @@ if uiParent:FindFirstChild("BatterySaverAFK") then
 end
 
 -- ==================== CONFIGURAÇÕES ====================
-local TEMPO_STANDBY = 60          -- segundos parado para ativar o modo
-local cliquesParaSair = 3         -- cliques rápidos para sair
-local FPS_AFK = 10                -- FPS só enquanto a tela preta estiver ativa
-local FPS_NORMAL = 120             -- FPS quando sair do modo
+local TEMPO_STANDBY = 60
+local cliquesParaSair = 5
+local FPS_AFK = 10                -- bem baixo para não esquentar
+local FPS_NORMAL = 120
 -- =======================================================
 
 _G.ModoAfkAtivado = false
@@ -27,6 +27,7 @@ local ultimoMovimento = tick()
 local toques = 0
 local tempoUltimoToque = 0
 local screenGui, background
+local clickConnection = nil
 
 local ultimaPosicao = Vector3.new()
 local ultimoLookVector = Vector3.new()
@@ -50,7 +51,6 @@ local function aplicarOtimizacoesPesadas()
 		Lighting.Technology = Enum.Technology.Compatibility
 	end)
 
-	-- Remove todos os efeitos de pós-processamento
 	for _, efeito in pairs(Lighting:GetChildren()) do
 		if efeito:IsA("PostEffect") or efeito:IsA("Atmosphere") or efeito:IsA("Sky")
 			or efeito:IsA("BloomEffect") or efeito:IsA("BlurEffect")
@@ -60,7 +60,6 @@ local function aplicarOtimizacoesPesadas()
 		end
 	end
 
-	-- Desliga todos os sons
 	for _, som in pairs(SoundService:GetDescendants()) do
 		if som:IsA("Sound") then
 			som.Volume = 0
@@ -68,7 +67,6 @@ local function aplicarOtimizacoesPesadas()
 		end
 	end
 
-	-- Otimizações pesadas de partes + MeshParts
 	for _, obj in pairs(Workspace:GetDescendants()) do
 		if obj:IsA("BasePart") then
 			obj.Material = Enum.Material.SmoothPlastic
@@ -88,24 +86,57 @@ local function aplicarOtimizacoesPesadas()
 		end
 	end
 
-	-- FOV baixo só no modo economia (menos coisas renderizadas = menos calor)
 	if _G.ModoAfkAtivado then
 		camera.FieldOfView = 30
 	end
+end
+
+local function desligarEconomia()
+	if not _G.ModoAfkAtivado then return end
+	_G.ModoAfkAtivado = false
+
+	UserInputService.MouseIconEnabled = true
+
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
+	end)
+
+	pcall(function()
+		setfpscap(FPS_NORMAL)
+	end)
+
+	camera.FieldOfView = 70
+
+	if clickConnection then
+		clickConnection:Disconnect()
+		clickConnection = nil
+	end
+
+	if screenGui then
+		screenGui:Destroy()
+		screenGui = nil
+	end
+
+	toques = 0
+	ultimoMovimento = tick()
+
+	local character = player.Character
+	if character and character:FindFirstChild("HumanoidRootPart") then
+		ultimaPosicao = character.HumanoidRootPart.Position
+	end
+	ultimoLookVector = camera.CFrame.LookVector
 end
 
 local function ligarEconomia()
 	if _G.ModoAfkAtivado then return end
 	_G.ModoAfkAtivado = true
 
-	-- Esconde o cursor
 	UserInputService.MouseIconEnabled = false
 
 	pcall(function()
 		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
 	end)
 
-	-- FPS alto SÓ agora (tela preta)
 	pcall(function()
 		setfpscap(FPS_AFK)
 	end)
@@ -126,63 +157,33 @@ local function ligarEconomia()
 	background.Active = true
 	background.Parent = screenGui
 
+	-- ===== SISTEMA DE 5 CLIQUES MAIS CONFIÁVEL =====
+	toques = 0
+	tempoUltimoToque = 0
+
+	clickConnection = background.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			local agora = tick()
+
+			-- Se passou mais de 2.5 segundos desde o último clique, reinicia a contagem
+			if agora - tempoUltimoToque > 2.5 then
+				toques = 0
+			end
+
+			toques = toques + 1
+			tempoUltimoToque = agora
+
+			if toques >= cliquesParaSair then
+				desligarEconomia()
+			end
+		end
+	end)
+	-- ==============================================
+
 	aplicarOtimizacoesPesadas()
 end
 
-local function desligarEconomia()
-	if not _G.ModoAfkAtivado then return end
-	_G.ModoAfkAtivado = false
-
-	UserInputService.MouseIconEnabled = true
-
-	pcall(function()
-		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
-	end)
-
-	-- Volta o FPS para o normal
-	pcall(function()
-		setfpscap(FPS_NORMAL)
-	end)
-
-	-- Restaura FOV padrão
-	camera.FieldOfView = 70
-
-	if screenGui then
-		screenGui:Destroy()
-		screenGui = nil
-	end
-
-	ultimoMovimento = tick()
-
-	local character = player.Character
-	if character and character:FindFirstChild("HumanoidRootPart") then
-		ultimaPosicao = character.HumanoidRootPart.Position
-	end
-	ultimoLookVector = camera.CFrame.LookVector
-end
-
--- 5 cliques rápidos para sair
-UserInputService.InputBegan:Connect(function(input)
-	if not _G.ModoAfkAtivado then return end
-
-	if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-		local tempoAtual = tick()
-
-		if tempoAtual - tempoUltimoToque > 1.5 then
-			toques = 0
-		end
-
-		toques = toques + 1
-		tempoUltimoToque = tempoAtual
-
-		if toques >= cliquesParaSair then
-			toques = 0
-			desligarEconomia()
-		end
-	end
-end)
-
--- Loop principal
+-- Loop de detecção de AFK por física
 task.spawn(function()
 	while true do
 		task.wait(1)
@@ -218,14 +219,12 @@ task.spawn(function()
 			end
 		end
 
-		-- Reaplica otimizações enquanto estiver no modo
 		if _G.ModoAfkAtivado then
 			aplicarOtimizacoesPesadas()
 		end
 	end
 end)
 
--- Otimiza objetos que spawnarem durante o AFK
 Workspace.DescendantAdded:Connect(function(obj)
 	if not _G.ModoAfkAtivado then return end
 
