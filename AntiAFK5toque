@@ -17,8 +17,8 @@ end
 
 -- ==================== CONFIGURAÇÕES ====================
 local TEMPO_STANDBY = 60
-local cliquesParaSair = 5
-local FPS_MAXIMO = 999
+local cliquesParaSair = 3
+local FPS_MAXIMO = 10
 -- =======================================================
 
 _G.ModoAfkAtivado = false
