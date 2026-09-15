@@ -16,9 +16,10 @@ if uiParent:FindFirstChild("BatterySaverAFK") then
 end
 
 -- ==================== CONFIGURAÇÕES ====================
-local TEMPO_STANDBY = 60
-local cliquesParaSair = 3
-local FPS_MAXIMO = 10
+local TEMPO_STANDBY = 60          -- segundos parado para ativar o modo
+local cliquesParaSair = 3         -- cliques rápidos para sair
+local FPS_AFK = 10                -- FPS só enquanto a tela preta estiver ativa
+local FPS_NORMAL = 120             -- FPS quando sair do modo
 -- =======================================================
 
 _G.ModoAfkAtivado = false
@@ -30,15 +31,13 @@ local screenGui, background
 local ultimaPosicao = Vector3.new()
 local ultimoLookVector = Vector3.new()
 
-local function forcarFPSAlto()
-	pcall(function()
-		setfpscap(FPS_MAXIMO)
-	end)
-end
-
 local function aplicarOtimizacoesPesadas()
 	pcall(function()
 		settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+	end)
+
+	pcall(function()
+		settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
 	end)
 
 	Lighting.GlobalShadows = false
@@ -46,19 +45,22 @@ local function aplicarOtimizacoesPesadas()
 	Lighting.Brightness = 0
 	Lighting.Ambient = Color3.new(0, 0, 0)
 	Lighting.OutdoorAmbient = Color3.new(0, 0, 0)
+
 	pcall(function()
 		Lighting.Technology = Enum.Technology.Compatibility
 	end)
 
+	-- Remove todos os efeitos de pós-processamento
 	for _, efeito in pairs(Lighting:GetChildren()) do
-		if efeito:IsA("PostEffect") or efeito:IsA("Atmosphere") or efeito:IsA("Sky") 
-			or efeito:IsA("BloomEffect") or efeito:IsA("BlurEffect") 
-			or efeito:IsA("ColorCorrectionEffect") or efeito:IsA("SunRaysEffect") then
+		if efeito:IsA("PostEffect") or efeito:IsA("Atmosphere") or efeito:IsA("Sky")
+			or efeito:IsA("BloomEffect") or efeito:IsA("BlurEffect")
+			or efeito:IsA("ColorCorrectionEffect") or efeito:IsA("SunRaysEffect")
+			or efeito:IsA("DepthOfFieldEffect") then
 			efeito:Destroy()
 		end
 	end
 
-	-- Desliga sons
+	-- Desliga todos os sons
 	for _, som in pairs(SoundService:GetDescendants()) do
 		if som:IsA("Sound") then
 			som.Volume = 0
@@ -66,19 +68,29 @@ local function aplicarOtimizacoesPesadas()
 		end
 	end
 
+	-- Otimizações pesadas de partes + MeshParts
 	for _, obj in pairs(Workspace:GetDescendants()) do
 		if obj:IsA("BasePart") then
 			obj.Material = Enum.Material.SmoothPlastic
 			obj.Reflectance = 0
 			obj.CastShadow = false
+
+			if obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
+				obj.RenderFidelity = Enum.RenderFidelity.Performance
+			end
 		elseif obj:IsA("Decal") or obj:IsA("Texture") then
 			obj.Transparency = 1
-		elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") 
+		elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
 			or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
 			obj.Enabled = false
 		elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
 			obj.Enabled = false
 		end
+	end
+
+	-- FOV baixo só no modo economia (menos coisas renderizadas = menos calor)
+	if _G.ModoAfkAtivado then
+		camera.FieldOfView = 30
 	end
 end
 
@@ -86,11 +98,16 @@ local function ligarEconomia()
 	if _G.ModoAfkAtivado then return end
 	_G.ModoAfkAtivado = true
 
-	-- Esconde o cursor (resolve o problema do modo PC)
+	-- Esconde o cursor
 	UserInputService.MouseIconEnabled = false
 
 	pcall(function()
 		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+	end)
+
+	-- FPS alto SÓ agora (tela preta)
+	pcall(function()
+		setfpscap(FPS_AFK)
 	end)
 
 	screenGui = Instance.new("ScreenGui")
@@ -110,26 +127,31 @@ local function ligarEconomia()
 	background.Parent = screenGui
 
 	aplicarOtimizacoesPesadas()
-	forcarFPSAlto()
 end
 
 local function desligarEconomia()
 	if not _G.ModoAfkAtivado then return end
 	_G.ModoAfkAtivado = false
 
-	-- Mostra o cursor de novo
 	UserInputService.MouseIconEnabled = true
 
 	pcall(function()
 		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
 	end)
 
+	-- Volta o FPS para o normal
+	pcall(function()
+		setfpscap(FPS_NORMAL)
+	end)
+
+	-- Restaura FOV padrão
+	camera.FieldOfView = 70
+
 	if screenGui then
 		screenGui:Destroy()
 		screenGui = nil
 	end
 
-	forcarFPSAlto()
 	ultimoMovimento = tick()
 
 	local character = player.Character
@@ -139,6 +161,7 @@ local function desligarEconomia()
 	ultimoLookVector = camera.CFrame.LookVector
 end
 
+-- 5 cliques rápidos para sair
 UserInputService.InputBegan:Connect(function(input)
 	if not _G.ModoAfkAtivado then return end
 
@@ -159,13 +182,11 @@ UserInputService.InputBegan:Connect(function(input)
 	end
 end)
 
+-- Loop principal
 task.spawn(function()
 	while true do
 		task.wait(1)
 
-		forcarFPSAlto()
-
-		-- Mantém o cursor escondido enquanto estiver no modo
 		if _G.ModoAfkAtivado then
 			UserInputService.MouseIconEnabled = false
 		end
@@ -197,12 +218,14 @@ task.spawn(function()
 			end
 		end
 
+		-- Reaplica otimizações enquanto estiver no modo
 		if _G.ModoAfkAtivado then
 			aplicarOtimizacoesPesadas()
 		end
 	end
 end)
 
+-- Otimiza objetos que spawnarem durante o AFK
 Workspace.DescendantAdded:Connect(function(obj)
 	if not _G.ModoAfkAtivado then return end
 
@@ -210,9 +233,13 @@ Workspace.DescendantAdded:Connect(function(obj)
 		obj.Material = Enum.Material.SmoothPlastic
 		obj.Reflectance = 0
 		obj.CastShadow = false
+
+		if obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
+			obj.RenderFidelity = Enum.RenderFidelity.Performance
+		end
 	elseif obj:IsA("Decal") or obj:IsA("Texture") then
 		obj.Transparency = 1
-	elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") 
+	elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
 		or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
 		obj.Enabled = false
 	elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
@@ -222,5 +249,3 @@ Workspace.DescendantAdded:Connect(function(obj)
 		obj:Stop()
 	end
 end)
-
-forcarFPSAlto()
