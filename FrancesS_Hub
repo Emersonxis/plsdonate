@@ -1,22 +1,22 @@
 --[[
-    FrancesS Hub v5.8
+    FrancesS Hub v5.9
     Clicker Simulator By Grokzada
 
-    - Hatch / Craft / Pets / Event(RNG) / Potions / GUIs / Fishing
-    - Passivos: Click, Free Gifts, Rainbow Claim, Merchant buy, Potion claim
-    - ConfigSaving: sem auto-ligar toggles perigosos
+    - Hatch / Craft / Pets / Event / Potions / GUIs / Fishing / Passivos
+    - Passivos com toggle (default ON)
+    - Event: Upgrades e Skill Tree separados; Luck por último
 ]]
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "FrancesS Hub v5.8",
+    Name = "FrancesS Hub v5.9",
     LoadingTitle = "FrancesS Hub",
     LoadingSubtitle = "Clicker Simulator By Grokzada",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "FrancesSHub",
-        FileName = "Config_v5.8"
+        FileName = "Config_v5.9"
     },
     Discord = { Enabled = false, Invite = "noinvitelink", RememberJoins = true },
     KeySystem = false,
@@ -122,11 +122,19 @@ local goldenThread, rainbowThread = nil, nil
 -- RNG Event
 local AutoRNGRoll = false
 local AutoRNGCraft = false
-local AutoRNGBoost = false
+local AutoRNGUpgrades = false
+local AutoRNGSkillTree = false
 local AutoUseDice = false
 local SelectedUseDice = "x1MDice"
-local rngRollThread, rngCraftThread, rngBoostThread, rngUseDiceThread = nil, nil, nil, nil
+local rngRollThread, rngCraftThread, rngUpgradeThread, rngSkillThread, rngUseDiceThread = nil, nil, nil, nil, nil
 local rngStats = { ok = 0, cd = 0 }
+
+-- Passivos (default ON — AFK continua igual até desligar)
+local PassiveClick = true
+local PassiveGifts = true
+local PassiveMerchant = true
+local PassivePotionClaim = true
+local PassiveRainbowClaim = true
 
 ----------------------------------------------------------------
 -- Eggs
@@ -258,20 +266,24 @@ local function ClaimAllGifts()
     end
 end
 
--- Free Gifts PASSIVO
+-- Free Gifts (controlado pela aba Passivos)
 task.spawn(function()
     while true do
-        ClaimAllGifts()
+        if PassiveGifts then
+            ClaimAllGifts()
+        end
         task.wait(1)
     end
 end)
 
--- Auto Click PASSIVO (Heartbeat)
+-- Auto Click (controlado pela aba Passivos)
 task.spawn(function()
     RunService.Heartbeat:Connect(function()
-        pcall(function()
-            ClickChannel:FireServer("Click")
-        end)
+        if PassiveClick then
+            pcall(function()
+                ClickChannel:FireServer("Click")
+            end)
+        end
     end)
 end)
 
@@ -580,7 +592,9 @@ end)
 task.spawn(function()
     lastPetFingerprint = FingerprintPets()
     while true do
-        pcall(ClaimReadyRainbowSlots)
+        if PassiveRainbowClaim then
+            pcall(ClaimReadyRainbowSlots)
+        end
         local fp = FingerprintPets()
         if fp ~= lastPetFingerprint then
             lastPetFingerprint = fp
@@ -1085,28 +1099,53 @@ local function RNGCraftLoop()
     rngCraftThread = nil
 end
 
-local function RNGBoostLoop()
-    local upgrades = { "LuckMultiplier", "PixelCoinsMultiplier", "BreakablesIncremental" }
-    local skills = {
-        "RNGFasterRolls", "RNGFasterRollsII", "RNGFasterRollsIII", "RNGFasterRollsIV",
-        "RNGBonusRoll", "RNGBonusRollII", "RNGBonusRollIII",
-        "RNGGoldenRoll", "RNGGoldenRollII", "RNGGoldenRollIII",
-    }
-    while AutoRNGBoost do
+-- Upgrades: PixelCoins e Breakables primeiro; Luck por último
+local function RNGUpgradeLoop()
+    local upgradesFirst = { "PixelCoinsMultiplier", "BreakablesIncremental" }
+    local upgradesLast = { "LuckMultiplier" }
+    while AutoRNGUpgrades do
         local did = false
         if ChannelRNGUpgrades then
-            for _, id in ipairs(upgrades) do
-                if not AutoRNGBoost then break end
+            for _, id in ipairs(upgradesFirst) do
+                if not AutoRNGUpgrades then break end
                 local ok = pcall(function()
-                    ChannelRNGUpgrades:InvokeServer("Purchase", id, 20)
+                    ChannelRNGUpgrades:InvokeServer("Purchase", id, 25)
+                end)
+                if ok then did = true end
+                task.wait(0.08)
+                ok = pcall(function()
+                    ChannelRNGUpgrades:InvokeServer("Purchase", id, 1)
+                end)
+                if ok then did = true end
+                task.wait(0.05)
+            end
+            for _, id in ipairs(upgradesLast) do
+                if not AutoRNGUpgrades then break end
+                local ok = pcall(function()
+                    ChannelRNGUpgrades:InvokeServer("Purchase", id, 25)
                 end)
                 if ok then did = true end
                 task.wait(0.08)
             end
         end
+        task.wait(did and 0.35 or 1.2)
+    end
+    rngUpgradeThread = nil
+end
+
+local function RNGSkillTreeLoop()
+    local skills = {
+        "RNGFasterRolls", "RNGFasterRollsII", "RNGFasterRollsIII", "RNGFasterRollsIV",
+        "RNGBonusRoll", "RNGBonusRollII", "RNGBonusRollIII",
+        "RNGGoldenRoll", "RNGGoldenRollII", "RNGGoldenRollIII",
+        "RNGRainbowRoll", "RNGRainbowRollII",
+        "RNGMoreBreakables", "RNGMoreBreakablesII", "RNGMoreBreakablesIII",
+    }
+    while AutoRNGSkillTree do
+        local did = false
         if SkillTreeFrontend and SkillTreeFrontend.Purchase then
             for _, id in ipairs(skills) do
-                if not AutoRNGBoost then break end
+                if not AutoRNGSkillTree then break end
                 local ok = pcall(function() SkillTreeFrontend.Purchase(id, "RNG") end)
                 if ok then did = true end
                 task.wait(0.1)
@@ -1114,7 +1153,7 @@ local function RNGBoostLoop()
         end
         task.wait(did and 0.4 or 1.5)
     end
-    rngBoostThread = nil
+    rngSkillThread = nil
 end
 
 local function RNGUseDice(diceId, amount)
@@ -1180,13 +1219,25 @@ EventTab:CreateToggle({
 })
 
 EventTab:CreateToggle({
-    Name = "Auto Upgrades + Skill Tree",
+    Name = "Auto Upgrades (Luck por último)",
     CurrentValue = false,
     Callback = function(v)
-        AutoRNGBoost = v
+        AutoRNGUpgrades = v
         if v then
-            if rngBoostThread then return end
-            rngBoostThread = task.spawn(RNGBoostLoop)
+            if rngUpgradeThread then return end
+            rngUpgradeThread = task.spawn(RNGUpgradeLoop)
+        end
+    end,
+})
+
+EventTab:CreateToggle({
+    Name = "Auto Skill Tree RNG",
+    CurrentValue = false,
+    Callback = function(v)
+        AutoRNGSkillTree = v
+        if v then
+            if rngSkillThread then return end
+            rngSkillThread = task.spawn(RNGSkillTreeLoop)
         end
     end,
 })
@@ -1265,15 +1316,17 @@ EventTab:CreateButton({
 })
 
 ----------------------------------------------------------------
--- Merchant PASSIVO (sem aba, sem plim, sem notify)
+-- Merchant (controlado pela aba Passivos)
 ----------------------------------------------------------------
 task.spawn(function()
     while true do
-        pcall(function()
-            if MerchantIsActive() then
-                BuyAllMerchantOffers()
-            end
-        end)
+        if PassiveMerchant then
+            pcall(function()
+                if MerchantIsActive() then
+                    BuyAllMerchantOffers()
+                end
+            end)
+        end
         task.wait(1)
     end
 end)
@@ -1362,10 +1415,10 @@ end
 
 PotionBuildFamilies()
 
--- Claim poções PASSIVO
+-- Claim poções (controlado pela aba Passivos)
 task.spawn(function()
     while true do
-        if ChannelPotion then
+        if PassivePotionClaim and ChannelPotion then
             for slot = 1, 6 do
                 local craft = PotionGetSlot(slot)
                 if craft and type(craft.EndTimestamp) == "number" then
@@ -1779,8 +1832,8 @@ FishTab:CreateInput({
 ----------------------------------------------------------------
 local InfoTab = Window:CreateTab("Info", 4483362458)
 InfoTab:CreateParagraph({
-    Title = "FrancesS Hub v5.8",
-    Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Potions • GUIs • Fishing\nPassivos: Click + Free Gifts + Rainbow Claim + Merchant + Potion Claim",
+    Title = "FrancesS Hub v5.9",
+    Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Potions • GUIs • Fishing • Passivos\nUpgrades separados; Luck por último",
 })
 
 InfoTab:CreateButton({
@@ -1847,8 +1900,50 @@ InfoTab:CreateButton({
     end,
 })
 
+
+----------------------------------------------------------------
+-- TAB: Passivos (último)
+----------------------------------------------------------------
+local PassiveTab = Window:CreateTab("Passivos", 4483362458)
+PassiveTab:CreateSection("Funções passivas")
+
+PassiveTab:CreateParagraph({
+    Title = "Passivos",
+    Content = "Liga/desliga cada função de fundo.\nPadrão: todos ON (AFK).",
+})
+
+PassiveTab:CreateToggle({
+    Name = "Auto Click",
+    CurrentValue = true,
+    Callback = function(v) PassiveClick = v end,
+})
+
+PassiveTab:CreateToggle({
+    Name = "Free Gifts",
+    CurrentValue = true,
+    Callback = function(v) PassiveGifts = v end,
+})
+
+PassiveTab:CreateToggle({
+    Name = "Merchant (auto buy stock)",
+    CurrentValue = true,
+    Callback = function(v) PassiveMerchant = v end,
+})
+
+PassiveTab:CreateToggle({
+    Name = "Potion Claim",
+    CurrentValue = true,
+    Callback = function(v) PassivePotionClaim = v end,
+})
+
+PassiveTab:CreateToggle({
+    Name = "Rainbow Craft Claim",
+    CurrentValue = true,
+    Callback = function(v) PassiveRainbowClaim = v end,
+})
+
 Rayfield:Notify({
-    Title = "FrancesS Hub v5.8",
+    Title = "FrancesS Hub v5.9",
     Content = "Clicker Simulator By Grokzada",
     Duration = 3,
 })
