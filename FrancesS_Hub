@@ -1203,28 +1203,41 @@ local function IsRNGRebirthScript(src)
     return false
 end
 
+-- Hook de captura SÓ quando Auto Rebirth liga (e é 100% pcall-safe).
+-- Nunca bloqueia o namecall original — isso quebrava os toques do jogo.
+local rebirthHookInstalled = false
+local function InstallRebirthCaptureHook()
+    if rebirthHookInstalled then return end
+    if not (hookmetamethod and getnamecallmethod) then return end
+    rebirthHookInstalled = true
+    local _oldRB
+    local hookFn = function(...)
+        local self = ...
+        pcall(function()
+            local method = getnamecallmethod()
+            if not method or string.lower(method) ~= "invokeserver" then return end
+            if typeof(self) ~= "Instance" then return end
+            if not self:IsA("RemoteFunction") then return end
+            if not getcallingscript then return end
+            local src = getcallingscript()
+            if IsRNGRebirthScript(src) then
+                RNGRebirthRemote = self
+            end
+        end)
+        return _oldRB(...)
+    end
+    if newcclosure then
+        _oldRB = hookmetamethod(game, "__namecall", newcclosure(hookFn))
+    else
+        _oldRB = hookmetamethod(game, "__namecall", hookFn)
+    end
+end
+
 local function CaptureRNGRebirthRemote()
-    -- A ref é preenchida pelo hook permanente quando o jogo (ou você) chama rebirth.
     if RNGRebirthRemote and RNGRebirthRemote.Parent then
         return RNGRebirthRemote
     end
     return nil
-end
-
--- Hook permanente leve: se o jogo chamar rebirth, guarda a ref
-if hookmetamethod and getnamecallmethod then
-    local _oldRB
-    _oldRB = hookmetamethod(game, "__namecall", function(...)
-        local self = ...
-        local method = string.lower(getnamecallmethod() or "")
-        if method == "invokeserver" and typeof(self) == "Instance" and self:IsA("RemoteFunction") then
-            local src = getcallingscript and getcallingscript() or nil
-            if IsRNGRebirthScript(src) then
-                RNGRebirthRemote = self
-            end
-        end
-        return _oldRB(...)
-    end)
 end
 
 local function DoRNGRebirth()
@@ -1239,11 +1252,9 @@ local function DoRNGRebirth()
 end
 
 local function RNGRebirthLoop()
+    InstallRebirthCaptureHook()
     while AutoRNGRebirth do
-        if not RNGRebirthRemote or not RNGRebirthRemote.Parent then
-            -- espera captura (jogador clica 1x no jogo ou jogo auto-chama)
-            CaptureRNGRebirthRemote()
-        else
+        if RNGRebirthRemote and RNGRebirthRemote.Parent then
             DoRNGRebirth()
         end
         task.wait(10)
@@ -1311,7 +1322,7 @@ EventTab:CreateSection("RNG Rebirth")
 
 EventTab:CreateParagraph({
     Title = "Auto Rebirth",
-    Content = "Captura o remote pelo script RNG Rebirth (não usa índice).\nSe ainda não capturou: clique 1x no rebirth do jogo.\nLoop a cada 10s.",
+    Content = "Hook só ao ligar o toggle (não quebra remotes).\n1) Liga Auto Rebirth  2) Clica rebirth 1x no jogo  3) Loop 10s.",
 })
 
 EventTab:CreateToggle({
