@@ -1222,7 +1222,7 @@ EventTab:CreateSection("RNG Event")
 
 EventTab:CreateParagraph({
     Title = "RNG",
-    Content = "Auto Roll = Channel(RNG):InvokeServer("Roll") — extra dice da gamepass é no server.\nCraft / Use Dice / Boost / Rebirth2.",
+    Content = "Auto Roll = Channel(RNG):InvokeServer(Roll) — extra dice da gamepass e no server.\nCraft / Use Dice / Boost / Rebirth2.",
 })
 
 EventTab:CreateToggle({
