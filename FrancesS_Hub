@@ -1,5 +1,5 @@
 --[[
-    FrancesS Hub v5.10
+    FrancesS Hub v5.11
     Clicker Simulator By Grokzada
 
     - Hatch / Craft / Pets / Event / Potions / GUIs / Fishing / Passivos
@@ -10,13 +10,13 @@
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "FrancesS Hub v5.10",
+    Name = "FrancesS Hub v5.11",
     LoadingTitle = "FrancesS Hub",
     LoadingSubtitle = "Clicker Simulator By Grokzada",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "FrancesSHub",
-        FileName = "Config_v5.10"
+        FileName = "Config_v5.11"
     },
     Discord = { Enabled = false, Invite = "noinvitelink", RememberJoins = true },
     KeySystem = false,
@@ -51,12 +51,13 @@ local SummerChannel = nil
 pcall(function()
     SummerChannel = Network.Channel("SummerEvent2026")
 end)
-local ChannelRNG, ChannelCombine, ChannelRNGUpgrades, ChannelItems, ChannelPotion, SkillTreeFrontend, Directory
+local ChannelRNG, ChannelCombine, ChannelRNGUpgrades, ChannelItems, ChannelPotion, ChannelRNGRebirths, SkillTreeFrontend, Directory
 pcall(function() ChannelRNG = Network.Channel("RNG") end)
 pcall(function() ChannelCombine = Network.Channel("CombinePets") end)
 pcall(function() ChannelRNGUpgrades = Network.Channel("RNGUpgrades") end)
 pcall(function() ChannelItems = Network.Channel("Items") end)
 pcall(function() ChannelPotion = Network.Channel("PotionCrafting") end)
+pcall(function() ChannelRNGRebirths = Network.Channel("RNGRebirths") end)
 pcall(function() SkillTreeFrontend = require(Client:WaitForChild("SkillTreeFrontend")) end)
 pcall(function() Directory = require(Library:WaitForChild("Directory")) end)
 
@@ -1190,76 +1191,27 @@ end
 ----------------------------------------------------------------
 
 ----------------------------------------------------------------
--- RNG Rebirth — igual ao isolador:
--- 1) Botão Capturar liga listener
--- 2) Clique Rebirth 1x no jogo
--- 3) Loop 10s chama SÓ o remote capturado
+-- RNG Rebirth (dump oficial)
+-- Network.Channel("RNGRebirths"):InvokeServer("Rebirth2")
 ----------------------------------------------------------------
-local rebirthListening = false
-local rebirthHookReady = false
-
 local function DoRNGRebirth()
-    if not RNGRebirthRemote or not RNGRebirthRemote.Parent then
-        return false, "nao capturado"
+    if not ChannelRNGRebirths then
+        pcall(function() ChannelRNGRebirths = Network.Channel("RNGRebirths") end)
     end
-    local ok, a = pcall(function()
-        return RNGRebirthRemote:InvokeServer()
+    if not ChannelRNGRebirths then
+        return false, "channel nil"
+    end
+    local ok, a, b = pcall(function()
+        return ChannelRNGRebirths:InvokeServer("Rebirth2")
     end)
     if not ok then return false, tostring(a) end
-    return a == true, a
-end
-
-local function StartRebirthCaptureListen()
-    if rebirthHookReady then
-        rebirthListening = true
-        return true
-    end
-    if not (hookmetamethod and getnamecallmethod) then
-        return false
-    end
-
-    local old
-    old = hookmetamethod(game, "__namecall", function(...)
-        if rebirthListening and not (RNGRebirthRemote and RNGRebirthRemote.Parent) then
-            local self = ...
-            local method = getnamecallmethod()
-            if method and string.lower(method) == "invokeserver" and typeof(self) == "Instance" then
-                local src
-                if getcallingscript then
-                    local okS, s = pcall(getcallingscript)
-                    if okS then src = s end
-                end
-                if typeof(src) == "Instance" then
-                    local full = ""
-                    pcall(function() full = src:GetFullName() end)
-                    local n = src.Name or ""
-                    if n == "RNG Rebirth" or n == "RNGRebirth" or string.find(full, "RNG Rebirth", 1, true) then
-                        RNGRebirthRemote = self
-                        rebirthListening = false
-                        pcall(function()
-                            Rayfield:Notify({
-                                Title = "RNG Rebirth",
-                                Content = "Remote capturado! Pode ligar o Auto.",
-                                Duration = 4,
-                            })
-                        end)
-                    end
-                end
-            end
-        end
-        return old(...)
-    end)
-
-    rebirthHookReady = true
-    rebirthListening = true
-    return true
+    -- a == true sucesso; a == false e b = mensagem
+    return a == true, a, b
 end
 
 local function RNGRebirthLoop()
     while AutoRNGRebirth do
-        if RNGRebirthRemote and RNGRebirthRemote.Parent then
-            DoRNGRebirth()
-        end
+        DoRNGRebirth()
         task.wait(10)
     end
     rngRebirthThread = nil
@@ -1270,7 +1222,7 @@ EventTab:CreateSection("RNG Event")
 
 EventTab:CreateParagraph({
     Title = "RNG",
-    Content = "Auto Roll / Craft / Use Dice / Boost.\nUse Dice: Items:Use(id, 1, qty) — enfileira pro roll.",
+    Content = "Auto Roll = Channel(RNG):InvokeServer("Roll") — extra dice da gamepass é no server.\nCraft / Use Dice / Boost / Rebirth2.",
 })
 
 EventTab:CreateToggle({
@@ -1325,44 +1277,15 @@ EventTab:CreateSection("RNG Rebirth")
 
 EventTab:CreateParagraph({
     Title = "Auto Rebirth",
-    Content = "1) Capturar  2) Clique Rebirth 1x no jogo  3) Auto (10s)\nO loop só usa o remote capturado.",
-})
-
-EventTab:CreateButton({
-    Name = "1. Capturar (depois clique Rebirth no jogo)",
-    Callback = function()
-        if RNGRebirthRemote and RNGRebirthRemote.Parent then
-            Rayfield:Notify({
-                Title = "RNG Rebirth",
-                Content = "Já capturado. Pode ligar o Auto.",
-                Duration = 3,
-            })
-            return
-        end
-        local ok = StartRebirthCaptureListen()
-        Rayfield:Notify({
-            Title = "RNG Rebirth",
-            Content = ok and "Ouvindo... clique Rebirth no jogo agora" or "Executor sem hookmetamethod",
-            Duration = 5,
-        })
-    end,
+    Content = 'Channel("RNGRebirths"):InvokeServer("Rebirth2")\nSem hook. Loop a cada 10s.',
 })
 
 EventTab:CreateToggle({
-    Name = "2. Auto RNG Rebirth (10s)",
+    Name = "Auto RNG Rebirth (10s)",
     CurrentValue = false,
     Callback = function(v)
         AutoRNGRebirth = v
         if v then
-            if not (RNGRebirthRemote and RNGRebirthRemote.Parent) then
-                AutoRNGRebirth = false
-                Rayfield:Notify({
-                    Title = "RNG Rebirth",
-                    Content = "Capture antes (botão 1 + clique no jogo)",
-                    Duration = 4,
-                })
-                return
-            end
             if rngRebirthThread then return end
             rngRebirthThread = task.spawn(RNGRebirthLoop)
         end
@@ -1370,12 +1293,12 @@ EventTab:CreateToggle({
 })
 
 EventTab:CreateButton({
-    Name = "Rebirth 1x (capturado)",
+    Name = "Rebirth 1x",
     Callback = function()
-        local ok, a = DoRNGRebirth()
+        local ok, a, b = DoRNGRebirth()
         Rayfield:Notify({
-            Title = "Rebirth 1x",
-            Content = ok and "OK" or tostring(a),
+            Title = "Rebirth",
+            Content = ok and "OK" or tostring(b or a),
             Duration = 3,
         })
     end,
@@ -1971,7 +1894,7 @@ FishTab:CreateInput({
 ----------------------------------------------------------------
 local InfoTab = Window:CreateTab("Info", 4483362458)
 InfoTab:CreateParagraph({
-    Title = "FrancesS Hub v5.10",
+    Title = "FrancesS Hub v5.11",
     Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Potions • GUIs • Fishing • Passivos\nUpgrades separados; Auto RNG Rebirth inteligente",
 })
 
@@ -2090,7 +2013,7 @@ if AutoRNGCraft and not rngCraftThread then
 end
 
 Rayfield:Notify({
-    Title = "FrancesS Hub v5.10",
+    Title = "FrancesS Hub v5.11",
     Content = "Clicker Simulator By Grokzada",
     Duration = 3,
 })
