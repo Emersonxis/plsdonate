@@ -1190,115 +1190,17 @@ end
 ----------------------------------------------------------------
 
 ----------------------------------------------------------------
--- RNG Rebirth — SEM hookmetamethod (não trava o jogo)
--- Captura a RemoteFunction usada pelo LocalScript "RNG Rebirth"
--- via getupvalues / getsenv / getgc, e chama SÓ ela a cada 10s.
+-- RNG Rebirth — igual ao isolador:
+-- 1) Botão Capturar liga listener
+-- 2) Clique Rebirth 1x no jogo
+-- 3) Loop 10s chama SÓ o remote capturado
 ----------------------------------------------------------------
-local function GetRNGRebirthScript()
-    local ps = Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerScripts")
-    if not ps then return nil end
-    local folder = ps:FindFirstChild("Scripts")
-    if not folder then return nil end
-    return folder:FindFirstChild("RNG Rebirth") or folder:FindFirstChild("RNGRebirth")
-end
-
-local function IsRebirthRemoteCandidate(inst)
-    return typeof(inst) == "Instance"
-        and inst:IsA("RemoteFunction")
-        and inst.Parent
-        and inst.Parent.Name == "Remotes"
-end
-
-local function CaptureRNGRebirthRemote()
-    if RNGRebirthRemote and RNGRebirthRemote.Parent then
-        return RNGRebirthRemote
-    end
-
-    local rs = GetRNGRebirthScript()
-
-    -- 1) getsenv no LocalScript
-    if rs and getsenv then
-        local ok, env = pcall(getsenv, rs)
-        if ok and type(env) == "table" then
-            for _, v in pairs(env) do
-                if IsRebirthRemoteCandidate(v) then
-                    RNGRebirthRemote = v
-                    return v
-                end
-            end
-        end
-    end
-
-    -- 2) getgc: funções cujo script é o RNG Rebirth → upvalues RemoteFunction
-    if getgc then
-        local okGc, list = pcall(getgc, true)
-        if okGc and type(list) == "table" then
-            for _, obj in ipairs(list) do
-                if type(obj) == "function" then
-                    local scriptMatch = false
-                    if rs and getfenv then
-                        local okE, env = pcall(getfenv, obj)
-                        if okE and type(env) == "table" and env.script == rs then
-                            scriptMatch = true
-                        end
-                    end
-                    -- se não bateu script, ainda olha upvalues com cuidado
-                    local function scanUps()
-                        if getupvalues then
-                            local okU, ups = pcall(getupvalues, obj)
-                            if okU and type(ups) == "table" then
-                                for _, uv in pairs(ups) do
-                                    if IsRebirthRemoteCandidate(uv) then
-                                        return uv
-                                    end
-                                end
-                            end
-                        elseif debug and debug.getupvalue then
-                            for i = 1, 12 do
-                                local okU, uv = pcall(debug.getupvalue, obj, i)
-                                if not okU or uv == nil then break end
-                                if IsRebirthRemoteCandidate(uv) then
-                                    return uv
-                                end
-                            end
-                        end
-                        return nil
-                    end
-                    if scriptMatch then
-                        local found = scanUps()
-                        if found then
-                            RNGRebirthRemote = found
-                            return found
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    -- 3) Fallback frágil: índice 76 (pode mudar no rejoin)
-    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-    if remotes then
-        local kids = remotes:GetChildren()
-        local idx = 76
-        if kids[idx] and kids[idx]:IsA("RemoteFunction") then
-            -- só aceita se Name vazio (padrão do spy)
-            if kids[idx].Name == "" then
-                RNGRebirthRemote = kids[idx]
-                return kids[idx]
-            end
-        end
-    end
-
-    return nil
-end
+local rebirthListening = false
+local rebirthHookReady = false
 
 local function DoRNGRebirth()
     if not RNGRebirthRemote or not RNGRebirthRemote.Parent then
-        CaptureRNGRebirthRemote()
-    end
-    if not RNGRebirthRemote or not RNGRebirthRemote.Parent then
-        return false, "remote nao capturado"
+        return false, "nao capturado"
     end
     local ok, a = pcall(function()
         return RNGRebirthRemote:InvokeServer()
@@ -1307,12 +1209,54 @@ local function DoRNGRebirth()
     return a == true, a
 end
 
-local function RNGRebirthLoop()
-    CaptureRNGRebirthRemote()
-    while AutoRNGRebirth do
-        if not RNGRebirthRemote or not RNGRebirthRemote.Parent then
-            CaptureRNGRebirthRemote()
+local function StartRebirthCaptureListen()
+    if rebirthHookReady then
+        rebirthListening = true
+        return true
+    end
+    if not (hookmetamethod and getnamecallmethod) then
+        return false
+    end
+
+    local old
+    old = hookmetamethod(game, "__namecall", function(...)
+        if rebirthListening and not (RNGRebirthRemote and RNGRebirthRemote.Parent) then
+            local self = ...
+            local method = getnamecallmethod()
+            if method and string.lower(method) == "invokeserver" and typeof(self) == "Instance" then
+                local src
+                if getcallingscript then
+                    local okS, s = pcall(getcallingscript)
+                    if okS then src = s end
+                end
+                if typeof(src) == "Instance" then
+                    local full = ""
+                    pcall(function() full = src:GetFullName() end)
+                    local n = src.Name or ""
+                    if n == "RNG Rebirth" or n == "RNGRebirth" or string.find(full, "RNG Rebirth", 1, true) then
+                        RNGRebirthRemote = self
+                        rebirthListening = false
+                        pcall(function()
+                            Rayfield:Notify({
+                                Title = "RNG Rebirth",
+                                Content = "Remote capturado! Pode ligar o Auto.",
+                                Duration = 4,
+                            })
+                        end)
+                    end
+                end
+            end
         end
+        return old(...)
+    end)
+
+    rebirthHookReady = true
+    rebirthListening = true
+    return true
+end
+
+local function RNGRebirthLoop()
+    while AutoRNGRebirth do
         if RNGRebirthRemote and RNGRebirthRemote.Parent then
             DoRNGRebirth()
         end
@@ -1381,28 +1325,44 @@ EventTab:CreateSection("RNG Rebirth")
 
 EventTab:CreateParagraph({
     Title = "Auto Rebirth",
-    Content = "SEM namecall hook.\nCaptura o RemoteFunction do script RNG Rebirth e chama só ele a cada 10s.",
+    Content = "1) Capturar  2) Clique Rebirth 1x no jogo  3) Auto (10s)\nO loop só usa o remote capturado.",
 })
 
 EventTab:CreateButton({
-    Name = "Capturar remote do Rebirth",
+    Name = "1. Capturar (depois clique Rebirth no jogo)",
     Callback = function()
-        local r = CaptureRNGRebirthRemote()
+        if RNGRebirthRemote and RNGRebirthRemote.Parent then
+            Rayfield:Notify({
+                Title = "RNG Rebirth",
+                Content = "Já capturado. Pode ligar o Auto.",
+                Duration = 3,
+            })
+            return
+        end
+        local ok = StartRebirthCaptureListen()
         Rayfield:Notify({
             Title = "RNG Rebirth",
-            Content = r and ("OK: " .. r.ClassName .. " Name=[" .. tostring(r.Name) .. "]") or "Falhou — rejoin e tente de novo",
-            Duration = 4,
+            Content = ok and "Ouvindo... clique Rebirth no jogo agora" or "Executor sem hookmetamethod",
+            Duration = 5,
         })
     end,
 })
 
 EventTab:CreateToggle({
-    Name = "Auto RNG Rebirth (10s)",
+    Name = "2. Auto RNG Rebirth (10s)",
     CurrentValue = false,
     Callback = function(v)
         AutoRNGRebirth = v
         if v then
-            CaptureRNGRebirthRemote()
+            if not (RNGRebirthRemote and RNGRebirthRemote.Parent) then
+                AutoRNGRebirth = false
+                Rayfield:Notify({
+                    Title = "RNG Rebirth",
+                    Content = "Capture antes (botão 1 + clique no jogo)",
+                    Duration = 4,
+                })
+                return
+            end
             if rngRebirthThread then return end
             rngRebirthThread = task.spawn(RNGRebirthLoop)
         end
@@ -1410,12 +1370,12 @@ EventTab:CreateToggle({
 })
 
 EventTab:CreateButton({
-    Name = "Rebirth 1x",
+    Name = "Rebirth 1x (capturado)",
     Callback = function()
         local ok, a = DoRNGRebirth()
         Rayfield:Notify({
             Title = "Rebirth 1x",
-            Content = ok and "OK" or ("Falhou: " .. tostring(a)),
+            Content = ok and "OK" or tostring(a),
             Duration = 3,
         })
     end,
