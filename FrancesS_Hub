@@ -120,8 +120,8 @@ local hatchThread, merchantThread = nil, nil
 local goldenThread, rainbowThread = nil, nil
 
 -- RNG Event
-local AutoRNGRoll = false
-local AutoRNGCraft = false
+local AutoRNGRoll = true
+local AutoRNGCraft = true
 local AutoRNGUpgrades = false
 local AutoRNGSkillTree = false
 local AutoUseDice = false
