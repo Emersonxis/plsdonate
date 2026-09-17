@@ -1,22 +1,22 @@
 --[[
-    FrancesS Hub v5.9
+    FrancesS Hub v5.10
     Clicker Simulator By Grokzada
 
     - Hatch / Craft / Pets / Event / Potions / GUIs / Fishing / Passivos
     - Passivos com toggle (default ON)
-    - Event: Upgrades e Skill Tree separados; Luck por último
+    - Event: Upgrades/Skill separados; Auto RNG Rebirth (captura inteligente)
 ]]
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "FrancesS Hub v5.9",
+    Name = "FrancesS Hub v5.10",
     LoadingTitle = "FrancesS Hub",
     LoadingSubtitle = "Clicker Simulator By Grokzada",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "FrancesSHub",
-        FileName = "Config_v5.9"
+        FileName = "Config_v5.10"
     },
     Discord = { Enabled = false, Invite = "noinvitelink", RememberJoins = true },
     KeySystem = false,
@@ -126,7 +126,9 @@ local AutoRNGUpgrades = false
 local AutoRNGSkillTree = false
 local AutoUseDice = false
 local SelectedUseDice = "x1MDice"
-local rngRollThread, rngCraftThread, rngUpgradeThread, rngSkillThread, rngUseDiceThread = nil, nil, nil, nil, nil
+local AutoRNGRebirth = false
+local RNGRebirthRemote = nil -- Instance capturada (não usa índice)
+local rngRollThread, rngCraftThread, rngUpgradeThread, rngSkillThread, rngUseDiceThread, rngRebirthThread = nil, nil, nil, nil, nil, nil
 local rngStats = { ok = 0, cd = 0 }
 
 -- Passivos (default ON — AFK continua igual até desligar)
@@ -1186,6 +1188,69 @@ end
 ----------------------------------------------------------------
 -- TAB: Event (RNG) — ao lado de Pets
 ----------------------------------------------------------------
+
+----------------------------------------------------------------
+-- RNG Rebirth (remoto nome vazio — captura por script)
+----------------------------------------------------------------
+local function IsRNGRebirthScript(src)
+    if typeof(src) ~= "Instance" then return false end
+    local n = src.Name or ""
+    if n == "RNG Rebirth" or n == "RNGRebirth" then return true end
+    local ok, full = pcall(function() return src:GetFullName() end)
+    if ok and full and string.find(full, "RNG Rebirth", 1, true) then
+        return true
+    end
+    return false
+end
+
+local function CaptureRNGRebirthRemote()
+    -- A ref é preenchida pelo hook permanente quando o jogo (ou você) chama rebirth.
+    if RNGRebirthRemote and RNGRebirthRemote.Parent then
+        return RNGRebirthRemote
+    end
+    return nil
+end
+
+-- Hook permanente leve: se o jogo chamar rebirth, guarda a ref
+if hookmetamethod and getnamecallmethod then
+    local _oldRB
+    _oldRB = hookmetamethod(game, "__namecall", function(...)
+        local self = ...
+        local method = string.lower(getnamecallmethod() or "")
+        if method == "invokeserver" and typeof(self) == "Instance" and self:IsA("RemoteFunction") then
+            local src = getcallingscript and getcallingscript() or nil
+            if IsRNGRebirthScript(src) then
+                RNGRebirthRemote = self
+            end
+        end
+        return _oldRB(...)
+    end)
+end
+
+local function DoRNGRebirth()
+    if not RNGRebirthRemote or not RNGRebirthRemote.Parent then
+        return false, "remote nao capturado"
+    end
+    local ok, a = pcall(function()
+        return RNGRebirthRemote:InvokeServer()
+    end)
+    if not ok then return false, tostring(a) end
+    return a == true, a
+end
+
+local function RNGRebirthLoop()
+    while AutoRNGRebirth do
+        if not RNGRebirthRemote or not RNGRebirthRemote.Parent then
+            -- espera captura (jogador clica 1x no jogo ou jogo auto-chama)
+            CaptureRNGRebirthRemote()
+        else
+            DoRNGRebirth()
+        end
+        task.wait(10)
+    end
+    rngRebirthThread = nil
+end
+
 local EventTab = Window:CreateTab("Event", 4483362458)
 EventTab:CreateSection("RNG Event")
 
@@ -1196,7 +1261,7 @@ EventTab:CreateParagraph({
 
 EventTab:CreateToggle({
     Name = "Auto Roll",
-    CurrentValue = false,
+    CurrentValue = true,
     Callback = function(v)
         AutoRNGRoll = v
         if v then
@@ -1208,7 +1273,7 @@ EventTab:CreateToggle({
 
 EventTab:CreateToggle({
     Name = "Auto Craft Dice (até x1M)",
-    CurrentValue = false,
+    CurrentValue = true,
     Callback = function(v)
         AutoRNGCraft = v
         if v then
@@ -1239,6 +1304,35 @@ EventTab:CreateToggle({
             if rngSkillThread then return end
             rngSkillThread = task.spawn(RNGSkillTreeLoop)
         end
+    end,
+})
+
+EventTab:CreateSection("RNG Rebirth")
+
+EventTab:CreateParagraph({
+    Title = "Auto Rebirth",
+    Content = "Captura o remote pelo script RNG Rebirth (não usa índice).\nSe ainda não capturou: clique 1x no rebirth do jogo.\nLoop a cada 10s.",
+})
+
+EventTab:CreateToggle({
+    Name = "Auto RNG Rebirth (10s)",
+    CurrentValue = false,
+    Callback = function(v)
+        AutoRNGRebirth = v
+        if v then
+            if rngRebirthThread then return end
+            rngRebirthThread = task.spawn(RNGRebirthLoop)
+        end
+    end,
+})
+
+EventTab:CreateButton({
+    Name = "Rebirth 1x (se capturado)",
+    Callback = function()
+        if not RNGRebirthRemote or not RNGRebirthRemote.Parent then
+            return
+        end
+        DoRNGRebirth()
     end,
 })
 
@@ -1832,8 +1926,8 @@ FishTab:CreateInput({
 ----------------------------------------------------------------
 local InfoTab = Window:CreateTab("Info", 4483362458)
 InfoTab:CreateParagraph({
-    Title = "FrancesS Hub v5.9",
-    Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Potions • GUIs • Fishing • Passivos\nUpgrades separados; Luck por último",
+    Title = "FrancesS Hub v5.10",
+    Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Potions • GUIs • Fishing • Passivos\nUpgrades separados; Auto RNG Rebirth inteligente",
 })
 
 InfoTab:CreateButton({
@@ -1942,8 +2036,16 @@ PassiveTab:CreateToggle({
     Callback = function(v) PassiveRainbowClaim = v end,
 })
 
+-- Inicia Roll/Craft ligados por padrão (Rayfield não chama Callback no create)
+if AutoRNGRoll and not rngRollThread then
+    rngRollThread = task.spawn(RNGRollLoop)
+end
+if AutoRNGCraft and not rngCraftThread then
+    rngCraftThread = task.spawn(RNGCraftLoop)
+end
+
 Rayfield:Notify({
-    Title = "FrancesS Hub v5.9",
+    Title = "FrancesS Hub v5.10",
     Content = "Clicker Simulator By Grokzada",
     Duration = 3,
 })
