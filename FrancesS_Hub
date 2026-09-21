@@ -1102,7 +1102,56 @@ local function RNGCraftLoop()
     rngCraftThread = nil
 end
 
--- Upgrades: PixelCoins e Breakables primeiro; Luck por último
+-- Upgrades: Buy MAX (igual botão do jogo) — 1 remote por upgrade
+-- Prioridade: PixelCoins + Breakables primeiro; Luck por último
+local function GetRNGUpgradeAffordableAmount(upgradeId)
+    local level = 0
+    local money = 0
+    local dir = Directory and Directory.RNGUpgrades and Directory.RNGUpgrades[upgradeId]
+    pcall(function()
+        local d = Stats.Local()
+        if d and d.RNGUpgrades then
+            level = tonumber(d.RNGUpgrades[upgradeId]) or 0
+        end
+        local curName = (dir and dir.Currency) or "PixelCoins"
+        if d and d.Currency then
+            money = tonumber(d.Currency[curName]) or 0
+        end
+    end)
+    if not dir or type(dir.Costs) ~= "table" then
+        -- sem Directory: tenta lote grande (server valida)
+        return 500
+    end
+    local maxLevel = tonumber(dir.MaxLevel) or 1000
+    if level >= maxLevel then
+        return 0
+    end
+    local amount = 0
+    for lvl = level + 1, maxLevel do
+        local cost = dir.Costs[lvl]
+        if type(cost) ~= "number" or money < cost then
+            break
+        end
+        money = money - cost
+        amount = amount + 1
+    end
+    return amount
+end
+
+local function BuyRNGUpgradeMax(upgradeId)
+    if not ChannelRNGUpgrades then
+        return false
+    end
+    local amount = GetRNGUpgradeAffordableAmount(upgradeId)
+    if amount < 1 then
+        return false
+    end
+    local ok, success = pcall(function()
+        return ChannelRNGUpgrades:InvokeServer("Purchase", upgradeId, amount)
+    end)
+    return ok and success == true
+end
+
 local function RNGUpgradeLoop()
     local upgradesFirst = { "PixelCoinsMultiplier", "BreakablesIncremental" }
     local upgradesLast = { "LuckMultiplier" }
@@ -1111,27 +1160,20 @@ local function RNGUpgradeLoop()
         if ChannelRNGUpgrades then
             for _, id in ipairs(upgradesFirst) do
                 if not AutoRNGUpgrades then break end
-                local ok = pcall(function()
-                    ChannelRNGUpgrades:InvokeServer("Purchase", id, 25)
-                end)
-                if ok then did = true end
-                task.wait(0.08)
-                ok = pcall(function()
-                    ChannelRNGUpgrades:InvokeServer("Purchase", id, 1)
-                end)
-                if ok then did = true end
+                if BuyRNGUpgradeMax(id) then
+                    did = true
+                end
                 task.wait(0.05)
             end
             for _, id in ipairs(upgradesLast) do
                 if not AutoRNGUpgrades then break end
-                local ok = pcall(function()
-                    ChannelRNGUpgrades:InvokeServer("Purchase", id, 25)
-                end)
-                if ok then did = true end
-                task.wait(0.08)
+                if BuyRNGUpgradeMax(id) then
+                    did = true
+                end
+                task.wait(0.05)
             end
         end
-        task.wait(did and 0.35 or 1.2)
+        task.wait(did and 0.2 or 0.8)
     end
     rngUpgradeThread = nil
 end
