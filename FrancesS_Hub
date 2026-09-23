@@ -121,8 +121,8 @@ local hatchThread, merchantThread = nil, nil
 local goldenThread, rainbowThread = nil, nil
 
 -- RNG Event
-local AutoRNGRoll = true
-local AutoRNGCraft = true
+local AutoRNGRoll = false
+local AutoRNGCraft = false
 local AutoRNGUpgrades = false
 local AutoRNGSkillTree = false
 local AutoUseDice = false
@@ -1269,7 +1269,7 @@ EventTab:CreateParagraph({
 
 EventTab:CreateToggle({
     Name = "Auto Roll",
-    CurrentValue = true,
+    CurrentValue = false,
     Callback = function(v)
         AutoRNGRoll = v
         if v then
@@ -1281,7 +1281,7 @@ EventTab:CreateToggle({
 
 EventTab:CreateToggle({
     Name = "Auto Craft Dice (até x1M)",
-    CurrentValue = true,
+    CurrentValue = false,
     Callback = function(v)
         AutoRNGCraft = v
         if v then
@@ -2045,14 +2045,6 @@ PassiveTab:CreateToggle({
     CurrentValue = true,
     Callback = function(v) PassiveRainbowClaim = v end,
 })
-
--- Inicia Roll/Craft ligados por padrão (Rayfield não chama Callback no create)
-if AutoRNGRoll and not rngRollThread then
-    rngRollThread = task.spawn(RNGRollLoop)
-end
-if AutoRNGCraft and not rngCraftThread then
-    rngCraftThread = task.spawn(RNGCraftLoop)
-end
 
 Rayfield:Notify({
     Title = "FrancesS Hub v5.11",
