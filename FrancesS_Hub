@@ -290,47 +290,69 @@ task.spawn(function()
     end)
 end)
 
--- Compra todo stock de uma oferta de uma vez
-local function BuyAllMerchantOffers()
-    local okState, state = pcall(function()
-        return MerchantChannel:InvokeServer("GetState")
-    end)
-    if not okState or not state or not state.IsActive then
-        return false, 0
-    end
-
-    local okOffers, offers = pcall(function()
-        return MerchantChannel:InvokeServer("GetOffers")
-    end)
-    if not okOffers or type(offers) ~= "table" then
-        return false, 0
-    end
-
-    local bought = 0
-    for _, offer in ipairs(offers) do
-        if offer.Unlocked and offer.Stock and offer.Stock > 0 and offer.OfferKey then
-            -- compra cada unidade do stock restante o mais rápido possível
-            local stock = offer.Stock
-            for _ = 1, stock do
-                local okBuy = pcall(function()
-                    MerchantChannel:InvokeServer("Buy", offer.OfferKey)
-                end)
-                if okBuy then
-                    bought += 1
-                else
-                    break
-                end
-            end
-        end
-    end
-    return true, bought
-end
-
+-- Merchant: checa stock SEM teleporte; só TP quando Stock > 0
 local function MerchantIsActive()
     local ok, state = pcall(function()
         return MerchantChannel:InvokeServer("GetState")
     end)
     return ok and state and state.IsActive == true
+end
+
+local function GetMerchantOffers()
+    if not MerchantIsActive() then
+        return nil
+    end
+    local ok, offers = pcall(function()
+        return MerchantChannel:InvokeServer("GetOffers")
+    end)
+    if not ok or type(offers) ~= "table" then
+        return nil
+    end
+    return offers
+end
+
+-- Stock + fingerprint do lote (não re-TP no mesmo lote)
+local lastMerchantStockFingerprint = nil
+
+local function GetMerchantAvailableStock()
+    local offers = GetMerchantOffers()
+    if not offers then
+        return 0, {}, ""
+    end
+    local total = 0
+    local keys = {}
+    local parts = {}
+    for _, offer in ipairs(offers) do
+        local stock = tonumber(offer.Stock) or 0
+        if offer.Unlocked and stock > 0 and offer.OfferKey then
+            total += stock
+            table.insert(keys, { key = offer.OfferKey, stock = stock })
+            table.insert(parts, tostring(offer.OfferKey) .. ":" .. tostring(stock))
+        end
+    end
+    table.sort(parts)
+    return total, keys, table.concat(parts, "|")
+end
+
+local function BuyAllMerchantOffers()
+    local total, keys = GetMerchantAvailableStock()
+    if total < 1 then
+        return false, 0
+    end
+    local bought = 0
+    for _, item in ipairs(keys) do
+        for _ = 1, item.stock do
+            local okBuy = pcall(function()
+                MerchantChannel:InvokeServer("Buy", item.key)
+            end)
+            if okBuy then
+                bought += 1
+            else
+                break
+            end
+        end
+    end
+    return bought > 0, bought
 end
 
 ----------------------------------------------------------------
@@ -451,28 +473,40 @@ local function GetHRP()
     return char and char:FindFirstChild("HumanoidRootPart")
 end
 
+-- Só teleporta se tiver stock E o lote for diferente do último já comprado
 local function BuyAllMerchantOffersSafe()
-    if not MerchantIsActive() then return false, 0 end
-    local hrp = GetHRP()
-    if not hrp then
-        return BuyAllMerchantOffers()
+    local stockBefore, _, fingerprint = GetMerchantAvailableStock()
+    if stockBefore < 1 then
+        return false, 0
     end
-    local oldCF = hrp.CFrame
+    if fingerprint ~= "" and fingerprint == lastMerchantStockFingerprint then
+        -- mesmo lote de stock já tratado — não TP de novo
+        return false, 0
+    end
+
+    local hrp = GetHRP()
+    local oldCF = hrp and hrp.CFrame or nil
     local merchantPart = FindMerchantRoot()
-    if merchantPart then
+
+    if hrp and merchantPart then
         local target = merchantPart.CFrame * CFrame.new(0, 3, 4)
         pcall(function()
             hrp.CFrame = target
         end)
-        task.wait(0.25)
+        task.wait(0.35)
     end
+
     local ok, bought = BuyAllMerchantOffers()
-    task.wait(0.1)
-    pcall(function()
-        if hrp and hrp.Parent then
+    -- marca este lote como tratado (mesmo se GetOffers ainda mostrar stock)
+    lastMerchantStockFingerprint = fingerprint
+    task.wait(0.2)
+
+    if hrp and oldCF and hrp.Parent then
+        pcall(function()
             hrp.CFrame = oldCF
-        end
-    end)
+        end)
+    end
+
     return ok, bought
 end
 
@@ -1579,17 +1613,21 @@ EventTab:CreateButton({
 
 ----------------------------------------------------------------
 -- Merchant (controlado pela aba Passivos)
+-- Poll stock de longe; TP só quando totalStock > 0
 ----------------------------------------------------------------
 task.spawn(function()
     while true do
         if PassiveMerchant then
             pcall(function()
-                if MerchantIsActive() then
+                local stock, _, fp = GetMerchantAvailableStock()
+                -- stock novo = fingerprint diferente do último lote comprado
+                if stock > 0 and fp ~= lastMerchantStockFingerprint then
                     BuyAllMerchantOffersSafe()
+                    task.wait(3)
                 end
             end)
         end
-        task.wait(1)
+        task.wait(2)
     end
 end)
 
