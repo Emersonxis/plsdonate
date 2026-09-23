@@ -1,22 +1,22 @@
 --[[
-    FrancesS Hub v5.11
+    FrancesS Hub v5.12
     Clicker Simulator By Grokzada
 
     - Hatch / Craft / Pets / Event / Potions / GUIs / Fishing / Passivos
     - Passivos com toggle (default ON)
-    - Event: Upgrades/Skill separados; Auto RNG Rebirth (captura inteligente)
+    - Event: Upgrades/Skill separados; Merchant TP+buy; Platform Event; Potion T6; Event só no RNG
 ]]
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "FrancesS Hub v5.11",
+    Name = "FrancesS Hub v5.12",
     LoadingTitle = "FrancesS Hub",
     LoadingSubtitle = "Clicker Simulator By Grokzada",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "FrancesSHub",
-        FileName = "Config_v5.11"
+        FileName = "Config_v5.12"
     },
     Discord = { Enabled = false, Invite = "noinvitelink", RememberJoins = true },
     KeySystem = false,
@@ -51,7 +51,7 @@ local SummerChannel = nil
 pcall(function()
     SummerChannel = Network.Channel("SummerEvent2026")
 end)
-local ChannelRNG, ChannelCombine, ChannelRNGUpgrades, ChannelItems, ChannelPotion, ChannelRNGRebirths, SkillTreeFrontend, Directory
+local ChannelRNG, ChannelCombine, ChannelRNGUpgrades, ChannelItems, ChannelPotion, ChannelRNGRebirths, SkillTreeFrontend, Directory, MinigamesFrontend
 pcall(function() ChannelRNG = Network.Channel("RNG") end)
 pcall(function() ChannelCombine = Network.Channel("CombinePets") end)
 pcall(function() ChannelRNGUpgrades = Network.Channel("RNGUpgrades") end)
@@ -70,7 +70,7 @@ local AutoRainbow = false
 
 -- Potions
 local AutoPotionCraftAll = false
-local PotionTargetTier = 5
+local PotionTargetTier = 6
 local PotionCraftAmount = 6
 local PotionSelectedFamilies = {}
 local PotionFamilies = {}
@@ -121,13 +121,13 @@ local hatchThread, merchantThread = nil, nil
 local goldenThread, rainbowThread = nil, nil
 
 -- RNG Event
-local AutoRNGRoll = false
-local AutoRNGCraft = false
-local AutoRNGUpgrades = false
+local AutoRNGRoll = true
+local AutoRNGCraft = true
+local AutoRNGUpgrades = true
 local AutoRNGSkillTree = false
-local AutoUseDice = false
+local AutoUseDice = true
 local SelectedUseDice = "x1MDice"
-local AutoRNGRebirth = false
+local AutoRNGRebirth = true
 local RNGRebirthRemote = nil -- Instance capturada (não usa índice)
 local rngRollThread, rngCraftThread, rngUpgradeThread, rngSkillThread, rngUseDiceThread, rngRebirthThread = nil, nil, nil, nil, nil, nil
 local rngStats = { ok = 0, cd = 0 }
@@ -332,6 +332,150 @@ local function MerchantIsActive()
     end)
     return ok and state and state.IsActive == true
 end
+
+----------------------------------------------------------------
+-- RNG world gate (Event só roda no evento)
+----------------------------------------------------------------
+local function IsInRNGWorld()
+    local ok, d = pcall(function() return Stats.Local() end)
+    if ok and d then
+        local w = tostring(d.CurrentWorld or "")
+        if w ~= "" and (string.find(w, "RNG", 1, true) or w == "RNGEvent") then
+            return true
+        end
+    end
+    if MinigamesFrontend then
+        local ok2, active = pcall(function() return MinigamesFrontend.Active() end)
+        if ok2 and active and type(active) == "table" then
+            local n = tostring(active.Name or "")
+            if n == "RNGEvent" or string.find(n, "RNG", 1, true) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+----------------------------------------------------------------
+-- Plataforma Event (100x100) em 7768, 4699, 351
+----------------------------------------------------------------
+local PLATFORM_POS = Vector3.new(7768, 4699, 351)
+local PLATFORM_SIZE = Vector3.new(100, 2, 100)
+local PLATFORM_NAME = "FrancesS_EventPlatform"
+
+local function EnsureEventPlatform()
+    local part = workspace:FindFirstChild(PLATFORM_NAME)
+    if part and part:IsA("BasePart") then
+        if (part.Position - PLATFORM_POS).Magnitude > 1 then
+            part.Position = PLATFORM_POS
+        end
+        if part.Size ~= PLATFORM_SIZE then
+            part.Size = PLATFORM_SIZE
+        end
+        part.Anchored = true
+        part.CanCollide = true
+        return part
+    end
+    if part then pcall(function() part:Destroy() end) end
+    local p = Instance.new("Part")
+    p.Name = PLATFORM_NAME
+    p.Size = PLATFORM_SIZE
+    p.Position = PLATFORM_POS
+    p.Anchored = true
+    p.CanCollide = true
+    p.Material = Enum.Material.SmoothPlastic
+    p.Color = Color3.fromRGB(35, 40, 55)
+    p.TopSurface = Enum.SurfaceType.Smooth
+    p.BottomSurface = Enum.SurfaceType.Smooth
+    p.Parent = workspace
+    return p
+end
+
+task.spawn(function()
+    while true do
+        pcall(EnsureEventPlatform)
+        task.wait(4)
+    end
+end)
+
+----------------------------------------------------------------
+-- Merchant: TP perto → compra stock → volta
+----------------------------------------------------------------
+local function FindMerchantRoot()
+    local candidates = {}
+    local function score(inst)
+        local n = string.lower(inst.Name or "")
+        if string.find(n, "merchant", 1, true) then return 10 end
+        if string.find(n, "dice", 1, true) and string.find(n, "shop", 1, true) then return 8 end
+        return 0
+    end
+    for _, d in ipairs(workspace:GetDescendants()) do
+        if d:IsA("Model") or d:IsA("BasePart") then
+            local s = score(d)
+            if s > 0 then
+                table.insert(candidates, { inst = d, s = s })
+            end
+        end
+    end
+    table.sort(candidates, function(a, b) return a.s > b.s end)
+    for _, c in ipairs(candidates) do
+        local inst = c.inst
+        if inst:IsA("Model") then
+            local pp = inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart")
+            if pp then return pp end
+        elseif inst:IsA("BasePart") then
+            return inst
+        end
+    end
+    -- fallback: ProximityPrompt com Merchant no ancestral
+    for _, d in ipairs(workspace:GetDescendants()) do
+        if d:IsA("ProximityPrompt") then
+            local a = d.Parent
+            while a and a ~= workspace do
+                local n = string.lower(a.Name or "")
+                if string.find(n, "merchant", 1, true) then
+                    if a:IsA("BasePart") then return a end
+                    if a:IsA("Model") then
+                        return a.PrimaryPart or a:FindFirstChildWhichIsA("BasePart")
+                    end
+                end
+                a = a.Parent
+            end
+        end
+    end
+    return nil
+end
+
+local function GetHRP()
+    local char = Players.LocalPlayer and Players.LocalPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function BuyAllMerchantOffersSafe()
+    if not MerchantIsActive() then return false, 0 end
+    local hrp = GetHRP()
+    if not hrp then
+        return BuyAllMerchantOffers()
+    end
+    local oldCF = hrp.CFrame
+    local merchantPart = FindMerchantRoot()
+    if merchantPart then
+        local target = merchantPart.CFrame * CFrame.new(0, 3, 4)
+        pcall(function()
+            hrp.CFrame = target
+        end)
+        task.wait(0.25)
+    end
+    local ok, bought = BuyAllMerchantOffers()
+    task.wait(0.1)
+    pcall(function()
+        if hrp and hrp.Parent then
+            hrp.CFrame = oldCF
+        end
+    end)
+    return ok, bought
+end
+
 
 ----------------------------------------------------------------
 -- Craft
@@ -1072,32 +1216,39 @@ local RNG_DICE_CHAIN = {
 
 local function RNGRollLoop()
     while AutoRNGRoll do
-        local ok, err, cd = RNGDoRoll()
-        if ok then
-            -- max
-        elseif err == "Cooldown" and type(cd) == "number" then
-            local w = cd - workspace:GetServerTimeNow()
-            if w > 0.03 then task.wait(w - 0.02)
-            elseif w > 0 then task.wait(w) end
+        if IsInRNGWorld() then
+            local ok, err, cd = RNGDoRoll()
+            if ok then
+                -- max
+            elseif err == "Cooldown" and type(cd) == "number" then
+                local w = cd - workspace:GetServerTimeNow()
+                if w > 0.03 then task.wait(w - 0.02)
+                elseif w > 0 then task.wait(w) end
+            else
+                task.wait(0.1)
+            end
         else
-            task.wait(0.1)
+            task.wait(1)
         end
     end
     rngRollThread = nil
 end
 
 local function RNGCraftLoop()
-    -- Só chama remote quando Items tem material (evita lag)
     while AutoRNGCraft do
-        local did = false
-        for _, c in ipairs(RNG_DICE_CHAIN) do
-            if not AutoRNGCraft then break end
-            if RNGItemCount(c.from) >= c.need then
-                if RNGCraft(c.index, true) then did = true end
-                task.wait(0.12)
+        if IsInRNGWorld() then
+            local did = false
+            for _, c in ipairs(RNG_DICE_CHAIN) do
+                if not AutoRNGCraft then break end
+                if RNGItemCount(c.from) >= c.need then
+                    if RNGCraft(c.index, true) then did = true end
+                    task.wait(0.12)
+                end
             end
+            task.wait(did and 0.25 or 1.0)
+        else
+            task.wait(1)
         end
-        task.wait(did and 0.25 or 1.0)
     end
     rngCraftThread = nil
 end
@@ -1156,8 +1307,8 @@ local function RNGUpgradeLoop()
     local upgradesFirst = { "PixelCoinsMultiplier", "BreakablesIncremental" }
     local upgradesLast = { "LuckMultiplier" }
     while AutoRNGUpgrades do
-        local did = false
-        if ChannelRNGUpgrades then
+        if IsInRNGWorld() and ChannelRNGUpgrades then
+            local did = false
             for _, id in ipairs(upgradesFirst) do
                 if not AutoRNGUpgrades then break end
                 if BuyRNGUpgradeMax(id) then
@@ -1172,8 +1323,10 @@ local function RNGUpgradeLoop()
                 end
                 task.wait(0.05)
             end
+            task.wait(did and 0.2 or 0.8)
+        else
+            task.wait(1)
         end
-        task.wait(did and 0.2 or 0.8)
     end
     rngUpgradeThread = nil
 end
@@ -1212,17 +1365,20 @@ end
 
 local function RNGUseDiceLoop()
     while AutoUseDice do
-        local id = SelectedUseDice
-        local have = RNGItemCount(id)
-        if have > 0 then
-            -- usa 1 por vez; loop consome todos disponíveis
-            if RNGUseDice(id, 1) then
-                task.wait(0.08)
+        if IsInRNGWorld() then
+            local id = SelectedUseDice
+            local have = RNGItemCount(id)
+            if have > 0 then
+                if RNGUseDice(id, 1) then
+                    task.wait(0.08)
+                else
+                    task.wait(0.35)
+                end
             else
-                task.wait(0.35)
+                task.wait(0.6)
             end
         else
-            task.wait(0.6)
+            task.wait(1)
         end
     end
     rngUseDiceThread = nil
@@ -1253,7 +1409,9 @@ end
 
 local function RNGRebirthLoop()
     while AutoRNGRebirth do
-        DoRNGRebirth()
+        if IsInRNGWorld() then
+            DoRNGRebirth()
+        end
         task.wait(10)
     end
     rngRebirthThread = nil
@@ -1269,7 +1427,7 @@ EventTab:CreateParagraph({
 
 EventTab:CreateToggle({
     Name = "Auto Roll",
-    CurrentValue = false,
+    CurrentValue = true,
     Callback = function(v)
         AutoRNGRoll = v
         if v then
@@ -1281,7 +1439,7 @@ EventTab:CreateToggle({
 
 EventTab:CreateToggle({
     Name = "Auto Craft Dice (até x1M)",
-    CurrentValue = false,
+    CurrentValue = true,
     Callback = function(v)
         AutoRNGCraft = v
         if v then
@@ -1293,7 +1451,7 @@ EventTab:CreateToggle({
 
 EventTab:CreateToggle({
     Name = "Auto Upgrades (Luck por último)",
-    CurrentValue = false,
+    CurrentValue = true,
     Callback = function(v)
         AutoRNGUpgrades = v
         if v then
@@ -1324,7 +1482,7 @@ EventTab:CreateParagraph({
 
 EventTab:CreateToggle({
     Name = "Auto RNG Rebirth (10s)",
-    CurrentValue = false,
+    CurrentValue = true,
     Callback = function(v)
         AutoRNGRebirth = v
         if v then
@@ -1363,7 +1521,7 @@ EventTab:CreateDropdown({
 
 EventTab:CreateToggle({
     Name = "Auto Use Dice",
-    CurrentValue = false,
+    CurrentValue = true,
     Callback = function(v)
         AutoUseDice = v
         if v then
@@ -1427,7 +1585,7 @@ task.spawn(function()
         if PassiveMerchant then
             pcall(function()
                 if MerchantIsActive() then
-                    BuyAllMerchantOffers()
+                    BuyAllMerchantOffersSafe()
                 end
             end)
         end
@@ -1615,12 +1773,12 @@ PotionTab:CreateDropdown({
 })
 
 PotionTab:CreateInput({
-    Name = "Tier alvo (1-5)",
+    Name = "Tier alvo (1-6)",
     PlaceholderText = "5",
     RemoveTextAfterFocusLost = false,
     Callback = function(txt)
         local n = tonumber(txt)
-        if n then PotionTargetTier = math.clamp(math.floor(n), 1, 5) end
+        if n then PotionTargetTier = math.clamp(math.floor(n), 1, 6) end
     end,
 })
 
@@ -1936,7 +2094,7 @@ FishTab:CreateInput({
 ----------------------------------------------------------------
 local InfoTab = Window:CreateTab("Info", 4483362458)
 InfoTab:CreateParagraph({
-    Title = "FrancesS Hub v5.11",
+    Title = "FrancesS Hub v5.12",
     Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Potions • GUIs • Fishing • Passivos\nUpgrades separados; Auto RNG Rebirth inteligente",
 })
 
@@ -2046,8 +2204,15 @@ PassiveTab:CreateToggle({
     Callback = function(v) PassiveRainbowClaim = v end,
 })
 
+-- Event defaults ON (só executam quando IsInRNGWorld)
+if AutoRNGRoll and not rngRollThread then rngRollThread = task.spawn(RNGRollLoop) end
+if AutoRNGCraft and not rngCraftThread then rngCraftThread = task.spawn(RNGCraftLoop) end
+if AutoRNGUpgrades and not rngUpgradeThread then rngUpgradeThread = task.spawn(RNGUpgradeLoop) end
+if AutoRNGRebirth and not rngRebirthThread then rngRebirthThread = task.spawn(RNGRebirthLoop) end
+if AutoUseDice and not rngUseDiceThread then rngUseDiceThread = task.spawn(RNGUseDiceLoop) end
+
 Rayfield:Notify({
-    Title = "FrancesS Hub v5.11",
+    Title = "FrancesS Hub v5.12",
     Content = "Clicker Simulator By Grokzada",
     Duration = 3,
 })
