@@ -1250,19 +1250,15 @@ local RNG_DICE_CHAIN = {
 
 local function RNGRollLoop()
     while AutoRNGRoll do
-        if IsInRNGWorld() then
-            local ok, err, cd = RNGDoRoll()
-            if ok then
-                -- max
-            elseif err == "Cooldown" and type(cd) == "number" then
-                local w = cd - workspace:GetServerTimeNow()
-                if w > 0.03 then task.wait(w - 0.02)
-                elseif w > 0 then task.wait(w) end
-            else
-                task.wait(0.1)
-            end
+        local ok, err, cd = RNGDoRoll()
+        if ok then
+            -- max speed
+        elseif err == "Cooldown" and type(cd) == "number" then
+            local w = cd - workspace:GetServerTimeNow()
+            if w > 0.03 then task.wait(w - 0.02)
+            elseif w > 0 then task.wait(w) end
         else
-            task.wait(1)
+            task.wait(0.1)
         end
     end
     rngRollThread = nil
@@ -1270,19 +1266,15 @@ end
 
 local function RNGCraftLoop()
     while AutoRNGCraft do
-        if IsInRNGWorld() then
-            local did = false
-            for _, c in ipairs(RNG_DICE_CHAIN) do
-                if not AutoRNGCraft then break end
-                if RNGItemCount(c.from) >= c.need then
-                    if RNGCraft(c.index, true) then did = true end
-                    task.wait(0.12)
-                end
+        local did = false
+        for _, c in ipairs(RNG_DICE_CHAIN) do
+            if not AutoRNGCraft then break end
+            if RNGItemCount(c.from) >= c.need then
+                if RNGCraft(c.index, true) then did = true end
+                task.wait(0.12)
             end
-            task.wait(did and 0.25 or 1.0)
-        else
-            task.wait(1)
         end
+        task.wait(did and 0.25 or 1.0)
     end
     rngCraftThread = nil
 end
@@ -1341,7 +1333,7 @@ local function RNGUpgradeLoop()
     local upgradesFirst = { "PixelCoinsMultiplier", "BreakablesIncremental" }
     local upgradesLast = { "LuckMultiplier" }
     while AutoRNGUpgrades do
-        if IsInRNGWorld() and ChannelRNGUpgrades then
+        if ChannelRNGUpgrades then
             local did = false
             for _, id in ipairs(upgradesFirst) do
                 if not AutoRNGUpgrades then break end
@@ -1399,20 +1391,16 @@ end
 
 local function RNGUseDiceLoop()
     while AutoUseDice do
-        if IsInRNGWorld() then
-            local id = SelectedUseDice
-            local have = RNGItemCount(id)
-            if have > 0 then
-                if RNGUseDice(id, 1) then
-                    task.wait(0.08)
-                else
-                    task.wait(0.35)
-                end
+        local id = SelectedUseDice
+        local have = RNGItemCount(id)
+        if have > 0 then
+            if RNGUseDice(id, 1) then
+                task.wait(0.08)
             else
-                task.wait(0.6)
+                task.wait(0.35)
             end
         else
-            task.wait(1)
+            task.wait(0.6)
         end
     end
     rngUseDiceThread = nil
@@ -1443,9 +1431,7 @@ end
 
 local function RNGRebirthLoop()
     while AutoRNGRebirth do
-        if IsInRNGWorld() then
-            DoRNGRebirth()
-        end
+        DoRNGRebirth()
         task.wait(10)
     end
     rngRebirthThread = nil
@@ -2242,7 +2228,7 @@ PassiveTab:CreateToggle({
     Callback = function(v) PassiveRainbowClaim = v end,
 })
 
--- Event defaults ON (só executam quando IsInRNGWorld)
+-- Event defaults ON (manual, sem checagem de mundo)
 if AutoRNGRoll and not rngRollThread then rngRollThread = task.spawn(RNGRollLoop) end
 if AutoRNGCraft and not rngCraftThread then rngCraftThread = task.spawn(RNGCraftLoop) end
 if AutoRNGUpgrades and not rngUpgradeThread then rngUpgradeThread = task.spawn(RNGUpgradeLoop) end
