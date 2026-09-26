@@ -4,8 +4,32 @@
 
     - Hatch / Craft / Pets / Event / Potions / GUIs / Fishing / Passivos
     - Passivos com toggle (default ON)
-    - Event: Upgrades/Skill separados; Merchant TP+buy; Platform Event; Potion T6; Event só no RNG
+    - Event: default OFF — ligue pelos toggles ou pelos GLOBAIS abaixo
 ]]
+
+----------------------------------------------------------------
+-- GLOBAIS RÁPIDOS
+-- Mude true/false aqui antes de executar o script.
+-- Aba Event começa DESATIVADA por padrão.
+----------------------------------------------------------------
+local GLOBALS = {
+    Event = {
+        AutoRoll = false,          -- Auto Roll
+        AutoCraftDice = false,     -- Auto Craft Dice (até x1M)
+        AutoUpgrades = false,      -- Auto Upgrades
+        AutoSkillTree = false,     -- Auto Skill Tree RNG
+        AutoRebirth = false,       -- Auto RNG Rebirth (10s)
+        AutoUseDice = false,       -- Auto Use Dice
+        SelectedUseDice = "x1MDice", -- Dice padrão ao usar
+    },
+    Passivos = {
+        Click = true,
+        Gifts = true,
+        Merchant = true,
+        PotionClaim = true,
+        RainbowClaim = true,
+    },
+}
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
@@ -120,24 +144,24 @@ local fishBound = false
 local hatchThread, merchantThread = nil, nil
 local goldenThread, rainbowThread = nil, nil
 
--- RNG Event
-local AutoRNGRoll = true
-local AutoRNGCraft = true
-local AutoRNGUpgrades = true
-local AutoRNGSkillTree = false
-local AutoUseDice = true
-local SelectedUseDice = "x1MDice"
-local AutoRNGRebirth = true
+-- RNG Event (lê dos GLOBAIS — default OFF)
+local AutoRNGRoll = GLOBALS.Event.AutoRoll == true
+local AutoRNGCraft = GLOBALS.Event.AutoCraftDice == true
+local AutoRNGUpgrades = GLOBALS.Event.AutoUpgrades == true
+local AutoRNGSkillTree = GLOBALS.Event.AutoSkillTree == true
+local AutoUseDice = GLOBALS.Event.AutoUseDice == true
+local SelectedUseDice = GLOBALS.Event.SelectedUseDice or "x1MDice"
+local AutoRNGRebirth = GLOBALS.Event.AutoRebirth == true
 local RNGRebirthRemote = nil -- Instance capturada (não usa índice)
 local rngRollThread, rngCraftThread, rngUpgradeThread, rngSkillThread, rngUseDiceThread, rngRebirthThread = nil, nil, nil, nil, nil, nil
 local rngStats = { ok = 0, cd = 0 }
 
--- Passivos (default ON — AFK continua igual até desligar)
-local PassiveClick = true
-local PassiveGifts = true
-local PassiveMerchant = true
-local PassivePotionClaim = true
-local PassiveRainbowClaim = true
+-- Passivos (lê dos GLOBAIS — default ON)
+local PassiveClick = GLOBALS.Passivos.Click ~= false
+local PassiveGifts = GLOBALS.Passivos.Gifts ~= false
+local PassiveMerchant = GLOBALS.Passivos.Merchant ~= false
+local PassivePotionClaim = GLOBALS.Passivos.PotionClaim ~= false
+local PassiveRainbowClaim = GLOBALS.Passivos.RainbowClaim ~= false
 
 ----------------------------------------------------------------
 -- Eggs
@@ -1447,7 +1471,7 @@ EventTab:CreateParagraph({
 
 EventTab:CreateToggle({
     Name = "Auto Roll",
-    CurrentValue = true,
+    CurrentValue = AutoRNGRoll,
     Callback = function(v)
         AutoRNGRoll = v
         if v then
@@ -1459,7 +1483,7 @@ EventTab:CreateToggle({
 
 EventTab:CreateToggle({
     Name = "Auto Craft Dice (até x1M)",
-    CurrentValue = true,
+    CurrentValue = AutoRNGCraft,
     Callback = function(v)
         AutoRNGCraft = v
         if v then
@@ -1471,7 +1495,7 @@ EventTab:CreateToggle({
 
 EventTab:CreateToggle({
     Name = "Auto Upgrades (Luck por último)",
-    CurrentValue = true,
+    CurrentValue = AutoRNGUpgrades,
     Callback = function(v)
         AutoRNGUpgrades = v
         if v then
@@ -1483,7 +1507,7 @@ EventTab:CreateToggle({
 
 EventTab:CreateToggle({
     Name = "Auto Skill Tree RNG",
-    CurrentValue = false,
+    CurrentValue = AutoRNGSkillTree,
     Callback = function(v)
         AutoRNGSkillTree = v
         if v then
@@ -1502,7 +1526,7 @@ EventTab:CreateParagraph({
 
 EventTab:CreateToggle({
     Name = "Auto RNG Rebirth (10s)",
-    CurrentValue = true,
+    CurrentValue = AutoRNGRebirth,
     Callback = function(v)
         AutoRNGRebirth = v
         if v then
@@ -1541,7 +1565,7 @@ EventTab:CreateDropdown({
 
 EventTab:CreateToggle({
     Name = "Auto Use Dice",
-    CurrentValue = true,
+    CurrentValue = AutoUseDice,
     Callback = function(v)
         AutoUseDice = v
         if v then
@@ -2200,38 +2224,39 @@ PassiveTab:CreateParagraph({
 
 PassiveTab:CreateToggle({
     Name = "Auto Click",
-    CurrentValue = true,
+    CurrentValue = PassiveClick,
     Callback = function(v) PassiveClick = v end,
 })
 
 PassiveTab:CreateToggle({
     Name = "Free Gifts",
-    CurrentValue = true,
+    CurrentValue = PassiveGifts,
     Callback = function(v) PassiveGifts = v end,
 })
 
 PassiveTab:CreateToggle({
     Name = "Merchant (auto buy stock)",
-    CurrentValue = true,
+    CurrentValue = PassiveMerchant,
     Callback = function(v) PassiveMerchant = v end,
 })
 
 PassiveTab:CreateToggle({
     Name = "Potion Claim",
-    CurrentValue = true,
+    CurrentValue = PassivePotionClaim,
     Callback = function(v) PassivePotionClaim = v end,
 })
 
 PassiveTab:CreateToggle({
     Name = "Rainbow Craft Claim",
-    CurrentValue = true,
+    CurrentValue = PassiveRainbowClaim,
     Callback = function(v) PassiveRainbowClaim = v end,
 })
 
--- Event defaults ON (manual, sem checagem de mundo)
+-- Event: só sobe thread se GLOBALS / toggle estiver true (default OFF)
 if AutoRNGRoll and not rngRollThread then rngRollThread = task.spawn(RNGRollLoop) end
 if AutoRNGCraft and not rngCraftThread then rngCraftThread = task.spawn(RNGCraftLoop) end
 if AutoRNGUpgrades and not rngUpgradeThread then rngUpgradeThread = task.spawn(RNGUpgradeLoop) end
+if AutoRNGSkillTree and not rngSkillThread then rngSkillThread = task.spawn(RNGSkillTreeLoop) end
 if AutoRNGRebirth and not rngRebirthThread then rngRebirthThread = task.spawn(RNGRebirthLoop) end
 if AutoUseDice and not rngUseDiceThread then rngUseDiceThread = task.spawn(RNGUseDiceLoop) end
 
