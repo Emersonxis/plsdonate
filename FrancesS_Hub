@@ -866,7 +866,7 @@ task.spawn(function()
         if #newList ~= lastCount or not TablesEqual(newList, CurrentEggList) then
             lastCount = #newList
             CurrentEggList = newList
-            RefreshEggs(true)
+            RefreshEggs(false) -- silencioso (sem notify)
         end
     end
 end)
@@ -1434,7 +1434,12 @@ function RaidSys.GetGates()
 end
 
 function RaidSys.GateBroken(gate)
-    return not gate or gate:GetAttribute("GateBroken") == true
+    if not gate then return true end
+    if gate:GetAttribute("GateBroken") == true then return true end
+    -- HP 0 = já abriu (atributo Broken às vezes atrasa 1–2s)
+    local hp = gate:GetAttribute("GateHP")
+    if type(hp) == "number" and hp <= 0 then return true end
+    return false
 end
 
 function RaidSys.GatePos(gate)
@@ -1501,31 +1506,45 @@ function RaidSys.Click(gateId)
     end)
 end
 
-function RaidSys.CombatTick()
+function RaidSys.CombatTick(preferGate, preferId)
     if not RaidSys.InLobby() then return end
     local gates = RaidSys.GetGates()
-    local targetId, targetGate = nil, nil
-    for _, id in ipairs(RaidSys.SortedIds(gates)) do
-        local g = gates[id]
-        if g and not RaidSys.GateBroken(g) then
-            targetId, targetGate = id, g
-            break
+    local targetId, targetGate = preferId, preferGate
+    if not targetGate or RaidSys.GateBroken(targetGate) then
+        targetId, targetGate = nil, nil
+        for _, id in ipairs(RaidSys.SortedIds(gates)) do
+            local g = gates[id]
+            if g and not RaidSys.GateBroken(g) then
+                targetId, targetGate = id, g
+                break
+            end
         end
     end
-    if not targetId then return end
-    RaidSys.TP(targetGate)
+    if not targetId or not targetGate then return end
+    -- TP só se estiver longe (evita micro-stutter entre hits)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local pos = RaidSys.GatePos(targetGate)
+    if hrp and pos then
+        local dist = (hrp.Position - pos).Magnitude
+        if dist > 12 then
+            RaidSys.TP(targetGate)
+        end
+    else
+        RaidSys.TP(targetGate)
+    end
     for _, guid in ipairs(RaidSys.Pets()) do
         RaidSys.Hit(targetId, guid)
     end
     RaidSys.Click(targetId)
 end
 
-function RaidSys.WaitBroken(gate, timeout)
+function RaidSys.WaitBroken(gate, gateId, timeout)
     timeout = timeout or 90
     local t0 = os.clock()
     while AutoRaidFarm and os.clock() - t0 < timeout do
         if RaidSys.GateBroken(gate) then return true end
-        RaidSys.CombatTick()
+        RaidSys.CombatTick(gate, gateId)
         task.wait(0.01)
     end
     return RaidSys.GateBroken(gate)
@@ -1580,7 +1599,7 @@ function RaidSys.FarmLoop()
         pcall(function()
             if not RaidSys.InLobby() and not RaidSys.InWorld() then
                 RaidSys.EnterWorld(true)
-                task.wait(0.8)
+                task.wait(0.35)
             end
             if not RaidSys.InLobby() then
                 local slots = RaidSys.GetSlots()
@@ -1589,17 +1608,17 @@ function RaidSys.FarmLoop()
                     local free = RaidSys.FindFree(slots)
                     if free then
                         RaidSys.Claim(free)
-                        task.wait(0.35)
+                        task.wait(0.15)
                         slots = RaidSys.GetSlots()
                         owned, state = RaidSys.FindOwned(slots)
                     end
                 end
                 if owned and not (state and state.Started) then
                     RaidSys.Configure(owned, RaidDifficulty, RaidLobbyType)
-                    task.wait(0.2)
+                    task.wait(0.08)
                     raidEndedFlag = false
                     RaidSys.Start(owned)
-                    task.wait(0.8)
+                    task.wait(0.35)
                 end
             end
             if RaidSys.InLobby() then
@@ -1609,25 +1628,25 @@ function RaidSys.FarmLoop()
                     local g = gates[id]
                     if g and not RaidSys.GateBroken(g) then
                         RaidSys.TP(g)
-                        task.wait(0.05)
-                        RaidSys.WaitBroken(g, 120)
+                        RaidSys.WaitBroken(g, id, 120)
+                        -- vai direto pra próxima (sem wait extra)
                     end
                 end
                 gates = RaidSys.GetGates()
                 if raidEndedFlag or RaidSys.AllBroken(gates) then
-                    task.wait(0.4)
+                    task.wait(0.12)
                     RaidSys.Exit()
                     raidEndedFlag = false
-                    task.wait(0.6)
+                    task.wait(0.2)
                 else
                     RaidSys.CombatTick()
                     task.wait(0.01)
                 end
             else
-                task.wait(0.5)
+                task.wait(0.2)
             end
         end)
-        task.wait(0.05)
+        task.wait(0.02)
     end
     raidFarmThread = nil
 end
