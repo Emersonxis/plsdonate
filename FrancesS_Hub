@@ -1302,273 +1302,45 @@ PetsTab:CreateToggle({
 })
 
 ----------------------------------------------------------------
--- RNG helpers
+-- RNG (legado Event removido — bloco compacto)
 ----------------------------------------------------------------
 local function RNGItemCount(id)
-    -- Dump: Items["x1KDice_1"] = number
     local ok, d = pcall(function() return Stats.Local() end)
     if not ok or not d or not d.Items then return 0 end
     local key = id
-    if not string.find(id, "_") then
-        key = id .. "_1"
-    end
+    if not string.find(id, "_") then key = id .. "_1" end
     local v = d.Items[key]
     if type(v) == "number" then return v end
     if type(v) == "table" then return tonumber(v.Amount or v.amount or v.Count) or 0 end
-    v = d.Items[id]
-    if type(v) == "number" then return v end
-    return 0
-end
-
-local function RNGDoRoll()
-    if not ChannelRNG then return false, "no channel" end
-    local okCall, a, b, c = pcall(function()
-        return ChannelRNG:InvokeServer("Roll")
-    end)
-    if not okCall then return false, tostring(a) end
-    if a == true then
-        rngStats.ok += 1
-        return true, nil, c
-    end
-    if b == "Cooldown" or (type(c) == "number" and c > workspace:GetServerTimeNow()) then
-        rngStats.cd += 1
-        return false, "Cooldown", c
-    end
-    return false, tostring(b or a), c
-end
-
-local function RNGCraft(index, isMax)
-    if not ChannelCombine then return false end
-    local ok, success = pcall(function()
-        return ChannelCombine:InvokeServer("Craft", "Dices", index, isMax == true)
-    end)
-    return ok and success == true
-end
-
--- 15x x1K → 100K | 3x x100K → Golden | 2x Golden → Rainbow | 2x Rainbow → x1M
-local RNG_DICE_CHAIN = {
-    { index = 1, from = "x1KDice", need = 15 },
-    { index = 2, from = "x100KDice", need = 3 },
-    { index = 3, from = "GoldenDice", need = 2 },
-    { index = 4, from = "RainbowDice", need = 2 },
-}
-
-local function RNGRollLoop()
-    while AutoRNGRoll do
-        local ok, err, cd = RNGDoRoll()
-        if ok then
-            -- max speed
-        elseif err == "Cooldown" and type(cd) == "number" then
-            local w = cd - workspace:GetServerTimeNow()
-            if w > 0.03 then task.wait(w - 0.02)
-            elseif w > 0 then task.wait(w) end
-        else
-            task.wait(0.1)
-        end
-    end
-    rngRollThread = nil
-end
-
-local function RNGCraftLoop()
-    while AutoRNGCraft do
-        local did = false
-        for _, c in ipairs(RNG_DICE_CHAIN) do
-            if not AutoRNGCraft then break end
-            if RNGItemCount(c.from) >= c.need then
-                if RNGCraft(c.index, true) then did = true end
-                task.wait(0.12)
-            end
-        end
-        task.wait(did and 0.25 or 1.0)
-    end
-    rngCraftThread = nil
-end
-
--- Upgrades: Buy MAX (igual botão do jogo) — 1 remote por upgrade
--- Prioridade: PixelCoins + Breakables primeiro; Luck por último
-local function GetRNGUpgradeAffordableAmount(upgradeId)
-    local level = 0
-    local money = 0
-    local dir = Directory and Directory.RNGUpgrades and Directory.RNGUpgrades[upgradeId]
-    pcall(function()
-        local d = Stats.Local()
-        if d and d.RNGUpgrades then
-            level = tonumber(d.RNGUpgrades[upgradeId]) or 0
-        end
-        local curName = (dir and dir.Currency) or "PixelCoins"
-        if d and d.Currency then
-            money = tonumber(d.Currency[curName]) or 0
-        end
-    end)
-    if not dir or type(dir.Costs) ~= "table" then
-        -- sem Directory: tenta lote grande (server valida)
-        return 500
-    end
-    local maxLevel = tonumber(dir.MaxLevel) or 1000
-    if level >= maxLevel then
-        return 0
-    end
-    local amount = 0
-    for lvl = level + 1, maxLevel do
-        local cost = dir.Costs[lvl]
-        if type(cost) ~= "number" or money < cost then
-            break
-        end
-        money = money - cost
-        amount = amount + 1
-    end
-    return amount
-end
-
-local function BuyRNGUpgradeMax(upgradeId)
-    if not ChannelRNGUpgrades then
-        return false
-    end
-    local amount = GetRNGUpgradeAffordableAmount(upgradeId)
-    if amount < 1 then
-        return false
-    end
-    local ok, success = pcall(function()
-        return ChannelRNGUpgrades:InvokeServer("Purchase", upgradeId, amount)
-    end)
-    return ok and success == true
-end
-
-local function RNGUpgradeLoop()
-    local upgradesFirst = { "PixelCoinsMultiplier", "BreakablesIncremental" }
-    local upgradesLast = { "LuckMultiplier" }
-    while AutoRNGUpgrades do
-        if ChannelRNGUpgrades then
-            local did = false
-            for _, id in ipairs(upgradesFirst) do
-                if not AutoRNGUpgrades then break end
-                if BuyRNGUpgradeMax(id) then
-                    did = true
-                end
-                task.wait(0.05)
-            end
-            for _, id in ipairs(upgradesLast) do
-                if not AutoRNGUpgrades then break end
-                if BuyRNGUpgradeMax(id) then
-                    did = true
-                end
-                task.wait(0.05)
-            end
-            task.wait(did and 0.2 or 0.8)
-        else
-            task.wait(1)
-        end
-    end
-    rngUpgradeThread = nil
-end
-
-local function RNGSkillTreeLoop()
-    local skills = {
-        "RNGFasterRolls", "RNGFasterRollsII", "RNGFasterRollsIII", "RNGFasterRollsIV",
-        "RNGBonusRoll", "RNGBonusRollII", "RNGBonusRollIII",
-        "RNGGoldenRoll", "RNGGoldenRollII", "RNGGoldenRollIII",
-        "RNGRainbowRoll", "RNGRainbowRollII",
-        "RNGMoreBreakables", "RNGMoreBreakablesII", "RNGMoreBreakablesIII",
-    }
-    while AutoRNGSkillTree do
-        local did = false
-        if SkillTreeFrontend and SkillTreeFrontend.Purchase then
-            for _, id in ipairs(skills) do
-                if not AutoRNGSkillTree then break end
-                local ok = pcall(function() SkillTreeFrontend.Purchase(id, "RNG") end)
-                if ok then did = true end
-                task.wait(0.1)
-            end
-        end
-        task.wait(did and 0.4 or 1.5)
-    end
-    rngSkillThread = nil
-end
-
-local function RNGUseDice(diceId, amount)
-    if not ChannelItems then return false end
-    amount = amount or 1
-    local ok, success = pcall(function()
-        return ChannelItems:InvokeServer("Use", diceId, 1, amount)
-    end)
-    return ok and success == true
-end
-
-local function RNGUseDiceLoop()
-    while AutoUseDice do
-        local id = SelectedUseDice
-        local have = RNGItemCount(id)
-        if have > 0 then
-            if RNGUseDice(id, 1) then
-                task.wait(0.08)
-            else
-                task.wait(0.35)
-            end
-        else
-            task.wait(0.6)
-        end
-    end
-    rngUseDiceThread = nil
+    return tonumber(d.Items[id]) or 0
 end
 
 ----------------------------------------------------------------
--- TAB: Event (RNG) — ao lado de Pets
+-- RAID (tabela única = evita limite de 200 locals no chunk)
 ----------------------------------------------------------------
+local RaidSys = {}
 
-----------------------------------------------------------------
--- RNG Rebirth (dump oficial)
--- Network.Channel("RNGRebirths"):InvokeServer("Rebirth2")
-----------------------------------------------------------------
-local function DoRNGRebirth()
-    if not ChannelRNGRebirths then
-        pcall(function() ChannelRNGRebirths = Network.Channel("RNGRebirths") end)
-    end
-    if not ChannelRNGRebirths then
-        return false, "channel nil"
-    end
-    local ok, a, b = pcall(function()
-        return ChannelRNGRebirths:InvokeServer("Rebirth2")
-    end)
-    if not ok then return false, tostring(a) end
-    -- a == true sucesso; a == false e b = mensagem
-    return a == true, a, b
-end
-
-local function RNGRebirthLoop()
-    while AutoRNGRebirth do
-        DoRNGRebirth()
-        task.wait(10)
-    end
-    rngRebirthThread = nil
-end
-
-----------------------------------------------------------------
--- RAID helpers + Auto Farm
-----------------------------------------------------------------
-local function RaidActiveName()
+function RaidSys.ActiveName()
     if not MinigamesFrontend or not MinigamesFrontend.Active then return nil end
     local ok, a = pcall(function() return MinigamesFrontend.Active() end)
     if ok and a then return a.Name, a end
     return nil
 end
 
-local function IsInRaidLobby()
-    local name = RaidActiveName()
-    return name == "RaidLobby"
+function RaidSys.InLobby()
+    return RaidSys.ActiveName() == "RaidLobby"
 end
 
-local function IsInRaidEventWorld()
-    local name = RaidActiveName()
-    return name == "RaidEvent"
+function RaidSys.InWorld()
+    return RaidSys.ActiveName() == "RaidEvent"
 end
 
-local function GetRaidWorldModel()
-    local name, a = RaidActiveName()
-    if a and a.WorldModel then return a.WorldModel end
-    return nil
+function RaidSys.WorldModel()
+    local _, a = RaidSys.ActiveName()
+    return a and a.WorldModel or nil
 end
 
-local function RaidExit()
+function RaidSys.Exit()
     pcall(function()
         if MinigamesFrontend and MinigamesFrontend.Exit then
             MinigamesFrontend.Exit()
@@ -1576,7 +1348,7 @@ local function RaidExit()
     end)
 end
 
-local function EnterRaidWorld(buyIfNeeded)
+function RaidSys.EnterWorld(buyIfNeeded)
     if not ChannelMinigames then return false end
     local ok, unlocked = pcall(function()
         return ChannelMinigames:InvokeServer("GetRaidWorldStatus")
@@ -1587,15 +1359,14 @@ local function EnterRaidWorld(buyIfNeeded)
         task.wait(0.3)
     end
     if not unlocked and not buyIfNeeded then return false end
-    local ok2 = pcall(function()
+    return pcall(function()
         if MinigamesFrontend and MinigamesFrontend.Enter then
             MinigamesFrontend.Enter("RaidEvent")
         end
     end)
-    return ok2
 end
 
-local function RaidGetAllSlots()
+function RaidSys.GetSlots()
     if not ChannelRaidPortals then return {} end
     local ok, slots = pcall(function()
         return ChannelRaidPortals:InvokeServer("GetAllSlots")
@@ -1604,7 +1375,7 @@ local function RaidGetAllSlots()
     return slots
 end
 
-local function RaidFindOwnedSlot(slots)
+function RaidSys.FindOwned(slots)
     local uid = LocalPlayer.UserId
     for _, s in pairs(slots) do
         if type(s) == "table" and s.OwnerId == uid then
@@ -1614,17 +1385,16 @@ local function RaidFindOwnedSlot(slots)
     return nil, nil
 end
 
-local function RaidFindFreeSlot(slots)
+function RaidSys.FindFree(slots)
     for _, s in pairs(slots) do
-        if type(s) == "table" and not s.OwnerId then
-            local n = s.Slot
-            if type(n) == "number" then return n end
+        if type(s) == "table" and not s.OwnerId and type(s.Slot) == "number" then
+            return s.Slot
         end
     end
     return nil
 end
 
-local function RaidClaimSlot(slot)
+function RaidSys.Claim(slot)
     if not ChannelRaidPortals then return false end
     local ok, success = pcall(function()
         return ChannelRaidPortals:InvokeServer("ClaimSlot", slot)
@@ -1632,14 +1402,14 @@ local function RaidClaimSlot(slot)
     return ok and success == true
 end
 
-local function RaidConfigure(slot, diff, lobby)
+function RaidSys.Configure(slot, diff, lobby)
     if not ChannelRaidPortals then return end
     pcall(function()
         ChannelRaidPortals:InvokeServer("ConfigureSlot", slot, diff, lobby)
     end)
 end
 
-local function RaidStart(slot)
+function RaidSys.Start(slot)
     if not ChannelRaidPortals then return false end
     local ok, success = pcall(function()
         return ChannelRaidPortals:InvokeServer("StartRaid", slot)
@@ -1655,32 +1425,29 @@ local function RaidStart(slot)
     return false
 end
 
-local function RaidGetGates()
-    local wm = GetRaidWorldModel()
+function RaidSys.GetGates()
+    local wm = RaidSys.WorldModel()
     if not wm or not RaidGateUtil or not RaidGateUtil.GetGates then return {} end
     local ok, gates = pcall(function() return RaidGateUtil.GetGates(wm) end)
     if not ok or type(gates) ~= "table" then return {} end
     return gates
 end
 
-local function RaidGateBroken(gate)
-    if not gate then return true end
-    return gate:GetAttribute("GateBroken") == true
+function RaidSys.GateBroken(gate)
+    return not gate or gate:GetAttribute("GateBroken") == true
 end
 
-local function RaidGatePos(gate)
+function RaidSys.GatePos(gate)
     if not gate then return nil end
     local hit = gate:FindFirstChild("Hitbox")
     if hit then return hit.Position end
     local host = gate:FindFirstChild("Host")
     if host then return host.Position end
-    if gate.GetPivot then
-        return gate:GetPivot().Position
-    end
+    if gate.GetPivot then return gate:GetPivot().Position end
     return nil
 end
 
-local function RaidSortedGateIds(gates)
+function RaidSys.SortedIds(gates)
     local ids = {}
     for i in pairs(gates) do
         local n = tonumber(i)
@@ -1690,19 +1457,19 @@ local function RaidSortedGateIds(gates)
     return ids
 end
 
-local function RaidAllGatesBroken(gates)
+function RaidSys.AllBroken(gates)
     local any = false
     for _, gate in pairs(gates) do
         any = true
-        if not RaidGateBroken(gate) then return false end
+        if not RaidSys.GateBroken(gate) then return false end
     end
     return any
 end
 
-local function RaidTPToGate(gate)
+function RaidSys.TP(gate)
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local pos = RaidGatePos(gate)
+    local pos = RaidSys.GatePos(gate)
     if not hrp or not pos then return false end
     pcall(function()
         hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
@@ -1710,7 +1477,7 @@ local function RaidTPToGate(gate)
     return true
 end
 
-local function RaidEquippedPets()
+function RaidSys.Pets()
     local list = {}
     pcall(function()
         for guid in PetsModule.GetEquippedPets() do
@@ -1720,54 +1487,51 @@ local function RaidEquippedPets()
     return list
 end
 
-local function RaidHit(gateId, petGuid)
+function RaidSys.Hit(gateId, petGuid)
     if not ChannelRaidGates then return end
     pcall(function()
         ChannelRaidGates:InvokeServer("Hit", tostring(gateId), petGuid)
     end)
 end
 
-local function RaidClick(gateId)
+function RaidSys.Click(gateId)
     if not ChannelRaidGates then return end
     pcall(function()
         ChannelRaidGates:InvokeServer("Click", tostring(gateId))
     end)
 end
 
--- Combate passivo: só dentro da RaidLobby, delay 0.01
-local function RaidCombatTick()
-    if not IsInRaidLobby() then return end
-    local gates = RaidGetGates()
-    local ids = RaidSortedGateIds(gates)
+function RaidSys.CombatTick()
+    if not RaidSys.InLobby() then return end
+    local gates = RaidSys.GetGates()
     local targetId, targetGate = nil, nil
-    for _, id in ipairs(ids) do
+    for _, id in ipairs(RaidSys.SortedIds(gates)) do
         local g = gates[id]
-        if g and not RaidGateBroken(g) then
+        if g and not RaidSys.GateBroken(g) then
             targetId, targetGate = id, g
             break
         end
     end
     if not targetId then return end
-    RaidTPToGate(targetGate)
-    local pets = RaidEquippedPets()
-    for _, guid in ipairs(pets) do
-        RaidHit(targetId, guid)
+    RaidSys.TP(targetGate)
+    for _, guid in ipairs(RaidSys.Pets()) do
+        RaidSys.Hit(targetId, guid)
     end
-    RaidClick(targetId)
+    RaidSys.Click(targetId)
 end
 
-local function RaidWaitGateBroken(gate, timeout)
+function RaidSys.WaitBroken(gate, timeout)
     timeout = timeout or 90
     local t0 = os.clock()
     while AutoRaidFarm and os.clock() - t0 < timeout do
-        if RaidGateBroken(gate) then return true end
-        RaidCombatTick()
+        if RaidSys.GateBroken(gate) then return true end
+        RaidSys.CombatTick()
         task.wait(0.01)
     end
-    return RaidGateBroken(gate)
+    return RaidSys.GateBroken(gate)
 end
 
-local function RaidBuyUpgradesOnce()
+function RaidSys.BuyUpgrades()
     local dir = Directory and Directory.RaidUpgrades
     if type(dir) ~= "table" or not ChannelRaidUpgrades then return 0 end
     local ok, data = pcall(function() return Stats.Local() end)
@@ -1794,7 +1558,7 @@ local function RaidBuyUpgradesOnce()
                 end
                 if money >= nextTier.Price then
                     pcall(function() ChannelRaidUpgrades:FireServer("Buy", e.id) end)
-                    bought += 1
+                    bought = bought + 1
                     task.wait(0.12)
                 end
             end
@@ -1803,7 +1567,6 @@ local function RaidBuyUpgradesOnce()
     return bought
 end
 
--- Listener RaidEnd (se o channel existir)
 pcall(function()
     if ChannelRaidGates and ChannelRaidGates.OnClientEvent then
         ChannelRaidGates.OnClientEvent("RaidEnd"):Connect(function()
@@ -1812,62 +1575,52 @@ pcall(function()
     end
 end)
 
-local function RaidFarmLoop()
+function RaidSys.FarmLoop()
     while AutoRaidFarm do
         pcall(function()
-            -- 1) garantir mundo / lobby
-            if not IsInRaidLobby() and not IsInRaidEventWorld() then
-                EnterRaidWorld(true)
+            if not RaidSys.InLobby() and not RaidSys.InWorld() then
+                RaidSys.EnterWorld(true)
                 task.wait(0.8)
             end
-
-            -- 2) claim + start se não estiver no lobby
-            if not IsInRaidLobby() then
-                local slots = RaidGetAllSlots()
-                local owned, state = RaidFindOwnedSlot(slots)
+            if not RaidSys.InLobby() then
+                local slots = RaidSys.GetSlots()
+                local owned, state = RaidSys.FindOwned(slots)
                 if not owned then
-                    local free = RaidFindFreeSlot(slots)
+                    local free = RaidSys.FindFree(slots)
                     if free then
-                        RaidClaimSlot(free)
+                        RaidSys.Claim(free)
                         task.wait(0.35)
-                        slots = RaidGetAllSlots()
-                        owned, state = RaidFindOwnedSlot(slots)
+                        slots = RaidSys.GetSlots()
+                        owned, state = RaidSys.FindOwned(slots)
                     end
                 end
                 if owned and not (state and state.Started) then
-                    RaidConfigure(owned, RaidDifficulty, RaidLobbyType)
+                    RaidSys.Configure(owned, RaidDifficulty, RaidLobbyType)
                     task.wait(0.2)
                     raidEndedFlag = false
-                    RaidStart(owned)
+                    RaidSys.Start(owned)
                     task.wait(0.8)
                 end
             end
-
-            -- 3) quebrar gates em ordem (TP → hit até GateBroken)
-            if IsInRaidLobby() then
-                local gates = RaidGetGates()
-                local ids = RaidSortedGateIds(gates)
-                for _, id in ipairs(ids) do
+            if RaidSys.InLobby() then
+                local gates = RaidSys.GetGates()
+                for _, id in ipairs(RaidSys.SortedIds(gates)) do
                     if not AutoRaidFarm then break end
                     local g = gates[id]
-                    if g and not RaidGateBroken(g) then
-                        RaidTPToGate(g)
+                    if g and not RaidSys.GateBroken(g) then
+                        RaidSys.TP(g)
                         task.wait(0.05)
-                        RaidWaitGateBroken(g, 120)
+                        RaidSys.WaitBroken(g, 120)
                     end
                 end
-
-                -- 4) todas quebradas ou RaidEnd → sair e reiniciar rápido
-                gates = RaidGetGates()
-                if raidEndedFlag or RaidAllGatesBroken(gates) then
+                gates = RaidSys.GetGates()
+                if raidEndedFlag or RaidSys.AllBroken(gates) then
                     task.wait(0.4)
-                    RaidExit()
+                    RaidSys.Exit()
                     raidEndedFlag = false
                     task.wait(0.6)
-                    -- loop volta e cria nova sala
                 else
-                    -- combate contínuo enquanto espera
-                    RaidCombatTick()
+                    RaidSys.CombatTick()
                     task.wait(0.01)
                 end
             else
@@ -1879,9 +1632,9 @@ local function RaidFarmLoop()
     raidFarmThread = nil
 end
 
-local function RaidUpgradeLoop()
+function RaidSys.UpgradeLoop()
     while AutoRaidUpgrades do
-        pcall(RaidBuyUpgradesOnce)
+        pcall(RaidSys.BuyUpgrades)
         task.wait(1.5)
     end
     raidUpgradeThread = nil
@@ -1944,7 +1697,7 @@ RaidTab:CreateToggle({
         AutoRaidFarm = v
         if v then
             if raidFarmThread then return end
-            raidFarmThread = task.spawn(RaidFarmLoop)
+            raidFarmThread = task.spawn(RaidSys.FarmLoop)
         end
     end,
 })
@@ -1956,7 +1709,7 @@ RaidTab:CreateToggle({
         AutoRaidUpgrades = v
         if v then
             if raidUpgradeThread then return end
-            raidUpgradeThread = task.spawn(RaidUpgradeLoop)
+            raidUpgradeThread = task.spawn(RaidSys.UpgradeLoop)
         end
     end,
 })
@@ -1965,14 +1718,14 @@ RaidTab:CreateSection("Manual")
 RaidTab:CreateButton({
     Name = "Sair da Raid (Exit)",
     Callback = function()
-        RaidExit()
+        RaidSys.Exit()
     end,
 })
 
 RaidTab:CreateButton({
     Name = "Comprar upgrades 1x",
     Callback = function()
-        local n = RaidBuyUpgradesOnce()
+        local n = RaidSys.BuyUpgrades()
         Rayfield:Notify({ Title = "Raid Upgrades", Content = "Compras: " .. tostring(n), Duration = 3 })
     end,
 })
@@ -2609,8 +2362,8 @@ PassiveTab:CreateToggle({
 })
 
 -- Raid defaults (só sobe se GLOBALS true)
-if AutoRaidFarm and not raidFarmThread then raidFarmThread = task.spawn(RaidFarmLoop) end
-if AutoRaidUpgrades and not raidUpgradeThread then raidUpgradeThread = task.spawn(RaidUpgradeLoop) end
+if AutoRaidFarm and not raidFarmThread then raidFarmThread = task.spawn(RaidSys.FarmLoop) end
+if AutoRaidUpgrades and not raidUpgradeThread then raidUpgradeThread = task.spawn(RaidSys.UpgradeLoop) end
 
 Rayfield:Notify({
     Title = "FrancesS Hub v5.13",
