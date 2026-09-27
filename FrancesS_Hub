@@ -261,16 +261,14 @@ local function RefreshEggs(showNotify)
     end
 end
 
--- Dump EggSetup: EggsFrontend.GetMaxHatchCount(eggId) | clamp auto 1..99
+-- Dump: EggsFrontend.GetMaxHatchCount(eggId) | clamp 1..99
+-- Cache LastHatchQty → hatch loop NÃO redetecta a cada abertura (só watcher)
 local LastHatchQty = 0
 local HatchStatusParagraph = nil
 
-local function GetMaxHatchAmount(eggName)
+local function ProbeHatchAmount(eggName)
     eggName = eggName or SelectedEgg
     local qty = nil
-    local source = "fallback"
-
-    -- 1) API oficial do jogo
     if EggsFrontend then
         if type(EggsFrontend.GetMaxHatchCount) == "function" then
             local ok, n = pcall(function()
@@ -278,49 +276,35 @@ local function GetMaxHatchAmount(eggName)
             end)
             if ok and type(n) == "number" and n >= 1 then
                 qty = n
-                source = "GetMaxHatchCount"
             end
         end
-        if not qty and type(EggsFrontend.GetMaxButtonHatchCount) == "function" then
+        if (not qty or qty < 1) and type(EggsFrontend.GetMaxButtonHatchCount) == "function" then
             local ok, n = pcall(function()
                 return EggsFrontend.GetMaxButtonHatchCount(eggName)
             end)
             if ok and type(n) == "number" and n >= 1 then
                 qty = n
-                source = "GetMaxButtonHatchCount"
             end
         end
     end
-
-    -- 2) fallback: input do usuário
     if not qty or qty < 1 then
         qty = math.max(1, math.floor(tonumber(Amount) or 1))
-        source = "input"
     end
-
-    -- jogo clampa auto hatch em 1..99
-    qty = math.clamp(math.floor(qty), 1, 99)
-    return qty, source
+    return math.clamp(math.floor(qty), 1, 99)
 end
 
-local function ResolveHatchAmount(eggName)
-    local qty = GetMaxHatchAmount(eggName)
-    LastHatchQty = qty
-    return qty
-end
-
-local function UpdateHatchStatus(extra)
+local function UpdateHatchStatus()
     if not HatchStatusParagraph then return end
-    local qty, source = GetMaxHatchAmount(SelectedEgg)
-    LastHatchQty = qty
-    local state = AutoHatch and "ON" or "OFF"
+    local qty = LastHatchQty
+    if qty < 1 then
+        qty = ProbeHatchAmount(SelectedEgg)
+        LastHatchQty = qty
+    end
     local text = string.format(
-        "Status: %s\nOvo: %s\nAbrindo por vez: %d\nFonte: %s%s",
-        state,
+        "Status: %s\nOvo: %s\nAbrindo por vez: %d",
+        AutoHatch and "ON" or "OFF",
         tostring(SelectedEgg),
-        qty,
-        tostring(source),
-        extra and ("\n" .. tostring(extra)) or ""
+        qty
     )
     pcall(function()
         if HatchStatusParagraph.Set then
@@ -329,10 +313,19 @@ local function UpdateHatchStatus(extra)
     end)
 end
 
+-- Só atualiza cache + UI quando o valor MUDA
+local function SyncHatchAmountIfChanged(eggName)
+    local qty = ProbeHatchAmount(eggName or SelectedEgg)
+    if qty ~= LastHatchQty then
+        LastHatchQty = qty
+        UpdateHatchStatus()
+        return true, qty
+    end
+    return false, qty
+end
+
 local function DoHatch(eggName, amount)
-    amount = amount or ResolveHatchAmount(eggName)
-    amount = math.clamp(math.floor(tonumber(amount) or 1), 1, 99)
-    LastHatchQty = amount
+    amount = math.clamp(math.floor(tonumber(amount) or LastHatchQty or 1), 1, 99)
     local requestId = HttpService:GenerateGUID(false)
     local success, result = pcall(function()
         return EggChannel:InvokeServer("Hatch", eggName, amount, requestId)
@@ -904,7 +897,7 @@ MainTab:CreateSection("Configurações de Hatch")
 
 HatchStatusParagraph = MainTab:CreateParagraph({
     Title = "Hatch Status",
-    Content = "Status: OFF\nOvo: -\nAbrindo por vez: -\nFonte: -",
+    Content = "Status: OFF\nOvo: -\nAbrindo por vez: -",
 })
 
 EggDropdown = MainTab:CreateDropdown({
@@ -914,6 +907,8 @@ EggDropdown = MainTab:CreateDropdown({
     MultipleOptions = false,
     Callback = function(Option)
         SelectedEgg = Option[1]
+        LastHatchQty = 0
+        SyncHatchAmountIfChanged(SelectedEgg)
         UpdateHatchStatus()
     end,
 })
@@ -926,6 +921,8 @@ MainTab:CreateInput({
         local clean = string.gsub(Text or "", "^%s*(.-)%s*$", "%1")
         if clean ~= "" then
             SelectedEgg = clean
+            LastHatchQty = 0
+            SyncHatchAmountIfChanged(SelectedEgg)
             UpdateHatchStatus()
         end
     end,
@@ -939,6 +936,8 @@ MainTab:CreateInput({
         local num = tonumber(Text)
         if num and num >= 1 then
             Amount = math.clamp(math.floor(num), 1, 99)
+            LastHatchQty = 0
+            SyncHatchAmountIfChanged(SelectedEgg)
             UpdateHatchStatus()
         end
     end,
@@ -950,31 +949,33 @@ MainTab:CreateToggle({
     Callback = function(Value)
         AutoHatch = Value
         if AutoHatch then
-            local qty = ResolveHatchAmount(SelectedEgg)
-            UpdateHatchStatus("iniciado")
+            SyncHatchAmountIfChanged(SelectedEgg)
+            if LastHatchQty < 1 then
+                LastHatchQty = ProbeHatchAmount(SelectedEgg)
+            end
+            UpdateHatchStatus()
             Rayfield:Notify({
                 Title = "Auto Hatch",
-                Content = "Ovo: " .. SelectedEgg .. " | Abrindo " .. tostring(qty) .. " por vez",
-                Duration = 4,
+                Content = "Ovo: " .. SelectedEgg .. " | Abrindo " .. tostring(LastHatchQty) .. " por vez",
+                Duration = 3,
             })
             if hatchThread then return end
+            -- Loop limpo: só hatch + wait (sem probe a cada abertura)
             hatchThread = task.spawn(function()
-                local lastShown = -1
                 while AutoHatch do
-                    -- re-checa a cada hatch (eventos / gamepass mudam a qtd)
-                    local q = ResolveHatchAmount(SelectedEgg)
-                    if q ~= lastShown then
-                        lastShown = q
-                        UpdateHatchStatus()
+                    local q = LastHatchQty
+                    if q < 1 then
+                        q = ProbeHatchAmount(SelectedEgg)
+                        LastHatchQty = q
                     end
                     DoHatch(SelectedEgg, q)
                     task.wait(HatchDelay)
                 end
                 hatchThread = nil
-                UpdateHatchStatus("parado")
+                UpdateHatchStatus()
             end)
         else
-            UpdateHatchStatus("parado")
+            UpdateHatchStatus()
         end
     end,
 })
@@ -982,7 +983,9 @@ MainTab:CreateToggle({
 MainTab:CreateButton({
     Name = "Hatch 1x (Manual)",
     Callback = function()
-        local q = ResolveHatchAmount(SelectedEgg)
+        SyncHatchAmountIfChanged(SelectedEgg)
+        local q = LastHatchQty > 0 and LastHatchQty or ProbeHatchAmount(SelectedEgg)
+        LastHatchQty = q
         UpdateHatchStatus()
         if DoHatch(SelectedEgg, q) then
             Rayfield:Notify({ Title = "Sucesso", Content = "Hatch x" .. tostring(q) .. " (" .. SelectedEgg .. ")", Duration = 3 })
@@ -992,18 +995,13 @@ MainTab:CreateButton({
     end,
 })
 
-MainTab:CreateButton({
-    Name = "Atualizar status hatch",
-    Callback = function()
-        UpdateHatchStatus("manual")
-    end,
-})
-
--- Atualiza status periodicamente (eventos mudam max)
+-- Watcher leve: só quando o max MUDAR (17→20 etc) atualiza cache + UI
 task.spawn(function()
     while true do
-        task.wait(2)
-        pcall(UpdateHatchStatus)
+        task.wait(0.4)
+        pcall(function()
+            SyncHatchAmountIfChanged(SelectedEgg)
+        end)
     end
 end)
 
