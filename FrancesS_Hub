@@ -1,26 +1,20 @@
 --[[
-    FrancesS Hub v5.12
+    FrancesS Hub v5.13
     Clicker Simulator By Grokzada
 
-    - Hatch / Craft / Pets / Event / Potions / GUIs / Fishing / Passivos
-    - Passivos com toggle (default ON)
-    - Event: default OFF — ligue pelos toggles ou pelos GLOBAIS abaixo
+    - Hatch / Craft / Pets / Raid / Potions / GUIs / Fishing / Passivos
+    - Passivos default ON | Raid Auto Farm AFK
 ]]
 
 ----------------------------------------------------------------
--- GLOBAIS RÁPIDOS
--- Mude true/false aqui antes de executar o script.
--- Aba Event começa DESATIVADA por padrão.
+-- GLOBAIS RÁPIDOS (true/false antes de executar)
 ----------------------------------------------------------------
 local GLOBALS = {
-    Event = {
-        AutoRoll = false,          -- Auto Roll
-        AutoCraftDice = false,     -- Auto Craft Dice (até x1M)
-        AutoUpgrades = false,      -- Auto Upgrades
-        AutoSkillTree = false,     -- Auto Skill Tree RNG
-        AutoRebirth = false,       -- Auto RNG Rebirth (10s)
-        AutoUseDice = false,       -- Auto Use Dice
-        SelectedUseDice = "x1MDice", -- Dice padrão ao usar
+    Raid = {
+        AutoFarm = false,          -- Auto Farm completo (claim→start→gates→restart)
+        AutoUpgrades = false,      -- Auto Buy Raid Upgrades
+        Difficulty = 1,            -- 1..N
+        LobbyType = "Solo",        -- Solo / Friends / Public
     },
     Passivos = {
         Click = true,
@@ -34,13 +28,13 @@ local GLOBALS = {
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "FrancesS Hub v5.12",
+    Name = "FrancesS Hub v5.13",
     LoadingTitle = "FrancesS Hub",
     LoadingSubtitle = "Clicker Simulator By Grokzada",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "FrancesSHub",
-        FileName = "Config_v5.12"
+        FileName = "Config_v5.13"
     },
     Discord = { Enabled = false, Invite = "noinvitelink", RememberJoins = true },
     KeySystem = false,
@@ -76,6 +70,8 @@ pcall(function()
     SummerChannel = Network.Channel("SummerEvent2026")
 end)
 local ChannelRNG, ChannelCombine, ChannelRNGUpgrades, ChannelItems, ChannelPotion, ChannelRNGRebirths, SkillTreeFrontend, Directory, MinigamesFrontend
+local ChannelMinigames, ChannelRaidPortals, ChannelRaidGates, ChannelRaidUpgrades
+local RaidEventShared, RaidGateUtil, CurrencyModule
 pcall(function() ChannelRNG = Network.Channel("RNG") end)
 pcall(function() ChannelCombine = Network.Channel("CombinePets") end)
 pcall(function() ChannelRNGUpgrades = Network.Channel("RNGUpgrades") end)
@@ -84,6 +80,14 @@ pcall(function() ChannelPotion = Network.Channel("PotionCrafting") end)
 pcall(function() ChannelRNGRebirths = Network.Channel("RNGRebirths") end)
 pcall(function() SkillTreeFrontend = require(Client:WaitForChild("SkillTreeFrontend")) end)
 pcall(function() Directory = require(Library:WaitForChild("Directory")) end)
+pcall(function() MinigamesFrontend = require(Client:WaitForChild("MinigamesFrontend")) end)
+pcall(function() ChannelMinigames = Network.Channel("Minigames") end)
+pcall(function() ChannelRaidPortals = Network.Channel("RaidPortals") end)
+pcall(function() ChannelRaidGates = Network.Channel("RaidGates") end)
+pcall(function() ChannelRaidUpgrades = Network.Channel("RaidUpgrades") end)
+pcall(function() RaidEventShared = require(Library:WaitForChild("Utils"):WaitForChild("MinigamesUtil"):WaitForChild("RaidEventShared")) end)
+pcall(function() RaidGateUtil = require(Library:WaitForChild("Utils"):WaitForChild("RaidGateUtil")) end)
+pcall(function() CurrencyModule = require(Client:WaitForChild("Currency")) end)
 
 ----------------------------------------------------------------
 -- Estado
@@ -144,17 +148,26 @@ local fishBound = false
 local hatchThread, merchantThread = nil, nil
 local goldenThread, rainbowThread = nil, nil
 
--- RNG Event (lê dos GLOBAIS — default OFF)
-local AutoRNGRoll = GLOBALS.Event.AutoRoll == true
-local AutoRNGCraft = GLOBALS.Event.AutoCraftDice == true
-local AutoRNGUpgrades = GLOBALS.Event.AutoUpgrades == true
-local AutoRNGSkillTree = GLOBALS.Event.AutoSkillTree == true
-local AutoUseDice = GLOBALS.Event.AutoUseDice == true
-local SelectedUseDice = GLOBALS.Event.SelectedUseDice or "x1MDice"
-local AutoRNGRebirth = GLOBALS.Event.AutoRebirth == true
-local RNGRebirthRemote = nil -- Instance capturada (não usa índice)
+-- RNG (legado — sem aba; mantido no código mas OFF)
+local AutoRNGRoll = false
+local AutoRNGCraft = false
+local AutoRNGUpgrades = false
+local AutoRNGSkillTree = false
+local AutoUseDice = false
+local SelectedUseDice = "x1MDice"
+local AutoRNGRebirth = false
+local RNGRebirthRemote = nil
 local rngRollThread, rngCraftThread, rngUpgradeThread, rngSkillThread, rngUseDiceThread, rngRebirthThread = nil, nil, nil, nil, nil, nil
 local rngStats = { ok = 0, cd = 0 }
+
+-- Raid
+local AutoRaidFarm = GLOBALS.Raid.AutoFarm == true
+local AutoRaidUpgrades = GLOBALS.Raid.AutoUpgrades == true
+local RaidDifficulty = tonumber(GLOBALS.Raid.Difficulty) or 1
+local RaidLobbyType = GLOBALS.Raid.LobbyType or "Solo"
+local raidFarmThread, raidUpgradeThread, raidCombatThread = nil, nil, nil
+local raidLastHit = {}
+local raidEndedFlag = false
 
 -- Passivos (lê dos GLOBAIS — default ON)
 local PassiveClick = GLOBALS.Passivos.Click ~= false
@@ -246,7 +259,71 @@ local function RefreshEggs(showNotify)
     end
 end
 
+-- Detecta o máximo de ovos que o jogo permite abrir (eventos mudam isso)
+local function GetMaxHatchAmount()
+    local best = 0
+    local function consider(n)
+        n = tonumber(n)
+        if n and n > best then best = n end
+    end
+    pcall(function()
+        local d = Stats.Local()
+        if not d then return end
+        consider(d.MaxHatch)
+        consider(d.HatchAmount)
+        consider(d.MaxEggHatch)
+        consider(d.EggsPerHatch)
+        consider(d.OpenAmount)
+        if type(d.Eggs) == "table" then
+            consider(d.Eggs.MaxOpen)
+            consider(d.Eggs.MaxHatch)
+            consider(d.Eggs.HatchAmount)
+        end
+        if type(d.Settings) == "table" then
+            consider(d.Settings.MaxHatch)
+            consider(d.Settings.HatchAmount)
+        end
+    end)
+    pcall(function()
+        if MasteryFrontend then
+            if type(MasteryFrontend.GetMaxHatch) == "function" then
+                consider(MasteryFrontend.GetMaxHatch())
+            end
+            if type(MasteryFrontend.GetHatchAmount) == "function" then
+                consider(MasteryFrontend.GetHatchAmount())
+            end
+        end
+    end)
+    pcall(function()
+        if Constants then
+            consider(Constants.MaxHatch)
+            consider(Constants.MaxEggHatch)
+            consider(Constants.EggsPerHatch)
+        end
+    end)
+    -- atributos do player (eventos)
+    pcall(function()
+        consider(LocalPlayer:GetAttribute("MaxHatch"))
+        consider(LocalPlayer:GetAttribute("HatchAmount"))
+        consider(LocalPlayer:GetAttribute("EggHatchAmount"))
+    end)
+    if best < 1 then
+        return math.max(1, math.floor(Amount))
+    end
+    return math.floor(best)
+end
+
+local function ResolveHatchAmount()
+    -- Sempre tenta o máximo do jogo; se falhar, usa o input
+    local max = GetMaxHatchAmount()
+    if max and max > 0 then
+        return max
+    end
+    return math.max(1, math.floor(Amount))
+end
+
 local function DoHatch(eggName, amount)
+    amount = amount or ResolveHatchAmount()
     local requestId = HttpService:GenerateGUID(false)
     local success, result = pcall(function()
         return EggChannel:InvokeServer("Hatch", eggName, amount, requestId)
@@ -840,7 +917,7 @@ MainTab:CreateInput({
 })
 
 MainTab:CreateInput({
-    Name = "Quantidade",
+    Name = "Quantidade (fallback se max não detectar)",
     PlaceholderText = "Ex: 1, 3, 7, 8...",
     RemoveTextAfterFocusLost = false,
     Callback = function(Text)
@@ -855,15 +932,18 @@ MainTab:CreateToggle({
     Callback = function(Value)
         AutoHatch = Value
         if AutoHatch then
+            local qty = ResolveHatchAmount()
             Rayfield:Notify({
                 Title = "Auto Hatch",
-                Content = "Iniciado! Ovo: " .. SelectedEgg .. " | Qtd: " .. Amount,
+                Content = "Ovo: " .. SelectedEgg .. " | Abrindo " .. tostring(qty) .. " por vez (max detectado)",
                 Duration = 4,
             })
             if hatchThread then return end
             hatchThread = task.spawn(function()
                 while AutoHatch do
-                    DoHatch(SelectedEgg, Amount)
+                    -- re-checa max a cada hatch (eventos mudam a qtd)
+                    local q = ResolveHatchAmount()
+                    DoHatch(SelectedEgg, q)
                     task.wait(HatchDelay)
                 end
                 hatchThread = nil
@@ -877,8 +957,9 @@ MainTab:CreateToggle({
 MainTab:CreateButton({
     Name = "Hatch 1x (Manual)",
     Callback = function()
-        if DoHatch(SelectedEgg, Amount) then
-            Rayfield:Notify({ Title = "Sucesso", Content = "Hatch realizado! (" .. SelectedEgg .. ")", Duration = 3 })
+        local q = ResolveHatchAmount()
+        if DoHatch(SelectedEgg, q) then
+            Rayfield:Notify({ Title = "Sucesso", Content = "Hatch x" .. tostring(q) .. " (" .. SelectedEgg .. ")", Duration = 3 })
         else
             Rayfield:Notify({ Title = "Falhou", Content = "Servidor recusou o hatch", Duration = 3 })
         end
@@ -1461,163 +1542,438 @@ local function RNGRebirthLoop()
     rngRebirthThread = nil
 end
 
-local EventTab = Window:CreateTab("Event", 4483362458)
-EventTab:CreateSection("RNG Event")
+----------------------------------------------------------------
+-- RAID helpers + Auto Farm
+----------------------------------------------------------------
+local function RaidActiveName()
+    if not MinigamesFrontend or not MinigamesFrontend.Active then return nil end
+    local ok, a = pcall(function() return MinigamesFrontend.Active() end)
+    if ok and a then return a.Name, a end
+    return nil
+end
 
-EventTab:CreateParagraph({
-    Title = "RNG",
-    Content = "Auto Roll = Channel(RNG):InvokeServer(Roll) — extra dice da gamepass e no server.\nCraft / Use Dice / Boost / Rebirth2.",
-})
+local function IsInRaidLobby()
+    local name = RaidActiveName()
+    return name == "RaidLobby"
+end
 
-EventTab:CreateToggle({
-    Name = "Auto Roll",
-    CurrentValue = AutoRNGRoll,
-    Callback = function(v)
-        AutoRNGRoll = v
-        if v then
-            if rngRollThread then return end
-            rngRollThread = task.spawn(RNGRollLoop)
+local function IsInRaidEventWorld()
+    local name = RaidActiveName()
+    return name == "RaidEvent"
+end
+
+local function GetRaidWorldModel()
+    local name, a = RaidActiveName()
+    if a and a.WorldModel then return a.WorldModel end
+    return nil
+end
+
+local function RaidExit()
+    pcall(function()
+        if MinigamesFrontend and MinigamesFrontend.Exit then
+            MinigamesFrontend.Exit()
         end
-    end,
-})
+    end)
+end
 
-EventTab:CreateToggle({
-    Name = "Auto Craft Dice (até x1M)",
-    CurrentValue = AutoRNGCraft,
-    Callback = function(v)
-        AutoRNGCraft = v
-        if v then
-            if rngCraftThread then return end
-            rngCraftThread = task.spawn(RNGCraftLoop)
+local function EnterRaidWorld(buyIfNeeded)
+    if not ChannelMinigames then return false end
+    local ok, unlocked = pcall(function()
+        return ChannelMinigames:InvokeServer("GetRaidWorldStatus")
+    end)
+    if not ok then return false end
+    if not unlocked and buyIfNeeded then
+        pcall(function() ChannelMinigames:InvokeServer("PurchaseRaidWorld") end)
+        task.wait(0.3)
+    end
+    if not unlocked and not buyIfNeeded then return false end
+    local ok2 = pcall(function()
+        if MinigamesFrontend and MinigamesFrontend.Enter then
+            MinigamesFrontend.Enter("RaidEvent")
         end
-    end,
-})
+    end)
+    return ok2
+end
 
-EventTab:CreateToggle({
-    Name = "Auto Upgrades (Luck por último)",
-    CurrentValue = AutoRNGUpgrades,
-    Callback = function(v)
-        AutoRNGUpgrades = v
-        if v then
-            if rngUpgradeThread then return end
-            rngUpgradeThread = task.spawn(RNGUpgradeLoop)
+local function RaidGetAllSlots()
+    if not ChannelRaidPortals then return {} end
+    local ok, slots = pcall(function()
+        return ChannelRaidPortals:InvokeServer("GetAllSlots")
+    end)
+    if not ok or type(slots) ~= "table" then return {} end
+    return slots
+end
+
+local function RaidFindOwnedSlot(slots)
+    local uid = LocalPlayer.UserId
+    for _, s in pairs(slots) do
+        if type(s) == "table" and s.OwnerId == uid then
+            return s.Slot or s, s
         end
-    end,
-})
+    end
+    return nil, nil
+end
 
-EventTab:CreateToggle({
-    Name = "Auto Skill Tree RNG",
-    CurrentValue = AutoRNGSkillTree,
-    Callback = function(v)
-        AutoRNGSkillTree = v
-        if v then
-            if rngSkillThread then return end
-            rngSkillThread = task.spawn(RNGSkillTreeLoop)
+local function RaidFindFreeSlot(slots)
+    for _, s in pairs(slots) do
+        if type(s) == "table" and not s.OwnerId then
+            local n = s.Slot
+            if type(n) == "number" then return n end
         end
-    end,
-})
+    end
+    return nil
+end
 
-EventTab:CreateSection("RNG Rebirth")
+local function RaidClaimSlot(slot)
+    if not ChannelRaidPortals then return false end
+    local ok, success = pcall(function()
+        return ChannelRaidPortals:InvokeServer("ClaimSlot", slot)
+    end)
+    return ok and success == true
+end
 
-EventTab:CreateParagraph({
-    Title = "Auto Rebirth",
-    Content = 'Channel("RNGRebirths"):InvokeServer("Rebirth2")\nSem hook. Loop a cada 10s.',
-})
+local function RaidConfigure(slot, diff, lobby)
+    if not ChannelRaidPortals then return end
+    pcall(function()
+        ChannelRaidPortals:InvokeServer("ConfigureSlot", slot, diff, lobby)
+    end)
+end
 
-EventTab:CreateToggle({
-    Name = "Auto RNG Rebirth (10s)",
-    CurrentValue = AutoRNGRebirth,
-    Callback = function(v)
-        AutoRNGRebirth = v
-        if v then
-            if rngRebirthThread then return end
-            rngRebirthThread = task.spawn(RNGRebirthLoop)
+local function RaidStart(slot)
+    if not ChannelRaidPortals then return false end
+    local ok, success = pcall(function()
+        return ChannelRaidPortals:InvokeServer("StartRaid", slot)
+    end)
+    if ok and success then
+        pcall(function()
+            if MinigamesFrontend and MinigamesFrontend.Enter then
+                MinigamesFrontend.Enter("RaidLobby")
+            end
+        end)
+        return true
+    end
+    return false
+end
+
+local function RaidGetGates()
+    local wm = GetRaidWorldModel()
+    if not wm or not RaidGateUtil or not RaidGateUtil.GetGates then return {} end
+    local ok, gates = pcall(function() return RaidGateUtil.GetGates(wm) end)
+    if not ok or type(gates) ~= "table" then return {} end
+    return gates
+end
+
+local function RaidGateBroken(gate)
+    if not gate then return true end
+    return gate:GetAttribute("GateBroken") == true
+end
+
+local function RaidGatePos(gate)
+    if not gate then return nil end
+    local hit = gate:FindFirstChild("Hitbox")
+    if hit then return hit.Position end
+    local host = gate:FindFirstChild("Host")
+    if host then return host.Position end
+    if gate.GetPivot then
+        return gate:GetPivot().Position
+    end
+    return nil
+end
+
+local function RaidSortedGateIds(gates)
+    local ids = {}
+    for i in pairs(gates) do
+        local n = tonumber(i)
+        if n then table.insert(ids, n) end
+    end
+    table.sort(ids)
+    return ids
+end
+
+local function RaidAllGatesBroken(gates)
+    local any = false
+    for _, gate in pairs(gates) do
+        any = true
+        if not RaidGateBroken(gate) then return false end
+    end
+    return any
+end
+
+local function RaidTPToGate(gate)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local pos = RaidGatePos(gate)
+    if not hrp or not pos then return false end
+    pcall(function()
+        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+    end)
+    return true
+end
+
+local function RaidEquippedPets()
+    local list = {}
+    pcall(function()
+        for guid in PetsModule.GetEquippedPets() do
+            table.insert(list, guid)
         end
-    end,
+    end)
+    return list
+end
+
+local function RaidHit(gateId, petGuid)
+    if not ChannelRaidGates then return end
+    pcall(function()
+        ChannelRaidGates:InvokeServer("Hit", tostring(gateId), petGuid)
+    end)
+end
+
+local function RaidClick(gateId)
+    if not ChannelRaidGates then return end
+    pcall(function()
+        ChannelRaidGates:InvokeServer("Click", tostring(gateId))
+    end)
+end
+
+-- Combate passivo: só dentro da RaidLobby, delay 0.01
+local function RaidCombatTick()
+    if not IsInRaidLobby() then return end
+    local gates = RaidGetGates()
+    local ids = RaidSortedGateIds(gates)
+    local targetId, targetGate = nil, nil
+    for _, id in ipairs(ids) do
+        local g = gates[id]
+        if g and not RaidGateBroken(g) then
+            targetId, targetGate = id, g
+            break
+        end
+    end
+    if not targetId then return end
+    RaidTPToGate(targetGate)
+    local pets = RaidEquippedPets()
+    for _, guid in ipairs(pets) do
+        RaidHit(targetId, guid)
+    end
+    RaidClick(targetId)
+end
+
+local function RaidWaitGateBroken(gate, timeout)
+    timeout = timeout or 90
+    local t0 = os.clock()
+    while AutoRaidFarm and os.clock() - t0 < timeout do
+        if RaidGateBroken(gate) then return true end
+        RaidCombatTick()
+        task.wait(0.01)
+    end
+    return RaidGateBroken(gate)
+end
+
+local function RaidBuyUpgradesOnce()
+    local dir = Directory and Directory.RaidUpgrades
+    if type(dir) ~= "table" or not ChannelRaidUpgrades then return 0 end
+    local ok, data = pcall(function() return Stats.Local() end)
+    if not ok or not data then return 0 end
+    local levels = data.RaidUpgrades or {}
+    local bought = 0
+    local ordered = {}
+    for id, info in pairs(dir) do
+        table.insert(ordered, { id = id, order = (info and info.Order) or 999, info = info })
+    end
+    table.sort(ordered, function(a, b) return a.order < b.order end)
+    for _, e in ipairs(ordered) do
+        local info = e.info
+        if info and type(info.Tiers) == "table" then
+            local lvl = tonumber(levels[e.id]) or 0
+            local nextTier = info.Tiers[lvl + 1]
+            if nextTier and type(nextTier.Price) == "number" then
+                local money = 0
+                local cur = info.Currency or "RaidPoints"
+                if CurrencyModule and CurrencyModule.Get then
+                    pcall(function() money = CurrencyModule.Get(cur) or 0 end)
+                elseif data.Currency then
+                    money = tonumber(data.Currency[cur]) or 0
+                end
+                if money >= nextTier.Price then
+                    pcall(function() ChannelRaidUpgrades:FireServer("Buy", e.id) end)
+                    bought += 1
+                    task.wait(0.12)
+                end
+            end
+        end
+    end
+    return bought
+end
+
+-- Listener RaidEnd (se o channel existir)
+pcall(function()
+    if ChannelRaidGates and ChannelRaidGates.OnClientEvent then
+        ChannelRaidGates.OnClientEvent("RaidEnd"):Connect(function()
+            raidEndedFlag = true
+        end)
+    end
+end)
+
+local function RaidFarmLoop()
+    while AutoRaidFarm do
+        pcall(function()
+            -- 1) garantir mundo / lobby
+            if not IsInRaidLobby() and not IsInRaidEventWorld() then
+                EnterRaidWorld(true)
+                task.wait(0.8)
+            end
+
+            -- 2) claim + start se não estiver no lobby
+            if not IsInRaidLobby() then
+                local slots = RaidGetAllSlots()
+                local owned, state = RaidFindOwnedSlot(slots)
+                if not owned then
+                    local free = RaidFindFreeSlot(slots)
+                    if free then
+                        RaidClaimSlot(free)
+                        task.wait(0.35)
+                        slots = RaidGetAllSlots()
+                        owned, state = RaidFindOwnedSlot(slots)
+                    end
+                end
+                if owned and not (state and state.Started) then
+                    RaidConfigure(owned, RaidDifficulty, RaidLobbyType)
+                    task.wait(0.2)
+                    raidEndedFlag = false
+                    RaidStart(owned)
+                    task.wait(0.8)
+                end
+            end
+
+            -- 3) quebrar gates em ordem (TP → hit até GateBroken)
+            if IsInRaidLobby() then
+                local gates = RaidGetGates()
+                local ids = RaidSortedGateIds(gates)
+                for _, id in ipairs(ids) do
+                    if not AutoRaidFarm then break end
+                    local g = gates[id]
+                    if g and not RaidGateBroken(g) then
+                        RaidTPToGate(g)
+                        task.wait(0.05)
+                        RaidWaitGateBroken(g, 120)
+                    end
+                end
+
+                -- 4) todas quebradas ou RaidEnd → sair e reiniciar rápido
+                gates = RaidGetGates()
+                if raidEndedFlag or RaidAllGatesBroken(gates) then
+                    task.wait(0.4)
+                    RaidExit()
+                    raidEndedFlag = false
+                    task.wait(0.6)
+                    -- loop volta e cria nova sala
+                else
+                    -- combate contínuo enquanto espera
+                    RaidCombatTick()
+                    task.wait(0.01)
+                end
+            else
+                task.wait(0.5)
+            end
+        end)
+        task.wait(0.05)
+    end
+    raidFarmThread = nil
+end
+
+local function RaidUpgradeLoop()
+    while AutoRaidUpgrades do
+        pcall(RaidBuyUpgradesOnce)
+        task.wait(1.5)
+    end
+    raidUpgradeThread = nil
+end
+
+----------------------------------------------------------------
+-- TAB: Raid (substitui Event)
+----------------------------------------------------------------
+local RaidTab = Window:CreateTab("Raid", 4483362458)
+
+RaidTab:CreateSection("Auto Farm")
+RaidTab:CreateParagraph({
+    Title = "Raid AFK",
+    Content = "Claim → Start (diff selecionada) → TP em cada gate → quebra → Exit → reinicia.\nCombate passivo só dentro da Raid (delay 0.01).",
 })
 
-EventTab:CreateButton({
-    Name = "Rebirth 1x",
-    Callback = function()
-        local ok, a, b = DoRNGRebirth()
-        Rayfield:Notify({
-            Title = "Rebirth",
-            Content = ok and "OK" or tostring(b or a),
-            Duration = 3,
-        })
-    end,
-})
+do
+    local opts = {}
+    local n = 5
+    if RaidEventShared and type(RaidEventShared.Difficulties) == "table" then
+        n = #RaidEventShared.Difficulties
+    end
+    for i = 1, math.max(1, n) do
+        local label = tostring(i)
+        if RaidEventShared and RaidEventShared.Difficulties and RaidEventShared.Difficulties[i] then
+            local d = RaidEventShared.Difficulties[i]
+            label = string.format("%d | %s", i, tostring(d.Name or d.Label or i))
+        end
+        table.insert(opts, label)
+    end
+    local cur = opts[math.clamp(RaidDifficulty, 1, #opts)] or opts[1]
+    RaidTab:CreateDropdown({
+        Name = "Difficulty",
+        Options = opts,
+        CurrentOption = { cur },
+        MultipleOptions = false,
+        Callback = function(opt)
+            local v = type(opt) == "table" and opt[1] or opt
+            local num = tonumber(string.match(tostring(v), "^(%d+)"))
+            if num then RaidDifficulty = num end
+        end,
+    })
+end
 
-EventTab:CreateSection("Auto Use Dice")
-
-EventTab:CreateDropdown({
-    Name = "Dice para usar",
-    Options = { "x1MDice", "RainbowDice", "GoldenDice", "x100KDice", "x1KDice" },
-    CurrentOption = { "x1MDice" },
+RaidTab:CreateDropdown({
+    Name = "Lobby Type",
+    Options = { "Solo", "Friends", "Public" },
+    CurrentOption = { RaidLobbyType },
     MultipleOptions = false,
     Callback = function(opt)
         local v = type(opt) == "table" and opt[1] or opt
-        if type(v) == "string" and v ~= "" then
-            SelectedUseDice = v
-        end
+        if type(v) == "string" then RaidLobbyType = v end
     end,
 })
 
-EventTab:CreateToggle({
-    Name = "Auto Use Dice",
-    CurrentValue = AutoUseDice,
+RaidTab:CreateToggle({
+    Name = "Auto Farm Raid",
+    CurrentValue = AutoRaidFarm,
     Callback = function(v)
-        AutoUseDice = v
+        AutoRaidFarm = v
         if v then
-            if rngUseDiceThread then return end
-            rngUseDiceThread = task.spawn(RNGUseDiceLoop)
+            if raidFarmThread then return end
+            raidFarmThread = task.spawn(RaidFarmLoop)
         end
     end,
 })
 
-EventTab:CreateButton({
-    Name = "Usar 1x dice selecionado",
-    Callback = function()
-        local id = SelectedUseDice
-        local have = RNGItemCount(id)
-        if have <= 0 then
-            Rayfield:Notify({ Title = "Use Dice", Content = id .. " = 0 no inventário", Duration = 3 })
-            return
+RaidTab:CreateToggle({
+    Name = "Auto Buy Raid Upgrades",
+    CurrentValue = AutoRaidUpgrades,
+    Callback = function(v)
+        AutoRaidUpgrades = v
+        if v then
+            if raidUpgradeThread then return end
+            raidUpgradeThread = task.spawn(RaidUpgradeLoop)
         end
-        local ok = RNGUseDice(id, 1)
-        Rayfield:Notify({ Title = "Use Dice", Content = ok and (id .. " usado") or "falhou", Duration = 3 })
     end,
 })
 
-EventTab:CreateButton({
-    Name = "Ver Dice no inventário",
+RaidTab:CreateSection("Manual")
+RaidTab:CreateButton({
+    Name = "Sair da Raid (Exit)",
     Callback = function()
-        local ids = { "x1KDice", "x100KDice", "x1MDice", "GoldenDice", "RainbowDice" }
-        local parts = {}
-        for _, id in ipairs(ids) do
-            table.insert(parts, id:gsub("Dice", "") .. "=" .. RNGItemCount(id))
-        end
-        Rayfield:Notify({ Title = "Dice", Content = table.concat(parts, " | "), Duration = 5 })
+        RaidExit()
     end,
 })
 
-EventTab:CreateButton({
-    Name = "Craft cadeia 1x agora",
+RaidTab:CreateButton({
+    Name = "Comprar upgrades 1x",
     Callback = function()
-        task.spawn(function()
-            local msg = {}
-            for _, c in ipairs(RNG_DICE_CHAIN) do
-                local have = RNGItemCount(c.from)
-                if have >= c.need then
-                    local ok = RNGCraft(c.index, true)
-                    table.insert(msg, c.from .. (ok and " OK" or " fail"))
-                else
-                    table.insert(msg, c.from .. " " .. tostring(have) .. "/" .. tostring(c.need))
-                end
-                task.wait(0.1)
-            end
-            Rayfield:Notify({ Title = "Craft", Content = table.concat(msg, " | "), Duration = 5 })
-        end)
+        local n = RaidBuyUpgradesOnce()
+        Rayfield:Notify({ Title = "Raid Upgrades", Content = "Compras: " .. tostring(n), Duration = 3 })
     end,
 })
 
@@ -2142,8 +2498,8 @@ FishTab:CreateInput({
 ----------------------------------------------------------------
 local InfoTab = Window:CreateTab("Info", 4483362458)
 InfoTab:CreateParagraph({
-    Title = "FrancesS Hub v5.12",
-    Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Event • Potions • GUIs • Fishing • Passivos\nUpgrades separados; Auto RNG Rebirth inteligente",
+    Title = "FrancesS Hub v5.13",
+    Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Raid • Potions • GUIs • Fishing • Passivos\nRaid Auto Farm AFK • Hatch max detect",
 })
 
 InfoTab:CreateButton({
@@ -2252,16 +2608,12 @@ PassiveTab:CreateToggle({
     Callback = function(v) PassiveRainbowClaim = v end,
 })
 
--- Event: só sobe thread se GLOBALS / toggle estiver true (default OFF)
-if AutoRNGRoll and not rngRollThread then rngRollThread = task.spawn(RNGRollLoop) end
-if AutoRNGCraft and not rngCraftThread then rngCraftThread = task.spawn(RNGCraftLoop) end
-if AutoRNGUpgrades and not rngUpgradeThread then rngUpgradeThread = task.spawn(RNGUpgradeLoop) end
-if AutoRNGSkillTree and not rngSkillThread then rngSkillThread = task.spawn(RNGSkillTreeLoop) end
-if AutoRNGRebirth and not rngRebirthThread then rngRebirthThread = task.spawn(RNGRebirthLoop) end
-if AutoUseDice and not rngUseDiceThread then rngUseDiceThread = task.spawn(RNGUseDiceLoop) end
+-- Raid defaults (só sobe se GLOBALS true)
+if AutoRaidFarm and not raidFarmThread then raidFarmThread = task.spawn(RaidFarmLoop) end
+if AutoRaidUpgrades and not raidUpgradeThread then raidUpgradeThread = task.spawn(RaidUpgradeLoop) end
 
 Rayfield:Notify({
-    Title = "FrancesS Hub v5.12",
-    Content = "Clicker Simulator By Grokzada",
+    Title = "FrancesS Hub v5.13",
+    Content = "Clicker Simulator By Grokzada — Raid + Hatch max",
     Duration = 3,
 })
