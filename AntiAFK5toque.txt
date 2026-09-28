@@ -1,0 +1,274 @@
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local SoundService = game:GetService("SoundService")
+
+local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+local CoreGui = game:GetService("CoreGui")
+local uiParent = pcall(function() return CoreGui.Name end) and CoreGui or player:WaitForChild("PlayerGui")
+
+if uiParent:FindFirstChild("BatterySaverAFK") then
+	uiParent["BatterySaverAFK"]:Destroy()
+end
+
+-- ==================== CONFIGURAÇÕES ====================
+local TEMPO_STANDBY = 60
+local cliquesParaSair = 5
+local FPS_AFK = 10                -- bem baixo para não esquentar
+local FPS_NORMAL = 120
+local TEMPO_RESET_CLIQUES = 2.5   -- tempo máximo entre cliques
+-- =======================================================
+
+_G.ModoAfkAtivado = false
+local ultimoMovimento = tick()
+local toques = 0
+local tempoUltimoToque = 0
+local screenGui, background
+local clickConnection = nil
+local globalClickConnection = nil
+
+local ultimaPosicao = Vector3.new()
+local ultimoLookVector = Vector3.new()
+
+local function aplicarOtimizacoesPesadas()
+	pcall(function()
+		settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+	end)
+
+	pcall(function()
+		settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
+	end)
+
+	Lighting.GlobalShadows = false
+	Lighting.FogEnd = 9e9
+	Lighting.Brightness = 0
+	Lighting.Ambient = Color3.new(0, 0, 0)
+	Lighting.OutdoorAmbient = Color3.new(0, 0, 0)
+
+	pcall(function()
+		Lighting.Technology = Enum.Technology.Compatibility
+	end)
+
+	for _, efeito in pairs(Lighting:GetChildren()) do
+		if efeito:IsA("PostEffect") or efeito:IsA("Atmosphere") or efeito:IsA("Sky")
+			or efeito:IsA("BloomEffect") or efeito:IsA("BlurEffect")
+			or efeito:IsA("ColorCorrectionEffect") or efeito:IsA("SunRaysEffect")
+			or efeito:IsA("DepthOfFieldEffect") then
+			efeito:Destroy()
+		end
+	end
+
+	for _, som in pairs(SoundService:GetDescendants()) do
+		if som:IsA("Sound") then
+			som.Volume = 0
+			som:Stop()
+		end
+	end
+
+	for _, obj in pairs(Workspace:GetDescendants()) do
+		if obj:IsA("BasePart") then
+			obj.Material = Enum.Material.SmoothPlastic
+			obj.Reflectance = 0
+			obj.CastShadow = false
+
+			if obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
+				obj.RenderFidelity = Enum.RenderFidelity.Performance
+			end
+		elseif obj:IsA("Decal") or obj:IsA("Texture") then
+			obj.Transparency = 1
+		elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
+			or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+			obj.Enabled = false
+		elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
+			obj.Enabled = false
+		end
+	end
+
+	if _G.ModoAfkAtivado then
+		camera.FieldOfView = 30
+	end
+end
+
+local function desligarEconomia()
+	if not _G.ModoAfkAtivado then return end
+	_G.ModoAfkAtivado = false
+
+	UserInputService.MouseIconEnabled = true
+
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
+	end)
+
+	pcall(function()
+		setfpscap(FPS_NORMAL)
+	end)
+
+	camera.FieldOfView = 70
+
+	if clickConnection then
+		clickConnection:Disconnect()
+		clickConnection = nil
+	end
+
+	if screenGui then
+		screenGui:Destroy()
+		screenGui = nil
+	end
+
+	toques = 0
+	ultimoMovimento = tick()
+
+	local character = player.Character
+	if character and character:FindFirstChild("HumanoidRootPart") then
+		ultimaPosicao = character.HumanoidRootPart.Position
+	end
+	ultimoLookVector = camera.CFrame.LookVector
+end
+
+local function ligarEconomia()
+	if _G.ModoAfkAtivado then return end
+	_G.ModoAfkAtivado = true
+
+	UserInputService.MouseIconEnabled = false
+
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+	end)
+
+	pcall(function()
+		setfpscap(FPS_AFK)
+	end)
+
+	screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "BatterySaverAFK"
+	screenGui.IgnoreGuiInset = true
+	screenGui.DisplayOrder = 999999
+	screenGui.ResetOnSpawn = false
+	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	screenGui.Parent = uiParent
+
+	background = Instance.new("Frame")
+	background.Size = UDim2.new(1, 0, 1, 0)
+	background.BackgroundColor3 = Color3.new(0, 0, 0)
+	background.BackgroundTransparency = 0
+	background.BorderSizePixel = 0
+	background.Active = true
+	background.Parent = screenGui
+
+	-- ===== SISTEMA DE 5 CLIQUES PARA DESATIVAR =====
+	toques = 0
+	tempoUltimoToque = 0
+
+	clickConnection = background.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			local agora = tick()
+
+			if agora - tempoUltimoToque > TEMPO_RESET_CLIQUES then
+				toques = 0
+			end
+
+			toques = toques + 1
+			tempoUltimoToque = agora
+
+			if toques >= cliquesParaSair then
+				desligarEconomia()
+			end
+		end
+	end)
+	-- ==============================================
+
+	aplicarOtimizacoesPesadas()
+end
+
+-- ===== SISTEMA GLOBAL DE 5 CLIQUES PARA ATIVAR (quando não está AFK) =====
+globalClickConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if _G.ModoAfkAtivado then return end -- quando está AFK, usa o sistema da tela preta
+
+	if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		local agora = tick()
+
+		if agora - tempoUltimoToque > TEMPO_RESET_CLIQUES then
+			toques = 0
+		end
+
+		toques = toques + 1
+		tempoUltimoToque = agora
+
+		if toques >= cliquesParaSair then
+			toques = 0
+			ligarEconomia()
+		end
+	end
+end)
+-- ========================================================================
+
+-- Loop de detecção de AFK por física
+task.spawn(function()
+	while true do
+		task.wait(1)
+
+		if _G.ModoAfkAtivado then
+			UserInputService.MouseIconEnabled = false
+		end
+
+		local mudouFisica = false
+		local character = player.Character
+
+		if character and character:FindFirstChild("HumanoidRootPart") then
+			local posAtual = character.HumanoidRootPart.Position
+			if (posAtual - ultimaPosicao).Magnitude > 0.1 then
+				mudouFisica = true
+				ultimaPosicao = posAtual
+			end
+		end
+
+		local lookAtual = camera.CFrame.LookVector
+		if (lookAtual - ultimoLookVector).Magnitude > 0.05 then
+			mudouFisica = true
+			ultimoLookVector = lookAtual
+		end
+
+		if mudouFisica then
+			if not _G.ModoAfkAtivado then
+				ultimoMovimento = tick()
+			end
+		else
+			if not _G.ModoAfkAtivado and (tick() - ultimoMovimento) >= TEMPO_STANDBY then
+				ligarEconomia()
+			end
+		end
+
+		if _G.ModoAfkAtivado then
+			aplicarOtimizacoesPesadas()
+		end
+	end
+end)
+
+Workspace.DescendantAdded:Connect(function(obj)
+	if not _G.ModoAfkAtivado then return end
+
+	if obj:IsA("BasePart") then
+		obj.Material = Enum.Material.SmoothPlastic
+		obj.Reflectance = 0
+		obj.CastShadow = false
+
+		if obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
+			obj.RenderFidelity = Enum.RenderFidelity.Performance
+		end
+	elseif obj:IsA("Decal") or obj:IsA("Texture") then
+		obj.Transparency = 1
+	elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
+		or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+		obj.Enabled = false
+	elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
+		obj.Enabled = false
+	elseif obj:IsA("Sound") then
+		obj.Volume = 0
+		obj:Stop()
+	end
+end)
