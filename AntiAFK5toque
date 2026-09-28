@@ -20,6 +20,7 @@ local TEMPO_STANDBY = 60
 local cliquesParaSair = 5
 local FPS_AFK = 10                -- bem baixo para não esquentar
 local FPS_NORMAL = 120
+local TEMPO_RESET_CLIQUES = 2.5   -- tempo máximo entre cliques
 -- =======================================================
 
 _G.ModoAfkAtivado = false
@@ -28,6 +29,7 @@ local toques = 0
 local tempoUltimoToque = 0
 local screenGui, background
 local clickConnection = nil
+local globalClickConnection = nil
 
 local ultimaPosicao = Vector3.new()
 local ultimoLookVector = Vector3.new()
@@ -157,7 +159,7 @@ local function ligarEconomia()
 	background.Active = true
 	background.Parent = screenGui
 
-	-- ===== SISTEMA DE 5 CLIQUES MAIS CONFIÁVEL =====
+	-- ===== SISTEMA DE 5 CLIQUES PARA DESATIVAR =====
 	toques = 0
 	tempoUltimoToque = 0
 
@@ -165,8 +167,7 @@ local function ligarEconomia()
 		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
 			local agora = tick()
 
-			-- Se passou mais de 2.5 segundos desde o último clique, reinicia a contagem
-			if agora - tempoUltimoToque > 2.5 then
+			if agora - tempoUltimoToque > TEMPO_RESET_CLIQUES then
 				toques = 0
 			end
 
@@ -182,6 +183,29 @@ local function ligarEconomia()
 
 	aplicarOtimizacoesPesadas()
 end
+
+-- ===== SISTEMA GLOBAL DE 5 CLIQUES PARA ATIVAR (quando não está AFK) =====
+globalClickConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if _G.ModoAfkAtivado then return end -- quando está AFK, usa o sistema da tela preta
+
+	if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		local agora = tick()
+
+		if agora - tempoUltimoToque > TEMPO_RESET_CLIQUES then
+			toques = 0
+		end
+
+		toques = toques + 1
+		tempoUltimoToque = agora
+
+		if toques >= cliquesParaSair then
+			toques = 0
+			ligarEconomia()
+		end
+	end
+end)
+-- ========================================================================
 
 -- Loop de detecção de AFK por física
 task.spawn(function()
