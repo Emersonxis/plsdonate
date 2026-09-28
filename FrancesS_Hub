@@ -1,5 +1,5 @@
 --[[
-    FrancesS Hub v5.13
+    FrancesS Hub v5.14
     Clicker Simulator By Grokzada
 
     - Hatch / Craft / Pets / Raid / Potions / GUIs / Fishing / Passivos
@@ -28,13 +28,13 @@ local GLOBALS = {
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "FrancesS Hub v5.13",
+    Name = "FrancesS Hub v5.14",
     LoadingTitle = "FrancesS Hub",
     LoadingSubtitle = "Clicker Simulator By Grokzada",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "FrancesSHub",
-        FileName = "Config_v5.13"
+        FileName = "Config_v5.14"
     },
     Discord = { Enabled = false, Invite = "noinvitelink", RememberJoins = true },
     KeySystem = false,
@@ -393,41 +393,124 @@ task.spawn(function()
     end)
 end)
 
--- Merchant (dump GUI.Merchant):
---   GetState / GetOffers / Buy(OfferKey) → success, err, newStock
---   err: Disabled | NotEnoughGems | OutOfStock | Locked
-local function MerchantIsActive()
+-- Merchant (dump GUI.Merchant atualizado):
+--   RequestSnapshot / Snapshot / GetSnapshot / GetOffers / GetState / Buy
+--   Buy(OfferKey) → success, err, newStock
+--   Currency por oferta: offer.Currency or "Gems" (DicesMerchant = PixelCoins)
+--   Kinds: Merchant | MysteriousMerchant | DicesMerchant | TechMerchant
+local merchantSnapshot = nil -- { State, Offers, Progress }
+local lastMerchantStockFingerprint = nil
+local merchantBuyBusy = false
+
+pcall(function()
+    if MerchantChannel and MerchantChannel.OnClientEvent then
+        MerchantChannel.OnClientEvent("Snapshot"):Connect(function(snap)
+            if type(snap) == "table" then
+                merchantSnapshot = snap
+            end
+        end)
+    end
+end)
+
+local function RequestMerchantSnapshot()
+    pcall(function()
+        MerchantChannel:FireServer("RequestSnapshot")
+    end)
+end
+
+local function MerchantGetState()
+    if merchantSnapshot and type(merchantSnapshot.State) == "table" then
+        return merchantSnapshot.State
+    end
     local ok, state = pcall(function()
         return MerchantChannel:InvokeServer("GetState")
     end)
-    return ok and state and state.IsActive == true
+    if ok and type(state) == "table" then
+        return state
+    end
+    return nil
+end
+
+local function MerchantIsActive()
+    local state = MerchantGetState()
+    if not state then
+        return false
+    end
+    if state.IsActive ~= true then
+        return false
+    end
+    -- DicesMerchant fica ativo com restock; outros usam EndTimestamp
+    if state.Kind == "DicesMerchant" then
+        return true
+    end
+    local endTs = tonumber(state.EndTimestamp) or 0
+    if endTs > 0 then
+        local now = 0
+        pcall(function() now = workspace:GetServerTimeNow() end)
+        if now > 0 and now >= endTs then
+            return false
+        end
+    end
+    return true
 end
 
 local function GetMerchantOffers()
+    -- 1) Snapshot cache (fonte oficial do client)
+    if merchantSnapshot and type(merchantSnapshot.Offers) == "table" and #merchantSnapshot.Offers > 0 then
+        if MerchantIsActive() then
+            return merchantSnapshot.Offers
+        end
+    end
+    -- 2) GetSnapshot
+    local okSnap, snap = pcall(function()
+        return MerchantChannel:InvokeServer("GetSnapshot")
+    end)
+    if okSnap and type(snap) == "table" then
+        merchantSnapshot = snap
+        if type(snap.Offers) == "table" and MerchantIsActive() then
+            return snap.Offers
+        end
+    end
+    -- 3) GetOffers fallback
     if not MerchantIsActive() then
         return nil
     end
     local ok, offers = pcall(function()
         return MerchantChannel:InvokeServer("GetOffers")
     end)
-    if not ok or type(offers) ~= "table" then
-        return nil
+    if ok and type(offers) == "table" then
+        return offers
     end
-    return offers
+    return nil
 end
 
--- Fingerprint só depois de stock = 0 (não travar compra parcial)
-local lastMerchantStockFingerprint = nil
+local function MerchantCurrencyAmount(currencyId)
+    currencyId = currencyId or "Gems"
+    local money = 0
+    if CurrencyModule and CurrencyModule.Get then
+        pcall(function() money = CurrencyModule.Get(currencyId) or 0 end)
+    end
+    if money == 0 then
+        pcall(function()
+            local d = Stats.Local()
+            if d and type(d.Currency) == "table" then
+                money = tonumber(d.Currency[currencyId]) or 0
+            end
+        end)
+    end
+    return tonumber(money) or 0
+end
 
 local function GetMerchantAvailableStock()
     local offers = GetMerchantOffers()
     if not offers then
         return 0, {}, ""
     end
+    local state = MerchantGetState()
+    local kind = (state and state.Kind) or "Merchant"
     local total = 0
     local keys = {}
     local parts = {}
-    -- ipairs + pairs (formato do server pode variar)
     local seen = {}
     local function consider(offer)
         if type(offer) ~= "table" or not offer.OfferKey or seen[offer.OfferKey] then
@@ -437,7 +520,12 @@ local function GetMerchantAvailableStock()
         local stock = tonumber(offer.Stock) or 0
         if offer.Unlocked and stock > 0 then
             total = total + stock
-            table.insert(keys, { key = offer.OfferKey, stock = stock })
+            table.insert(keys, {
+                key = offer.OfferKey,
+                stock = stock,
+                price = tonumber(offer.PriceGems) or 0,
+                currency = offer.Currency or "Gems",
+            })
             table.insert(parts, tostring(offer.OfferKey) .. ":" .. tostring(stock))
         end
     end
@@ -448,25 +536,34 @@ local function GetMerchantAvailableStock()
         consider(offer)
     end
     table.sort(parts)
-    return total, keys, table.concat(parts, "|")
+    -- fingerprint inclui Kind (restock Dices / troca de merchant)
+    local fp = tostring(kind) .. "|" .. table.concat(parts, "|")
+    return total, keys, fp
 end
 
--- Compra até zerar: usa newStock do Buy e re-GetOffers em passes
+-- Compra até zerar: checa moeda, usa newStock do Buy, refresh snapshot
 local function BuyAllMerchantOffers()
     local bought = 0
-    for _pass = 1, 25 do
+    for _pass = 1, 30 do
+        RequestMerchantSnapshot()
+        task.wait(0.05)
         local offers = GetMerchantOffers()
         if not offers then
             break
         end
-        local anyLeft = false
+        local anyAttempt = false
         local function tryOffer(offer)
             if type(offer) ~= "table" or not offer.OfferKey or not offer.Unlocked then
                 return
             end
             local stock = tonumber(offer.Stock) or 0
+            local price = tonumber(offer.PriceGems) or 0
+            local cur = offer.Currency or "Gems"
             while stock > 0 do
-                anyLeft = true
+                if MerchantCurrencyAmount(cur) < price then
+                    return -- sem moeda pra este item
+                end
+                anyAttempt = true
                 local ok, success, err, newStock = pcall(function()
                     return MerchantChannel:InvokeServer("Buy", offer.OfferKey)
                 end)
@@ -482,7 +579,7 @@ local function BuyAllMerchantOffers()
                         stock = stock - 1
                     end
                 else
-                    -- OutOfStock / NotEnoughGems / Locked / Disabled → para este item
+                    -- OutOfStock | NotEnoughGems | NotEnoughCurrency | Locked | Disabled
                     return
                 end
             end
@@ -493,12 +590,10 @@ local function BuyAllMerchantOffers()
         for _, offer in pairs(offers) do
             tryOffer(offer)
         end
-        -- confirma com GetOffers de novo
+        RequestMerchantSnapshot()
+        task.wait(0.08)
         local left = select(1, GetMerchantAvailableStock())
-        if left < 1 then
-            break
-        end
-        if not anyLeft then
+        if left < 1 or not anyAttempt then
             break
         end
     end
@@ -624,8 +719,13 @@ local function GetHRP()
 end
 
 -- TP → compra até stock 0 → volta
--- Fingerprint só se realmente zerou (senão tenta de novo depois)
+-- Fingerprint só se realmente zerou (senão tenta de novo)
 local function BuyAllMerchantOffersSafe()
+    if merchantBuyBusy then
+        return false, 0
+    end
+    RequestMerchantSnapshot()
+    task.wait(0.1)
     local stockBefore, _, fingerprint = GetMerchantAvailableStock()
     if stockBefore < 1 then
         return false, 0
@@ -634,6 +734,7 @@ local function BuyAllMerchantOffersSafe()
         return false, 0
     end
 
+    merchantBuyBusy = true
     local hrp = GetHRP()
     local oldCF = hrp and hrp.CFrame or nil
     local merchantPart = FindMerchantRoot()
@@ -643,25 +744,25 @@ local function BuyAllMerchantOffersSafe()
         pcall(function()
             hrp.CFrame = target
         end)
-        task.wait(0.25)
+        task.wait(0.3)
     end
 
     local ok, bought = BuyAllMerchantOffers()
-    task.wait(0.1)
+    task.wait(0.12)
+    RequestMerchantSnapshot()
+    task.wait(0.08)
 
     local stockAfter, _, fpAfter = GetMerchantAvailableStock()
     if stockAfter < 1 then
-        -- lote realmente zerado
         lastMerchantStockFingerprint = (fpAfter ~= "" and fpAfter) or fingerprint
     end
-    -- se sobrou stock (sem gems etc.) NÃO marca fingerprint → tenta de novo no próximo poll
 
     if hrp and oldCF and hrp.Parent then
         pcall(function()
             hrp.CFrame = oldCF
         end)
     end
-
+    merchantBuyBusy = false
     return ok, bought
 end
 
@@ -1844,20 +1945,23 @@ RaidTab:CreateButton({
 -- Merchant (controlado pela aba Passivos)
 -- Poll stock de longe; TP só quando totalStock > 0
 ----------------------------------------------------------------
+-- Snapshot periodico + compra quando tiver stock novo
 task.spawn(function()
+    RequestMerchantSnapshot()
     while true do
         if PassiveMerchant then
             pcall(function()
+                RequestMerchantSnapshot()
+                task.wait(0.12)
                 local stock, _, fp = GetMerchantAvailableStock()
                 if stock > 0 and fp ~= lastMerchantStockFingerprint then
                     BuyAllMerchantOffersSafe()
-                    -- se ainda sobrou stock (ex: sem gems), poll mais rápido
                     local left = select(1, GetMerchantAvailableStock())
-                    task.wait(left > 0 and 1.2 or 2.5)
+                    task.wait(left > 0 and 1.0 or 2.0)
                 end
             end)
         end
-        task.wait(1.5)
+        task.wait(1.25)
     end
 end)
 
@@ -2362,7 +2466,7 @@ FishTab:CreateInput({
 ----------------------------------------------------------------
 local InfoTab = Window:CreateTab("Info", 4483362458)
 InfoTab:CreateParagraph({
-    Title = "FrancesS Hub v5.13",
+    Title = "FrancesS Hub v5.14",
     Content = "Clicker Simulator By Grokzada\nHatch • Craft • Pets • Raid • Potions • GUIs • Fishing • Passivos\nRaid Auto Farm AFK • Hatch max detect",
 })
 
@@ -2477,7 +2581,7 @@ if AutoRaidFarm and not raidFarmThread then raidFarmThread = task.spawn(RaidSys.
 if AutoRaidUpgrades and not raidUpgradeThread then raidUpgradeThread = task.spawn(RaidSys.UpgradeLoop) end
 
 Rayfield:Notify({
-    Title = "FrancesS Hub v5.13",
+    Title = "FrancesS Hub v5.14",
     Content = "Clicker Simulator By Grokzada — Raid + Hatch max",
     Duration = 3,
 })
