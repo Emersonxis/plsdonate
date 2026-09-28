@@ -393,7 +393,9 @@ task.spawn(function()
     end)
 end)
 
--- Merchant: checa stock SEM teleporte; só TP quando Stock > 0
+-- Merchant (dump GUI.Merchant):
+--   GetState / GetOffers / Buy(OfferKey) → success, err, newStock
+--   err: Disabled | NotEnoughGems | OutOfStock | Locked
 local function MerchantIsActive()
     local ok, state = pcall(function()
         return MerchantChannel:InvokeServer("GetState")
@@ -414,7 +416,7 @@ local function GetMerchantOffers()
     return offers
 end
 
--- Stock + fingerprint do lote (não re-TP no mesmo lote)
+-- Fingerprint só depois de stock = 0 (não travar compra parcial)
 local lastMerchantStockFingerprint = nil
 
 local function GetMerchantAvailableStock()
@@ -425,34 +427,79 @@ local function GetMerchantAvailableStock()
     local total = 0
     local keys = {}
     local parts = {}
-    for _, offer in ipairs(offers) do
+    -- ipairs + pairs (formato do server pode variar)
+    local seen = {}
+    local function consider(offer)
+        if type(offer) ~= "table" or not offer.OfferKey or seen[offer.OfferKey] then
+            return
+        end
+        seen[offer.OfferKey] = true
         local stock = tonumber(offer.Stock) or 0
-        if offer.Unlocked and stock > 0 and offer.OfferKey then
-            total += stock
+        if offer.Unlocked and stock > 0 then
+            total = total + stock
             table.insert(keys, { key = offer.OfferKey, stock = stock })
             table.insert(parts, tostring(offer.OfferKey) .. ":" .. tostring(stock))
         end
+    end
+    for _, offer in ipairs(offers) do
+        consider(offer)
+    end
+    for _, offer in pairs(offers) do
+        consider(offer)
     end
     table.sort(parts)
     return total, keys, table.concat(parts, "|")
 end
 
+-- Compra até zerar: usa newStock do Buy e re-GetOffers em passes
 local function BuyAllMerchantOffers()
-    local total, keys = GetMerchantAvailableStock()
-    if total < 1 then
-        return false, 0
-    end
     local bought = 0
-    for _, item in ipairs(keys) do
-        for _ = 1, item.stock do
-            local okBuy = pcall(function()
-                MerchantChannel:InvokeServer("Buy", item.key)
-            end)
-            if okBuy then
-                bought += 1
-            else
-                break
+    for _pass = 1, 25 do
+        local offers = GetMerchantOffers()
+        if not offers then
+            break
+        end
+        local anyLeft = false
+        local function tryOffer(offer)
+            if type(offer) ~= "table" or not offer.OfferKey or not offer.Unlocked then
+                return
             end
+            local stock = tonumber(offer.Stock) or 0
+            while stock > 0 do
+                anyLeft = true
+                local ok, success, err, newStock = pcall(function()
+                    return MerchantChannel:InvokeServer("Buy", offer.OfferKey)
+                end)
+                if not ok then
+                    return
+                end
+                if success then
+                    bought = bought + 1
+                    if type(newStock) == "number" then
+                        stock = newStock
+                        offer.Stock = newStock
+                    else
+                        stock = stock - 1
+                    end
+                else
+                    -- OutOfStock / NotEnoughGems / Locked / Disabled → para este item
+                    return
+                end
+            end
+        end
+        for _, offer in ipairs(offers) do
+            tryOffer(offer)
+        end
+        for _, offer in pairs(offers) do
+            tryOffer(offer)
+        end
+        -- confirma com GetOffers de novo
+        local left = select(1, GetMerchantAvailableStock())
+        if left < 1 then
+            break
+        end
+        if not anyLeft then
+            break
         end
     end
     return bought > 0, bought
@@ -576,14 +623,14 @@ local function GetHRP()
     return char and char:FindFirstChild("HumanoidRootPart")
 end
 
--- Só teleporta se tiver stock E o lote for diferente do último já comprado
+-- TP → compra até stock 0 → volta
+-- Fingerprint só se realmente zerou (senão tenta de novo depois)
 local function BuyAllMerchantOffersSafe()
     local stockBefore, _, fingerprint = GetMerchantAvailableStock()
     if stockBefore < 1 then
         return false, 0
     end
     if fingerprint ~= "" and fingerprint == lastMerchantStockFingerprint then
-        -- mesmo lote de stock já tratado — não TP de novo
         return false, 0
     end
 
@@ -596,13 +643,18 @@ local function BuyAllMerchantOffersSafe()
         pcall(function()
             hrp.CFrame = target
         end)
-        task.wait(0.35)
+        task.wait(0.25)
     end
 
     local ok, bought = BuyAllMerchantOffers()
-    -- marca este lote como tratado (mesmo se GetOffers ainda mostrar stock)
-    lastMerchantStockFingerprint = fingerprint
-    task.wait(0.2)
+    task.wait(0.1)
+
+    local stockAfter, _, fpAfter = GetMerchantAvailableStock()
+    if stockAfter < 1 then
+        -- lote realmente zerado
+        lastMerchantStockFingerprint = (fpAfter ~= "" and fpAfter) or fingerprint
+    end
+    -- se sobrou stock (sem gems etc.) NÃO marca fingerprint → tenta de novo no próximo poll
 
     if hrp and oldCF and hrp.Parent then
         pcall(function()
@@ -1797,14 +1849,15 @@ task.spawn(function()
         if PassiveMerchant then
             pcall(function()
                 local stock, _, fp = GetMerchantAvailableStock()
-                -- stock novo = fingerprint diferente do último lote comprado
                 if stock > 0 and fp ~= lastMerchantStockFingerprint then
                     BuyAllMerchantOffersSafe()
-                    task.wait(3)
+                    -- se ainda sobrou stock (ex: sem gems), poll mais rápido
+                    local left = select(1, GetMerchantAvailableStock())
+                    task.wait(left > 0 and 1.2 or 2.5)
                 end
             end)
         end
-        task.wait(2)
+        task.wait(1.5)
     end
 end)
 
