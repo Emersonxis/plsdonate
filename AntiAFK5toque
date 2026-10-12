@@ -18,7 +18,7 @@ end
 -- ==================== CONFIG ====================
 local CLIQUES_PARA_SAIR = 5
 local TEMPO_RESET_CLIQUES = 2.5
-local FPS_AFK = 10
+local FPS_AFK = 20
 local FPS_NORMAL = 120
 -- ================================================
 
@@ -28,7 +28,6 @@ local tempoUltimoToque = 0
 local screenGui = nil
 local clickConnection = nil
 
--- Guarda valores originais para restaurar
 local originais = {
 	QualityLevel = nil,
 	FOV = 70,
@@ -93,13 +92,11 @@ local function aplicarOtimizacoes()
 	originais.FOV = camera.FieldOfView
 	camera.FieldOfView = 30
 
-	-- Só reduz, NÃO destrói
 	Lighting.GlobalShadows = false
 	Lighting.Brightness = 0
 	Lighting.Ambient = Color3.new(0, 0, 0)
 	Lighting.OutdoorAmbient = Color3.new(0, 0, 0)
 
-	-- Silencia sons (sem destruir)
 	for _, som in pairs(SoundService:GetDescendants()) do
 		if som:IsA("Sound") then
 			som.Volume = 0
@@ -166,7 +163,6 @@ local function ligarEconomia()
 		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
 	end)
 
-	-- Tela preta
 	screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "BatterySaverAFK"
 	screenGui.IgnoreGuiInset = true
@@ -183,7 +179,6 @@ local function ligarEconomia()
 	background.Active = true
 	background.Parent = screenGui
 
-	-- 5 cliques para desativar
 	toques = 0
 	tempoUltimoToque = 0
 
@@ -207,16 +202,15 @@ local function ligarEconomia()
 	aplicarOtimizacoes()
 end
 
--- Ativar pelo chat: !antilag
+-- Ativação pelo chat: !on
 player.Chatted:Connect(function(msg)
-	if string.lower(msg) == "!antilag" then
+	if string.lower(msg) == "!on" then
 		if not _G.ModoAfkAtivado then
 			ligarEconomia()
 		end
 	end
 end)
 
--- Mantém mouse escondido enquanto ativo
 task.spawn(function()
 	while true do
 		task.wait(1)
