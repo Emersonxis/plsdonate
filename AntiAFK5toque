@@ -18,8 +18,8 @@ end
 -- ==================== CONFIG ====================
 local CLIQUES_PARA_SAIR = 5
 local TEMPO_RESET_CLIQUES = 2.5
-local FPS_AFK = 20
-local FPS_NORMAL = 120
+local FPS_AFK = 15      -- quando ligado
+local FPS_NORMAL = 60   -- quando desligado
 -- ================================================
 
 _G.ModoAfkAtivado = false
@@ -36,6 +36,12 @@ local originais = {
 	Ambient = Lighting.Ambient,
 	OutdoorAmbient = Lighting.OutdoorAmbient,
 }
+
+local function setFPS(fps)
+	pcall(function()
+		setfpscap(fps)
+	end)
+end
 
 local function esconderInfiniteYield()
 	pcall(function()
@@ -85,9 +91,7 @@ local function aplicarOtimizacoes()
 		settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
 	end)
 
-	pcall(function()
-		setfpscap(FPS_AFK)
-	end)
+	setFPS(FPS_AFK)
 
 	originais.FOV = camera.FieldOfView
 	camera.FieldOfView = 30
@@ -115,9 +119,7 @@ local function restaurarTudo()
 		end
 	end)
 
-	pcall(function()
-		setfpscap(FPS_NORMAL)
-	end)
+	setFPS(FPS_NORMAL)
 
 	camera.FieldOfView = originais.FOV or 70
 
@@ -202,7 +204,7 @@ local function ligarEconomia()
 	aplicarOtimizacoes()
 end
 
--- Ativação pelo chat: !on
+-- Ativar: !on
 player.Chatted:Connect(function(msg)
 	if string.lower(msg) == "!on" then
 		if not _G.ModoAfkAtivado then
@@ -211,12 +213,18 @@ player.Chatted:Connect(function(msg)
 	end
 end)
 
+-- Força o FPS o tempo todo
 task.spawn(function()
+	setFPS(FPS_NORMAL)
+
 	while true do
-		task.wait(1)
 		if _G.ModoAfkAtivado then
+			setFPS(FPS_AFK) -- 15 FPS
 			UserInputService.MouseIconEnabled = false
 			esconderInfiniteYield()
+		else
+			setFPS(FPS_NORMAL) -- 60 FPS
 		end
+		task.wait(0.5)
 	end
 end)
