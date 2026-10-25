@@ -1,12 +1,11 @@
 local UIS = game:GetService("UserInputService")
-local VIM = game:GetService("VirtualInputManager")
 local VirtualUser = game:GetService("VirtualUser")
 local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
 local GuiService = game:GetService("GuiService")
 local player = Players.LocalPlayer
 
-local enabled = true -- começa ativado
+local enabled = true
 
 local function notify(title, text)
     pcall(function()
@@ -31,52 +30,26 @@ player.Chatted:Connect(function(msg)
     end
 end)
 
--- Aguarda 5 minutos antes de iniciar o Anti-AFK
+-- Aguarda 5 minutos antes de iniciar
 notify("Anti AFK", "Aguardando 5 minutos para iniciar...")
-task.wait(300) -- 5 minutos
+task.wait(300)
 
--- Notificação de que realmente começou
 notify("Anti AFK", "Ativado ✅\nUse !afkon e !afkoff no chat")
 
--- Função principal de anti-AFK (segura)
+-- Função principal (segura para menus)
 local function doAntiAFK()
     if not enabled then return end
+    
+    -- Não faz nada se o menu de pause/configurações estiver aberto
+    if GuiService.MenuIsOpen then return end
 
-    -- Posição quase no canto (reduz chance de clicar em UI do jogo)
-    local x = math.random(5, 25)
-    local y = math.random(5, 25)
-
-    -- Método 1: VirtualInputManager (clique esquerdo)
-    pcall(function()
-        VIM:SendMouseButtonEvent(x, y, 0, true, game, 1)
-        task.wait(0.03)
-        VIM:SendMouseButtonEvent(x, y, 0, false, game, 1)
-    end)
-
-    -- Método 2: VirtualUser (mais silencioso)
     pcall(function()
         VirtualUser:CaptureController()
-        VirtualUser:ClickButton1(Vector2.new(x, y))
-    end)
-
-    -- Método 3: Simula toque (ajuda a voltar pro modo mobile)
-    pcall(function()
-        firesignal(UIS.InputBegan, {
-            UserInputType = Enum.UserInputType.Touch,
-            KeyCode = Enum.KeyCode.Unknown,
-            Position = Vector3.new(math.random(10, 40), math.random(10, 40), 0)
-        }, false)
-    end)
-
-    -- Tentativa extra de forçar modo mobile logo após o clique
-    pcall(function()
-        if UIS.TouchEnabled then
-            firesignal(UIS.TouchTap, {Vector2.new(x, y)}, false)
-        end
+        VirtualUser:ClickButton2(Vector2.new()) -- clique direito silencioso (não interfere na UI)
     end)
 end
 
--- Método mais eficiente: quando o Roblox detecta idle
+-- Só quando o Roblox detecta idle (melhor método)
 pcall(function()
     player.Idled:Connect(function()
         if enabled then
@@ -85,11 +58,11 @@ pcall(function()
     end)
 end)
 
--- Loop de segurança a cada 10 minutos
+-- Loop de segurança bem espaçado (só se o menu não estiver aberto)
 task.spawn(function()
     while true do
-        task.wait(600) -- 10 minutos
-        if enabled then
+        task.wait(720) -- 12 minutos
+        if enabled and not GuiService.MenuIsOpen then
             doAntiAFK()
         end
     end
