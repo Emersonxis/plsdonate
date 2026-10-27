@@ -1,230 +1,436 @@
+--[[
+    Battery Saver AFK - Delta Mobile Optimized
+    5 toques para ativar / desativar
+    Segure a tela preta para ver informações
+]]
+
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
-local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
 local SoundService = game:GetService("SoundService")
 local CoreGui = game:GetService("CoreGui")
+local TextService = game:GetService("TextService")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
+local PlayerGui = player:WaitForChild("PlayerGui")
 
-local uiParent = pcall(function() return CoreGui.Name end) and CoreGui or player:WaitForChild("PlayerGui")
-
-if uiParent:FindFirstChild("BatterySaverAFK") then
-	uiParent.BatterySaverAFK:Destroy()
-end
+-- Limpa versões antigas
+pcall(function()
+	for _, v in pairs(PlayerGui:GetChildren()) do
+		if v.Name == "BatterySaverAFK" or v.Name:find("AFK_") then
+			v:Destroy()
+		end
+	end
+end)
 
 -- ==================== CONFIG ====================
+local TEMPO_STANDBY = 60
 local CLIQUES_PARA_SAIR = 5
+local FPS_AFK = 10
+local FPS_NORMAL = 60
 local TEMPO_RESET_CLIQUES = 2.5
-local FPS_AFK = 15      -- quando ligado
-local FPS_NORMAL = 60   -- quando desligado
+local TEMPO_HOLD = 0.55
+local TEMPO_INFO = 14
 -- ================================================
 
 _G.ModoAfkAtivado = false
-local toques = 0
-local tempoUltimoToque = 0
-local screenGui = nil
-local clickConnection = nil
+local currentAfkFps = FPS_AFK
+local tempoInicioAfk = 0
+local toques, tempoUltimoToque = 0, 0
+local isHolding, holdStart = false, 0
+local fps, frameCount, lastFpsUpdate = 60, 0, tick()
+local ultimoMovimento = tick()
+local ultimaPosicao = Vector3.zero
+local ultimoLook = Vector3.zero
 
 local originais = {
-	QualityLevel = nil,
 	FOV = 70,
-	GlobalShadows = Lighting.GlobalShadows,
-	Brightness = Lighting.Brightness,
-	Ambient = Lighting.Ambient,
-	OutdoorAmbient = Lighting.OutdoorAmbient,
+	QualityLevel = nil,
+	GlobalShadows = true,
+	Brightness = 2,
+	Ambient = Color3.fromRGB(140, 140, 140),
+	OutdoorAmbient = Color3.fromRGB(128, 128, 128),
+	FogEnd = 100000
 }
 
-local function setFPS(fps)
+-- ====================== UI ======================
+local mainGui = Instance.new("ScreenGui")
+mainGui.Name = "BatterySaverAFK"
+mainGui.ResetOnSpawn = false
+mainGui.IgnoreGuiInset = true
+mainGui.DisplayOrder = 999999
+mainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+mainGui.Parent = PlayerGui
+
+-- Botão de ativar (perto do chat / canto inferior)
+local btnAtivar = Instance.new("TextButton")
+btnAtivar.Name = "BtnAtivar"
+btnAtivar.Size = UDim2.new(0, 74, 0, 30)
+btnAtivar.Position = UDim2.new(1, -86, 1, -78) -- canto inferior direito (acima do chat)
+btnAtivar.BackgroundColor3 = Color3.fromRGB(0, 170, 90)
+btnAtivar.BackgroundTransparency = 0.15
+btnAtivar.Text = "AFK"
+btnAtivar.TextColor3 = Color3.new(1, 1, 1)
+btnAtivar.Font = Enum.Font.GothamBold
+btnAtivar.TextSize = 14
+btnAtivar.Parent = mainGui
+Instance.new("UICorner", btnAtivar).CornerRadius = UDim.new(0, 8)
+
+local strokeBtn = Instance.new("UIStroke")
+strokeBtn.Color = Color3.fromRGB(0, 255, 140)
+strokeBtn.Thickness = 1.2
+strokeBtn.Transparency = 0.3
+strokeBtn.Parent = btnAtivar
+
+-- Tela preta
+local black = Instance.new("Frame")
+black.Name = "BlackScreen"
+black.Size = UDim2.new(1, 0, 1, 0)
+black.BackgroundColor3 = Color3.new(0, 0, 0)
+black.BorderSizePixel = 0
+black.Visible = false
+black.Active = true
+black.Parent = mainGui
+
+-- Painel de informações (mais bonito)
+local infoFrame = Instance.new("Frame")
+infoFrame.Size = UDim2.new(0, 280, 0, 320)
+infoFrame.Position = UDim2.new(0.5, -140, 0.5, -160)
+infoFrame.BackgroundColor3 = Color3.fromRGB(16, 16, 18)
+infoFrame.BackgroundTransparency = 0.08
+infoFrame.Visible = false
+infoFrame.Parent = black
+Instance.new("UICorner", infoFrame).CornerRadius = UDim.new(0, 14)
+
+local strokeInfo = Instance.new("UIStroke")
+strokeInfo.Color = Color3.fromRGB(0, 220, 120)
+strokeInfo.Thickness = 1.4
+strokeInfo.Transparency = 0.4
+strokeInfo.Parent = infoFrame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 32)
+title.Position = UDim2.new(0, 0, 0, 8)
+title.BackgroundTransparency = 1
+title.Text = "BATTERY SAVER"
+title.TextColor3 = Color3.fromRGB(0, 255, 150)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.Parent = infoFrame
+
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(1, -24, 0, 170)
+infoLabel.Position = UDim2.new(0, 12, 0, 42)
+infoLabel.BackgroundTransparency = 1
+infoLabel.TextColor3 = Color3.fromRGB(0, 255, 140)
+infoLabel.Font = Enum.Font.Code
+infoLabel.TextSize = 15
+infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+infoLabel.TextYAlignment = Enum.TextYAlignment.Top
+infoLabel.Text = ""
+infoLabel.Parent = infoFrame
+
+-- TextBox para FPS Cap
+local fpsBox = Instance.new("TextBox")
+fpsBox.Size = UDim2.new(0, 90, 0, 34)
+fpsBox.Position = UDim2.new(0.5, -45, 1, -58)
+fpsBox.BackgroundColor3 = Color3.fromRGB(30, 30, 32)
+fpsBox.Text = tostring(FPS_AFK)
+fpsBox.PlaceholderText = "FPS"
+fpsBox.TextColor3 = Color3.fromRGB(0, 255, 150)
+fpsBox.Font = Enum.Font.GothamBold
+fpsBox.TextSize = 16
+fpsBox.ClearTextOnFocus = false
+fpsBox.Parent = infoFrame
+Instance.new("UICorner", fpsBox).CornerRadius = UDim.new(0, 8)
+
+local fpsStroke = Instance.new("UIStroke")
+fpsStroke.Color = Color3.fromRGB(0, 200, 110)
+fpsStroke.Thickness = 1
+fpsStroke.Parent = fpsBox
+
+local fpsHint = Instance.new("TextLabel")
+fpsHint.Size = UDim2.new(1, 0, 0, 18)
+fpsHint.Position = UDim2.new(0, 0, 1, -22)
+fpsHint.BackgroundTransparency = 1
+fpsHint.Text = "Digite o FPS e aperte Enter"
+fpsHint.TextColor3 = Color3.fromRGB(140, 140, 140)
+fpsHint.Font = Enum.Font.Gotham
+fpsHint.TextSize = 11
+fpsHint.Parent = infoFrame
+
+-- ====================== FUNÇÕES ======================
+local function setFPS(cap)
 	pcall(function()
-		setfpscap(fps)
+		if setfpscap then setfpscap(cap) end
 	end)
 end
 
-local function esconderInfiniteYield()
+local function setFFlagsLow()
+	if type(setfflag) \~= "function" then return end
 	pcall(function()
-		for _, gui in pairs(CoreGui:GetChildren()) do
-			if gui:IsA("ScreenGui") then
-				local name = string.lower(gui.Name)
-				if name:find("infinite") or name:find("iy") or name:find("yield") then
-					gui.Enabled = false
-				end
-			end
-		end
-		for _, gui in pairs(player.PlayerGui:GetChildren()) do
-			if gui:IsA("ScreenGui") then
-				local name = string.lower(gui.Name)
-				if name:find("infinite") or name:find("iy") or name:find("yield") then
-					gui.Enabled = false
-				end
-			end
-		end
+		setfflag("DFIntTaskSchedulerTargetFps", tostring(currentAfkFps))
+		setfflag("DFIntDebugFRMQualityLevelOverride", "1")
+		setfflag("FFlagDisablePostFx", "True")
+		setfflag("FIntRenderShadowIntensity", "0")
+		setfflag("FIntFRMMaxGrassDistance", "0")
+		setfflag("FIntFRMMinGrassDistance", "0")
+		setfflag("DFFlagDebugPauseVoxelizer", "True")
 	end)
 end
 
-local function mostrarInfiniteYield()
+local function setFFlagsNormal()
+	if type(setfflag) \~= "function" then return end
 	pcall(function()
-		for _, gui in pairs(CoreGui:GetChildren()) do
-			if gui:IsA("ScreenGui") then
-				local name = string.lower(gui.Name)
-				if name:find("infinite") or name:find("iy") or name:find("yield") then
-					gui.Enabled = true
-				end
-			end
-		end
-		for _, gui in pairs(player.PlayerGui:GetChildren()) do
-			if gui:IsA("ScreenGui") then
-				local name = string.lower(gui.Name)
-				if name:find("infinite") or name:find("iy") or name:find("yield") then
-					gui.Enabled = true
-				end
-			end
-		end
+		setfflag("DFIntTaskSchedulerTargetFps", "60")
+		setfflag("DFIntDebugFRMQualityLevelOverride", "0")
+		setfflag("FFlagDisablePostFx", "False")
+		setfflag("FIntRenderShadowIntensity", "1")
+		setfflag("DFFlagDebugPauseVoxelizer", "False")
 	end)
+end
+
+local function formatarTempo(s)
+	return string.format("%02d:%02d:%02d", math.floor(s/3600), math.floor(s%3600/60), math.floor(s%60))
+end
+
+local function atualizarInfo()
+	if not infoFrame.Visible then return end
+	local ping = 0
+	pcall(function() ping = math.floor(player:GetNetworkPing() * 1000) end)
+	local mem = 0
+	pcall(function() mem = math.floor(collectgarbage("count") / 1024) end)
+
+	infoLabel.Text = string.format(
+[[FPS Atual: %d
+Tempo AFK: %s
+Ping: %d ms
+Memória: %d MB
+Players: %d
+
+FPS Cap atual: %d]],
+		fps,
+		formatarTempo(tick() - tempoInicioAfk),
+		ping,
+		mem,
+		#Players:GetPlayers(),
+		currentAfkFps
+	)
 end
 
 local function aplicarOtimizacoes()
+	pcall(function() RunService:Set3dRenderingEnabled(false) end)
 	pcall(function()
-		originais.QualityLevel = settings().Rendering.QualityLevel
 		settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
 	end)
-
-	setFPS(FPS_AFK)
-
-	originais.FOV = camera.FieldOfView
-	camera.FieldOfView = 30
 
 	Lighting.GlobalShadows = false
 	Lighting.Brightness = 0
 	Lighting.Ambient = Color3.new(0, 0, 0)
 	Lighting.OutdoorAmbient = Color3.new(0, 0, 0)
+	Lighting.FogEnd = 0
+	camera.FieldOfView = 1
 
-	for _, som in pairs(SoundService:GetDescendants()) do
-		if som:IsA("Sound") then
-			som.Volume = 0
-		end
-	end
-
-	esconderInfiniteYield()
+	setFPS(currentAfkFps)
+	setFFlagsLow()
 end
 
-local function restaurarTudo()
+local function esconderCore()
 	pcall(function()
-		if originais.QualityLevel then
-			settings().Rendering.QualityLevel = originais.QualityLevel
-		else
-			settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
-		end
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+	end)
+end
+
+local function mostrarCore()
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
+	end)
+end
+
+local function ligarEconomia()
+	if _G.ModoAfkAtivado then return end
+	_G.ModoAfkAtivado = true
+	tempoInicioAfk = tick()
+	currentAfkFps = FPS_AFK
+	fpsBox.Text = tostring(currentAfkFps)
+
+	pcall(function()
+		originais.FOV = camera.FieldOfView
+		originais.QualityLevel = settings().Rendering.QualityLevel
+		originais.GlobalShadows = Lighting.GlobalShadows
+		originais.Brightness = Lighting.Brightness
+		originais.Ambient = Lighting.Ambient
+		originais.OutdoorAmbient = Lighting.OutdoorAmbient
+		originais.FogEnd = Lighting.FogEnd
 	end)
 
-	setFPS(FPS_NORMAL)
-
-	camera.FieldOfView = originais.FOV or 70
-
-	Lighting.GlobalShadows = originais.GlobalShadows
-	Lighting.Brightness = originais.Brightness
-	Lighting.Ambient = originais.Ambient
-	Lighting.OutdoorAmbient = originais.OutdoorAmbient
-
-	mostrarInfiniteYield()
+	btnAtivar.Visible = false
+	black.Visible = true
+	infoFrame.Visible = false
+	UserInputService.MouseIconEnabled = false
+	esconderCore()
+	aplicarOtimizacoes()
 end
 
 local function desligarEconomia()
 	if not _G.ModoAfkAtivado then return end
 	_G.ModoAfkAtivado = false
 
+	black.Visible = false
+	infoFrame.Visible = false
+	btnAtivar.Visible = true
 	UserInputService.MouseIconEnabled = true
 
-	pcall(function()
-		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
-	end)
-
-	if clickConnection then
-		clickConnection:Disconnect()
-		clickConnection = nil
-	end
-
-	if screenGui then
-		screenGui:Destroy()
-		screenGui = nil
-	end
-
-	toques = 0
-	restaurarTudo()
-end
-
-local function ligarEconomia()
-	if _G.ModoAfkAtivado then return end
-	_G.ModoAfkAtivado = true
-
-	UserInputService.MouseIconEnabled = false
+	pcall(function() RunService:Set3dRenderingEnabled(true) end)
+	setFPS(FPS_NORMAL)
+	setFFlagsNormal()
+	mostrarCore()
 
 	pcall(function()
-		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
-	end)
-
-	screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "BatterySaverAFK"
-	screenGui.IgnoreGuiInset = true
-	screenGui.DisplayOrder = 999999
-	screenGui.ResetOnSpawn = false
-	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	screenGui.Parent = uiParent
-
-	local background = Instance.new("Frame")
-	background.Size = UDim2.new(1, 0, 1, 0)
-	background.BackgroundColor3 = Color3.new(0, 0, 0)
-	background.BackgroundTransparency = 0
-	background.BorderSizePixel = 0
-	background.Active = true
-	background.Parent = screenGui
-
-	toques = 0
-	tempoUltimoToque = 0
-
-	clickConnection = background.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			local agora = tick()
-
-			if agora - tempoUltimoToque > TEMPO_RESET_CLIQUES then
-				toques = 0
-			end
-
-			toques = toques + 1
-			tempoUltimoToque = agora
-
-			if toques >= CLIQUES_PARA_SAIR then
-				desligarEconomia()
-			end
+		camera.FieldOfView = originais.FOV or 70
+		if originais.QualityLevel then
+			settings().Rendering.QualityLevel = originais.QualityLevel
+		else
+			settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
 		end
+		Lighting.GlobalShadows = originais.GlobalShadows
+		Lighting.Brightness = originais.Brightness
+		Lighting.Ambient = originais.Ambient
+		Lighting.OutdoorAmbient = originais.OutdoorAmbient
+		Lighting.FogEnd = originais.FogEnd or 100000
 	end)
 
-	aplicarOtimizacoes()
+	toques = 0
+	isHolding = false
+	ultimoMovimento = tick()
 end
 
--- Ativar: !on
-player.Chatted:Connect(function(msg)
-	if string.lower(msg) == "!on" then
-		if not _G.ModoAfkAtivado then
+-- ====================== CONEXÕES ======================
+btnAtivar.Activated:Connect(ligarEconomia)
+
+-- TextBox FPS
+fpsBox.FocusLost:Connect(function(enter)
+	if enter then
+		local num = tonumber(fpsBox.Text)
+		if num then
+			currentAfkFps = math.clamp(math.floor(num), 5, 60)
+			fpsBox.Text = tostring(currentAfkFps)
+			setFPS(currentAfkFps)
+			setFFlagsLow()
+			atualizarInfo()
+		else
+			fpsBox.Text = tostring(currentAfkFps)
+		end
+	end
+end)
+
+-- 5 toques + Hold na tela preta
+black.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		local agora = tick()
+		if agora - tempoUltimoToque > TEMPO_RESET_CLIQUES then
+			toques = 0
+		end
+		toques += 1
+		tempoUltimoToque = agora
+
+		if toques >= CLIQUES_PARA_SAIR then
+			desligarEconomia()
+			return
+		end
+
+		isHolding = true
+		holdStart = agora
+	end
+end)
+
+black.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		isHolding = false
+	end
+end)
+
+-- 5 toques para ativar (quando não está em AFK)
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp or _G.ModoAfkAtivado then return end
+	if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		local agora = tick()
+		if agora - tempoUltimoToque > TEMPO_RESET_CLIQUES then
+			toques = 0
+		end
+		toques += 1
+		tempoUltimoToque = agora
+
+		if toques >= CLIQUES_PARA_SAIR then
+			toques = 0
 			ligarEconomia()
 		end
 	end
 end)
 
--- Força o FPS o tempo todo
+-- Loops
 task.spawn(function()
-	setFPS(FPS_NORMAL)
+	RunService.RenderStepped:Connect(function()
+		frameCount += 1
+		if tick() - lastFpsUpdate >= 1 then
+			fps = frameCount
+			frameCount = 0
+			lastFpsUpdate = tick()
+			atualizarInfo()
+		end
+	end)
 
 	while true do
-		if _G.ModoAfkAtivado then
-			setFPS(FPS_AFK) -- 15 FPS
-			UserInputService.MouseIconEnabled = false
-			esconderInfiniteYield()
-		else
-			setFPS(FPS_NORMAL) -- 60 FPS
+		task.wait(0.12)
+
+		if _G.ModoAfkAtivado and isHolding and (tick() - holdStart) >= TEMPO_HOLD then
+			infoFrame.Visible = true
+			atualizarInfo()
+			isHolding = false
+			task.delay(TEMPO_INFO, function()
+				if infoFrame then infoFrame.Visible = false end
+			end)
 		end
-		task.wait(0.5)
+
+		if _G.ModoAfkAtivado then
+			UserInputService.MouseIconEnabled = false
+			pcall(function() RunService:Set3dRenderingEnabled(false) end)
+			setFPS(currentAfkFps)
+		end
+	end
+end)
+
+-- Standby por tempo parado
+task.spawn(function()
+	while true do
+		task.wait(1.2)
+		local mudou = false
+		local char = player.Character
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			local pos = char.HumanoidRootPart.Position
+			if (pos - ultimaPosicao).Magnitude > 0.15 then
+				mudou = true
+				ultimaPosicao = pos
+			end
+		end
+		local look = camera.CFrame.LookVector
+		if (look - ultimoLook).Magnitude > 0.05 then
+			mudou = true
+			ultimoLook = look
+		end
+
+		if mudou then
+			if not _G.ModoAfkAtivado then
+				ultimoMovimento = tick()
+			end
+		else
+			if not _G.ModoAfkAtivado and (tick() - ultimoMovimento) >= TEMPO_STANDBY then
+				ligarEconomia()
+			end
+		end
 	end
 end)
