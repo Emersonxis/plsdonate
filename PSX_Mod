@@ -17,6 +17,8 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 
+print("[PSX Mod Hub] bootstrap iniciado")
+
 -- ====================== SERVICES & PLAYER ======================
 local player = Players.LocalPlayer
 local PlayerGui = player:WaitForChild("PlayerGui")
@@ -1091,12 +1093,16 @@ local function loadRayfieldGen2()
         "https://sirius.menu/gen2-preview",
     }
     local errors = {}
+    local compile = loadstring or load
+    if type(compile) ~= "function" then
+        error("[PSX Mod Hub] Este executor nao oferece loadstring/load")
+    end
     for _, url in ipairs(loaders) do
         local okSource, source = pcall(function()
             return game:HttpGet(url)
         end)
         if okSource and type(source) == "string" and #source > 500 then
-            local okCompile, chunk = pcall(loadstring, source)
+            local okCompile, chunk = pcall(compile, source)
             if okCompile and type(chunk) == "function" then
                 local okRun, result = pcall(chunk)
                 if okRun and type(result) == "table" and type(result.CreateWindow) == "function" then
