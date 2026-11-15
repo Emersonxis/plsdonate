@@ -17,8 +17,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 
-print("[PSX Mod Hub] bootstrap iniciado")
-
 -- ====================== SERVICES & PLAYER ======================
 local player = Players.LocalPlayer
 local PlayerGui = player:WaitForChild("PlayerGui")
@@ -222,9 +220,7 @@ local MultiEggsPerEgg = 50
 local MultiHatchWorld = "Spawn World"
 local MultiHatchMode = "Normal" -- Normal / Golden
 
-local InstantCollectEnabled = false -- liga so 5s apos o Rayfield carregar
-local InstantCollectWanted = true -- preferencia do usuario (toggle)
-local InstantCollectReady = false -- true apos 5s da UI
+local InstantCollectEnabled = true
 local AutoClaimGifts = false
 
 -- Sniper farm
@@ -234,7 +230,6 @@ local SniperMode = "Multi" -- Multi / Single
 
 local MAX_BREAKABLES = 8
 local RANGE = 200
-local FarmSpeed = 0.15 -- delay entre ciclos de farm (slider)
 local AutoFarmBreakables = false
 local AutoFarmBreakablesRandom = false
 local AutoFarmBreakablesArea = false
@@ -242,25 +237,10 @@ local Auto_Farm_Giant = false
 local Auto_Teleport = false
 
 local AreaToFarm = nil
--- Metodos Area: Nearest | Random | Priority | More Health | Less Health
 local AreaFarmMethod = "Nearest"
-local AreaPriorityTargets = {} -- dropdown estilo Sniper
-local PetAssignMode = "Spread" -- Spread = divide todos nos N targets | OnePerBreakable = 1 pet por target
-local AreaStickyUntilBreak = true -- espera o breakable sumir antes de trocar (estilo Nearest)
 local AreaRoundRobinIndex = 0
 local Giant_Chest_Selected = nil
 local Teleportable_Breakables = {}
-
--- Balloon event loop + VIP rejoin
-local AutoBalloonLoop = false
-local BalloonNameFilter = "Balloon"
-local BalloonSelectedAreas = {} -- multi (areas/mundos bons pra farm)
-local BalloonVipCode = "a72c2acbb1625b499d535a7183f11851" -- share link code
-local BalloonVipLink = "https://www.roblox.com/share?code=a72c2acbb1625b499d535a7183f11851&type=Server"
-local BalloonRejoinDelay = 5 -- segundos apos rejoin antes de farmar de novo
-local BalloonEmptyWait = 1.25 -- espera extra quando area ficou sem balloon
-local BalloonStatus = "idle"
-
 
 local Send_Webhook = false
 local WebhookURL = ""
@@ -983,7 +963,7 @@ end)
 
 -- ====================== INSTANT COLLECT ======================
 local function InstantCollect(id, pos, isBoost, boostData)
-    if not InstantCollectReady or not InstantCollectEnabled then return end
+    if not InstantCollectEnabled then return end
     Network.Fire("Collect Lootbag", id, pos)
     if isBoost and boostData then
         Library.Signal.Fire("Rewards Redeemed", {{boostData[1], boostData[2]}})
@@ -993,7 +973,7 @@ end
 local OrbBatch = {}
 pcall(function()
     Library.Network.Fired("Orb Added"):Connect(function(id, data)
-        if InstantCollectReady and InstantCollectEnabled then
+        if InstantCollectEnabled then
             table.insert(OrbBatch, id)
         end
     end)
@@ -1001,7 +981,7 @@ end)
 
 task.spawn(function()
     while task.wait(0.25) do
-        if InstantCollectReady and InstantCollectEnabled and #OrbBatch > 0 then
+        if InstantCollectEnabled and #OrbBatch > 0 then
             local clone = table.clone(OrbBatch)
             OrbBatch = {}
             pcall(function()
@@ -1015,7 +995,7 @@ end)
 
 pcall(function()
     Network.Fired("Spawn Lootbag"):Connect(function(id, data)
-        if not InstantCollectReady or not InstantCollectEnabled then return end
+        if not InstantCollectEnabled then return end
         local isBoost = (data.reward and data.reward[1] == "Boost")
         local boostData = isBoost and {data.reward[3], data.reward[2]} or nil
         InstantCollect(id, data.position, isBoost, boostData)
@@ -1087,40 +1067,7 @@ end)
 pcall(function()
     getgenv().RAYFIELD_SECURE = true
 end)
-local function loadRayfieldGen2()
-    local loaders = {
-        "https://sirius.menu/gen2",
-        "https://sirius.menu/gen2-preview",
-    }
-    local errors = {}
-    local compile = loadstring or load
-    if type(compile) ~= "function" then
-        error("[PSX Mod Hub] Este executor nao oferece loadstring/load")
-    end
-    for _, url in ipairs(loaders) do
-        local okSource, source = pcall(function()
-            return game:HttpGet(url)
-        end)
-        if okSource and type(source) == "string" and #source > 500 then
-            local okCompile, chunk = pcall(compile, source)
-            if okCompile and type(chunk) == "function" then
-                local okRun, result = pcall(chunk)
-                if okRun and type(result) == "table" and type(result.CreateWindow) == "function" then
-                    print("[PSX Mod Hub] Rayfield carregada:", url)
-                    return result
-                end
-                table.insert(errors, url .. " -> retorno invalido: " .. tostring(result))
-            else
-                table.insert(errors, url .. " -> compilacao: " .. tostring(chunk))
-            end
-        else
-            table.insert(errors, url .. " -> HttpGet: " .. tostring(source))
-        end
-    end
-    error("[PSX Mod Hub] Falha ao carregar Rayfield Gen2: " .. table.concat(errors, " | "))
-end
-
-local Rayfield = loadRayfieldGen2()
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
 
 local window = Rayfield:CreateWindow({
     name = "PSX Mod Hub",
@@ -1920,389 +1867,8 @@ AutoDelete_Tab:CreateToggle({
     end,
 })
 
-
-
--- ====================== VIP REJOIN + BALLOON WORLD LOOP ======================
-local TeleportService = game:GetService("TeleportService")
-
-local function extractVipCode(text)
-    if not text or text == "" then return nil end
-    text = tostring(text):gsub("%s+", "")
-    local code = text:match("[?&]code=([%w%-]+)")
-        or text:match("privateServerLinkCode=([%w%-]+)")
-        or text:match("share_links%?code=([%w%-]+)")
-    if code then return code end
-    if text:match("^[%w%-]+$") and #text >= 8 then return text end
-    return nil
-end
-
-local function setVipFromText(text)
-    local code = extractVipCode(text)
-    if code then
-        BalloonVipCode = code
-        if tostring(text):find("http") then
-            BalloonVipLink = text
-        else
-            BalloonVipLink = "https://www.roblox.com/share?code=" .. code .. "&type=Server"
-        end
-        return code
-    end
-    return nil
-end
-
--- tenta varios metodos: share code / private / deeplink
-local function rejoinVipServer()
-    local code = BalloonVipCode
-    if (not code or code == "") and BalloonVipLink then
-        code = extractVipCode(BalloonVipLink)
-        BalloonVipCode = code
-    end
-    if not code or code == "" then
-        warn("[VIP] Nenhum codigo VIP salvo")
-        return false
-    end
-    local lp = player
-    local placeId = game.PlaceId
-    BalloonStatus = "rejoining VIP"
-    print("[VIP] Rejoin code=", code, "place=", placeId)
-
-    -- 1) TeleportToPrivateServer (access code classico)
-    local ok1 = pcall(function()
-        TeleportService:TeleportToPrivateServer(placeId, code, {lp})
-    end)
-    if ok1 then return true end
-
-    -- 2) TeleportAsync + ReservedServerAccessCode
-    local ok2 = pcall(function()
-        local opts = Instance.new("TeleportOptions")
-        pcall(function() opts.ReservedServerAccessCode = code end)
-        pcall(function() opts:SetTeleportData({ vipCode = code }) end)
-        TeleportService:TeleportAsync(placeId, {lp}, opts)
-    end)
-    if ok2 then return true end
-
-    -- 3) Deeplink share (alguns executors abrem)
-    local deep = "roblox://navigation/share_links?code=" .. code .. "&type=Server"
-    local ok3 = pcall(function()
-        if typeof(request) == "function" then
-            request({ Url = BalloonVipLink or deep, Method = "GET" })
-        elseif syn and syn.request then
-            syn.request({ Url = BalloonVipLink or deep, Method = "GET" })
-        end
-    end)
-    pcall(function()
-        if setclipboard then setclipboard(BalloonVipLink or deep) end
-        if toclipboard then toclipboard(BalloonVipLink or deep) end
-    end)
-    print("[VIP] Fallback: link copiado. Cole no browser se o teleport falhar:", BalloonVipLink or deep)
-    notify("VIP", "Teleport falhou — link copiado", 5)
-    return ok3
-end
-
-local function isBalloonCoin(coin)
-    if type(coin) ~= "table" then return false end
-    local n = tostring(coin.n or coin.name or coin.Name or "")
-    local f = tostring(BalloonNameFilter or "Balloon")
-    if f == "" then f = "Balloon" end
-    return n:lower():find(f:lower(), 1, true) ~= nil
-end
-
-local function listBalloonsInArea(areaName)
-    local list = {}
-    for id, coin in pairs(ServerCoins or {}) do
-        if coin and coin.p and isBalloonCoin(coin) then
-            if not areaName or coin.a == areaName then
-                table.insert(list, {
-                    id = id,
-                    p = coin.p,
-                    a = coin.a,
-                    n = tostring(coin.n or ""),
-                    distance = (HumanoidRootPart and (coin.p - HumanoidRootPart.Position).Magnitude) or 0,
-                })
-            end
-        end
-    end
-    table.sort(list, function(a, b) return (a.distance or 0) < (b.distance or 0) end)
-    return list
-end
-
-local function countBalloonsInArea(areaName)
-    return #listBalloonsInArea(areaName)
-end
-
-local function farmBalloonsOnce(areaName)
-    local equippedPets = getEquippedPets()
-    if #equippedPets == 0 then return 0 end
-    local balloons = listBalloonsInArea(areaName)
-    if #balloons == 0 then return 0 end
-
-    -- corta no Max Breakables
-    while #balloons > math.max(1, MAX_BREAKABLES or 8) do
-        table.remove(balloons)
-    end
-
-    -- puxa o player pro balloon mais perto (garante range)
-    local nearest = balloons[1]
-    if nearest and nearest.p and HumanoidRootPart then
-        pcall(function()
-            HumanoidRootPart.CFrame = CFrame.new(nearest.p + Vector3.new(0, 4, 0))
-            if Safe_Part then
-                Safe_Part.CFrame = CFrame.new(nearest.p) - Vector3.new(0, 5, 0)
-            end
-        end)
-    end
-
-    local byTarget = buildPetAssignments(equippedPets, balloons)
-    fireFarmOnTargets(byTarget)
-    return #balloons
-end
-
-local function waitAreaEmptyOfBalloons(areaName, timeout)
-    local t0 = tick()
-    timeout = timeout or 90
-    while tick() - t0 < timeout do
-        if not AutoBalloonLoop then return false end
-        pcall(LoadAllCoinsInternal)
-        if countBalloonsInArea(areaName) == 0 then
-            task.wait(BalloonEmptyWait or 1.25)
-            pcall(LoadAllCoinsInternal)
-            if countBalloonsInArea(areaName) == 0 then
-                return true
-            end
-        else
-            farmBalloonsOnce(areaName)
-        end
-        task.wait(FarmSpeed or 0.15)
-    end
-    return countBalloonsInArea(areaName) == 0
-end
-
-local function goToArea(areaName)
-    -- tenta achar qualquer coin/spawn da area pra teleportar
-    for id, coin in pairs(ServerCoins or {}) do
-        if coin and coin.p and coin.a == areaName then
-            pcall(function()
-                if HumanoidRootPart then
-                    HumanoidRootPart.CFrame = CFrame.new(coin.p + Vector3.new(0, 5, 0))
-                end
-            end)
-            return true
-        end
-    end
-    -- fallback: Network travel (nomes comuns no PSX)
-    local tried = false
-    for _, remoteName in ipairs({
-        "Travel to World", "Teleport to World", "Join World", "Change World",
-        "WorldCmds:Teleport", "Teleport",
-    }) do
-        tried = pcall(function()
-            Network.Invoke(remoteName, areaName)
-        end) or tried
-        tried = pcall(function()
-            Network.Fire(remoteName, areaName)
-        end) or tried
-    end
-    pcall(function()
-        if Library.WorldCmds and Library.WorldCmds.Teleport then
-            Library.WorldCmds.Teleport(areaName)
-        end
-    end)
-    return tried
-end
-
-local function runBalloonWorldLoop()
-    while AutoBalloonLoop do
-        local areas = BalloonSelectedAreas
-        if not areas or #areas == 0 then
-            -- fallback: todas as areas conhecidas
-            areas = AllGameAreas
-        end
-        if not areas or #areas == 0 then
-            BalloonStatus = "sem areas"
-            task.wait(2)
-            continue
-        end
-
-        for _, areaName in ipairs(areas) do
-            if not AutoBalloonLoop then break end
-            BalloonStatus = "area: " .. tostring(areaName)
-            print("[Balloon] Indo para", areaName)
-            pcall(LoadAllCoinsInternal)
-            goToArea(areaName)
-            task.wait(0.6)
-            pcall(LoadAllCoinsInternal)
-
-            -- se nao tem balloon nessa area, pula
-            if countBalloonsInArea(areaName) == 0 then
-                print("[Balloon] Sem Balloon em", areaName, "— next")
-                continue
-            end
-
-            BalloonStatus = "farmando: " .. tostring(areaName)
-            waitAreaEmptyOfBalloons(areaName, 180)
-            print("[Balloon] Area limpa:", areaName)
-        end
-
-        if not AutoBalloonLoop then break end
-
-        -- loop de mundos completo → rejoin VIP pra resetar balloons
-        BalloonStatus = "rejoin VIP"
-        print("[Balloon] Loop completo — rejoin VIP para resetar spawns")
-        notify("Balloon Loop", "Rejoin VIP (reset spawns)...", 4)
-        local ok = rejoinVipServer()
-        -- se teleportou, o script reinicia no load; se nao, espera e continua
-        task.wait(math.max(1, BalloonRejoinDelay or 5))
-        if ok then
-            -- apos teleport o LocalScript reinicia; flag em getgenv pra auto-retomar
-            pcall(function()
-                getgenv()._PSX_AutoBalloonResume = true
-                getgenv()._PSX_BalloonVipCode = BalloonVipCode
-                getgenv()._PSX_BalloonAreas = BalloonSelectedAreas
-                getgenv()._PSX_BalloonDelay = BalloonRejoinDelay
-                getgenv()._PSX_BalloonFilter = BalloonNameFilter
-            end)
-        end
-        BalloonStatus = "pos-rejoin wait"
-        task.wait(0.5)
-    end
-    BalloonStatus = "idle"
-end
-
-
--- ====================== FARM HELPERS ======================
-local function coinHealth(coin)
-    if type(coin) ~= "table" then return 0 end
-    local h = coin.h or coin.hp or coin.health or coin.Health or coin.m or coin.maxHealth
-    return tonumber(h) or 0
-end
-
-local function coinNameOf(coin)
-    if type(coin) ~= "table" then return "" end
-    return tostring(coin.n or coin.name or coin.Name or "")
-end
-
-local function matchesNameList(coinName, list)
-    if not list or #list == 0 then return true end -- sem filtro = tudo
-    local cn = tostring(coinName or ""):lower()
-    if cn == "" then return false end
-    for _, t in ipairs(list) do
-        local tl = tostring(t):lower()
-        if tl == "" then continue end
-        if cn == tl or cn:find(tl, 1, true) or tl:find(cn, 1, true) then
-            return true
-        end
-    end
-    return false
-end
-
--- Divide pets nos targets:
--- Spread: 22 pets em 5 breakables -> ~4-5 pets cada (Max rewards Fired em varios)
--- OnePerBreakable: 1 pet por breakable (ate Max Breakables)
-local function buildPetAssignments(equippedPets, targets)
-    local byTarget = {}
-    if not equippedPets or #equippedPets == 0 or not targets or #targets == 0 then
-        return byTarget
-    end
-    local limit = math.min(#targets, math.max(1, MAX_BREAKABLES or 1))
-    if PetAssignMode == "OnePerBreakable" then
-        local n = math.min(#equippedPets, limit)
-        for i = 1, n do
-            local tid = targets[i].id
-            byTarget[tid] = { equippedPets[i] }
-        end
-    else
-        -- Spread round-robin
-        for i, petUID in ipairs(equippedPets) do
-            local t = targets[((i - 1) % limit) + 1]
-            if t then
-                byTarget[t.id] = byTarget[t.id] or {}
-                table.insert(byTarget[t.id], petUID)
-            end
-        end
-    end
-    return byTarget
-end
-
-local function fireFarmOnTargets(byTarget)
-    for tid, pets in pairs(byTarget) do
-        task.spawn(function()
-            pcall(function()
-                Network.Invoke("Join Coin", tid, pets)
-            end)
-            for _, petUID in ipairs(pets) do
-                pcall(function()
-                    Network.Fire("Change Pet Target", petUID, "Coin", tid)
-                    Network.Fire("Farm Coin", tid, petUID)
-                end)
-            end
-        end)
-    end
-end
-
-local function sortTargetsNearest(list, origin)
-    table.sort(list, function(a, b)
-        local da = a.distance or ((a.p and origin) and (a.p - origin).Magnitude) or 0
-        local db = b.distance or ((b.p and origin) and (b.p - origin).Magnitude) or 0
-        return da < db
-    end)
-end
-
-local function sortTargetsHealth(list, more)
-    table.sort(list, function(a, b)
-        if more then
-            return (a.health or 0) > (b.health or 0)
-        end
-        return (a.health or 0) < (b.health or 0)
-    end)
-end
-
-local function collectAreaTargets(areaName, method, priorityList, origin)
-    local valid = {}
-    for id, coin in pairs(ServerCoins or {}) do
-        if coin and coin.p and coin.a == areaName then
-            local cname = coinNameOf(coin)
-            local ok = true
-            if method == "Priority" then
-                ok = matchesNameList(cname, priorityList)
-            end
-            if ok then
-                local dist = origin and (coin.p - origin).Magnitude or 0
-                table.insert(valid, {
-                    id = id,
-                    p = coin.p,
-                    n = cname,
-                    health = coinHealth(coin),
-                    distance = dist,
-                })
-            end
-        end
-    end
-    if method == "Nearest" then
-        sortTargetsNearest(valid, origin)
-    elseif method == "More Health" then
-        sortTargetsHealth(valid, true)
-    elseif method == "Less Health" then
-        sortTargetsHealth(valid, false)
-    elseif method == "Random" then
-        -- shuffle leve
-        for i = #valid, 2, -1 do
-            local j = math.random(1, i)
-            valid[i], valid[j] = valid[j], valid[i]
-        end
-    elseif method == "Priority" then
-        -- prioridade: match primeiro, depois nearest
-        sortTargetsNearest(valid, origin)
-    end
-    -- corta no Max Breakables (mantem os melhores ja ordenados)
-    while #valid > math.max(1, MAX_BREAKABLES or 1) do
-        table.remove(valid)
-    end
-    return valid
-end
-
 local autoFarmTab = window:CreateTab({ name = "Auto Farm", icon = "swords" })
 
-autoFarmTab:CreateSection({ name = "Geral" })
 autoFarmTab:CreateSlider({
     name = "Max Breakables",
     Range = {1, 40},
@@ -2312,33 +1878,6 @@ autoFarmTab:CreateSlider({
     flag = "MaxBreakables",
     callback = function(Value)
         MAX_BREAKABLES = Value
-    end,
-})
-
-autoFarmTab:CreateSlider({
-    name = "Farm Speed (delay ciclo)",
-    Range = {0.05, 1.00},
-    Increment = 0.05,
-    Suffix = "s",
-    value = FarmSpeed,
-    flag = "FarmSpeed",
-    callback = function(Value)
-        FarmSpeed = math.max(0.05, tonumber(Value) or 0.15)
-    end,
-})
-
-autoFarmTab:CreateDropdown({
-    name = "Pet Assign Mode",
-    options = {"Spread (divide todos)", "1 pet por breakable"},
-    multiSelect = false,
-    flag = "PetAssignMode",
-    callback = function(Options)
-        local v = pickDropdown(Options)
-        if v and tostring(v):find("1 pet") then
-            PetAssignMode = "OnePerBreakable"
-        else
-            PetAssignMode = "Spread"
-        end
     end,
 })
 
@@ -2404,7 +1943,7 @@ autoFarmTab:CreateToggle({
                     end
                 end
 
-                task.wait(FarmSpeed or 0.15)
+                task.wait(0.15)
             end
         end)
     end,
@@ -2465,7 +2004,7 @@ autoFarmTab:CreateToggle({
                     end
                 end
 
-                task.wait(FarmSpeed or 0.15)
+                task.wait(0.15)
             end
         end)
     end,
@@ -2475,40 +2014,10 @@ autoFarmTab:CreateSection({ name = "Area Mode" })
 autoFarmTab:CreateDropdown({
     name = "Select Area to Farm",
     options = AllGameAreas,
-    multiSelect = false,
+        multiSelect = false,
     flag = "AreaToFarm",
     callback = function(Options)
         AreaToFarm = pickDropdown(Options)
-    end,
-})
-
-autoFarmTab:CreateDropdown({
-    name = "Area Farm Method",
-    options = {"Nearest", "Random", "Priority", "More Health", "Less Health"},
-    multiSelect = false,
-    flag = "AreaFarmMethod",
-    callback = function(Options)
-        AreaFarmMethod = pickDropdown(Options) or "Nearest"
-    end,
-})
-
-local areaPriorityDropdown = autoFarmTab:CreateDropdown({
-    name = "Area Priority Breakables (estilo Sniper)",
-    options = makeUniqueBreakableOptions(DynamicBreakables, true),
-    value = {},
-    multiSelect = true,
-    flag = "AreaPriorityTargets",
-    callback = function(Options)
-        AreaPriorityTargets = listDropdown(Options)
-    end,
-})
-
-autoFarmTab:CreateToggle({
-    name = "Sticky ate quebrar (nao troca cedo)",
-    value = true,
-    flag = "AreaStickyUntilBreak",
-    callback = function(Value)
-        AreaStickyUntilBreak = Value
     end,
 })
 
@@ -2521,8 +2030,8 @@ autoFarmTab:CreateToggle({
         if not AutoFarmBreakablesArea then return end
         ensureNetworkBypass()
 
+        -- Mesma logica do Random, filtrando pela Area selecionada (mais rapido)
         task.spawn(function()
-            local stickyIds = {} -- id -> true enquanto ainda existe
             while AutoFarmBreakablesArea do
                 if not HumanoidRootPart or not HumanoidRootPart.Parent then
                     task.wait(0.5)
@@ -2539,44 +2048,39 @@ autoFarmTab:CreateToggle({
                     continue
                 end
 
-                local method = AreaFarmMethod or "Nearest"
-                local origin = HumanoidRootPart.Position
-                local validTargets = collectAreaTargets(AreaToFarm, method, AreaPriorityTargets, origin)
-
-                -- Sticky: mantem targets ainda vivos e so completa ate Max Breakables
-                if AreaStickyUntilBreak then
-                    local still = {}
-                    for id, _ in pairs(stickyIds) do
-                        local coin = ServerCoins[id]
-                        if coin and coin.p and coin.a == AreaToFarm then
-                            table.insert(still, {
-                                id = id,
-                                p = coin.p,
-                                n = coinNameOf(coin),
-                                health = coinHealth(coin),
-                                distance = (coin.p - origin).Magnitude,
-                            })
-                        end
+                local validTargets = {}
+                for id, coin in pairs(ServerCoins) do
+                    if coin.p and coin.a == AreaToFarm then
+                        table.insert(validTargets, { id = id, p = coin.p })
                     end
-                    stickyIds = {}
-                    for _, t in ipairs(still) do stickyIds[t.id] = true end
-                    -- completa com novos ate MAX
-                    for _, t in ipairs(validTargets) do
-                        if #still >= MAX_BREAKABLES then break end
-                        if not stickyIds[t.id] then
-                            table.insert(still, t)
-                            stickyIds[t.id] = true
-                        end
-                    end
-                    validTargets = still
                 end
 
                 if #validTargets > 0 then
-                    local byTarget = buildPetAssignments(equippedPets, validTargets)
-                    fireFarmOnTargets(byTarget)
+                    while #validTargets > MAX_BREAKABLES do
+                        table.remove(validTargets, math.random(1, #validTargets))
+                    end
+                    local byTarget = {}
+                    for _, petUID in ipairs(equippedPets) do
+                        local target = validTargets[math.random(1, #validTargets)]
+                        byTarget[target.id] = byTarget[target.id] or {}
+                        table.insert(byTarget[target.id], petUID)
+                    end
+                    for tid, pets in pairs(byTarget) do
+                        task.spawn(function()
+                            pcall(function()
+                                Network.Invoke("Join Coin", tid, pets)
+                            end)
+                            for _, petUID in ipairs(pets) do
+                                pcall(function()
+                                    Network.Fire("Change Pet Target", petUID, "Coin", tid)
+                                    Network.Fire("Farm Coin", tid, petUID)
+                                end)
+                            end
+                        end)
+                    end
                 end
 
-                task.wait(FarmSpeed or 0.15)
+                task.wait(0.15)
             end
         end)
     end,
@@ -4078,103 +3582,6 @@ Exp_Tab:CreateToggle({
 })
 
 local AntiAFK = true
-
-Exp_Tab:CreateSection({ name = "Balloon Event + VIP Reset" })
-Exp_Tab:CreateInput({
-    name = "VIP Share Link / Code",
-    value = BalloonVipLink,
-    placeholder = "https://www.roblox.com/share?code=...&type=Server",
-    flag = "BalloonVipLink",
-    callback = function(Text)
-        local c = setVipFromText(Text)
-        if c then
-            notify("VIP", "Code salvo: " .. c, 3)
-        else
-            notify("VIP", "Nao consegui ler o code", 3)
-        end
-    end,
-})
-
-Exp_Tab:CreateInput({
-    name = "Filtro do breakable",
-    value = "Balloon",
-    placeholder = "Balloon",
-    flag = "BalloonFilter",
-    callback = function(Text)
-        BalloonNameFilter = (Text and Text ~= "") and Text or "Balloon"
-    end,
-})
-
-Exp_Tab:CreateDropdown({
-    name = "Areas/Mundos do loop (bons pra farm)",
-    options = AllGameAreas,
-    value = {},
-    multiSelect = true,
-    flag = "BalloonAreas",
-    callback = function(Options)
-        BalloonSelectedAreas = listDropdown(Options)
-    end,
-})
-
-Exp_Tab:CreateSlider({
-    name = "Delay pos-rejoin VIP",
-    Range = {2, 30},
-    Increment = 1,
-    Suffix = "s",
-    value = BalloonRejoinDelay,
-    flag = "BalloonRejoinDelay",
-    callback = function(Value)
-        BalloonRejoinDelay = math.max(2, tonumber(Value) or 5)
-    end,
-})
-
-Exp_Tab:CreateButton({
-    name = "Rejoin VIP agora (reset server)",
-    callback = function()
-        rejoinVipServer()
-    end,
-})
-
-Exp_Tab:CreateButton({
-    name = "Copiar link VIP",
-    callback = function()
-        pcall(function()
-            if setclipboard then setclipboard(BalloonVipLink) end
-            if toclipboard then toclipboard(BalloonVipLink) end
-        end)
-        notify("VIP", "Link copiado", 3)
-    end,
-})
-
-Exp_Tab:CreateToggle({
-    name = "Auto Balloon Loop (mundos → VIP reset)",
-    value = false,
-    flag = "AutoBalloonLoop",
-    callback = function(Value)
-        AutoBalloonLoop = Value
-        if not AutoBalloonLoop then
-            BalloonStatus = "idle"
-            return
-        end
-        ensureNetworkBypass()
-        task.spawn(runBalloonWorldLoop)
-    end,
-})
-
-Exp_Tab:CreateButton({
-    name = "Status Balloon Loop",
-    callback = function()
-        local n = 0
-        pcall(function()
-            for _, coin in pairs(ServerCoins or {}) do
-                if isBalloonCoin(coin) then n = n + 1 end
-            end
-        end)
-        notify("Balloon", tostring(BalloonStatus) .. " | balloons=" .. n .. " | areas=" .. tostring(#(BalloonSelectedAreas or {})), 5)
-        print("[Balloon] status=", BalloonStatus, "balloons=", n, "vip=", BalloonVipCode)
-    end,
-})
-
 Exp_Tab:CreateToggle({
     name = "Anti AFK",
     value = true,
@@ -4221,9 +3628,7 @@ Misc_Tab:CreateToggle({
     value = true,
     flag = "InstantCollect",
     callback = function(Value)
-        InstantCollectWanted = Value
-        -- so aplica de verdade depois do boot de 5s
-        InstantCollectEnabled = InstantCollectReady and Value
+        InstantCollectEnabled = Value
         if not Value then
             OrbBatch = {}
         end
@@ -4305,30 +3710,6 @@ Misc_Tab:CreateToggle({
 Misc_Tab:CreateSection({ name = "Info" })
 pcall(function()
     Misc_Tab:CreateSection({ name = "PSX Mod Hub - Improved | Giant Chest inteligente" })
-end)
-
--- Instant Collect so ativa 5s apos a UI (evita bug no boot)
-task.spawn(function()
-    task.wait(5)
-    InstantCollectReady = true
-    InstantCollectEnabled = InstantCollectWanted and true
-    print("[PSX Mod Hub] Instant Collect ready:", InstantCollectEnabled)
-end)
-
--- retoma Balloon Loop apos rejoin VIP
-task.spawn(function()
-    task.wait(math.max(3, (getgenv()._PSX_BalloonDelay or BalloonRejoinDelay or 5)))
-    if getgenv()._PSX_AutoBalloonResume then
-        getgenv()._PSX_AutoBalloonResume = false
-        if getgenv()._PSX_BalloonVipCode then BalloonVipCode = getgenv()._PSX_BalloonVipCode end
-        if type(getgenv()._PSX_BalloonAreas) == "table" then BalloonSelectedAreas = getgenv()._PSX_BalloonAreas end
-        if getgenv()._PSX_BalloonFilter then BalloonNameFilter = getgenv()._PSX_BalloonFilter end
-        if getgenv()._PSX_BalloonDelay then BalloonRejoinDelay = getgenv()._PSX_BalloonDelay end
-        print("[Balloon] Auto-resume apos VIP rejoin")
-        AutoBalloonLoop = true
-        task.spawn(runBalloonWorldLoop)
-        notify("Balloon Loop", "Retomado apos VIP reset", 4)
-    end
 end)
 
 print("[PSX Mod Hub] Loaded successfully!")
