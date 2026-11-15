@@ -220,7 +220,9 @@ local MultiEggsPerEgg = 50
 local MultiHatchWorld = "Spawn World"
 local MultiHatchMode = "Normal" -- Normal / Golden
 
-local InstantCollectEnabled = true
+local InstantCollectEnabled = false
+local InstantCollectWanted = true
+local InstantCollectReady = false
 local AutoClaimGifts = false
 
 -- Sniper farm
@@ -974,7 +976,7 @@ end)
 
 -- ====================== INSTANT COLLECT ======================
 local function InstantCollect(id, pos, isBoost, boostData)
-    if not InstantCollectEnabled then return end
+    if not InstantCollectReady or not InstantCollectEnabled then return end
     Network.Fire("Collect Lootbag", id, pos)
     if isBoost and boostData then
         Library.Signal.Fire("Rewards Redeemed", {{boostData[1], boostData[2]}})
@@ -984,7 +986,7 @@ end
 local OrbBatch = {}
 pcall(function()
     Library.Network.Fired("Orb Added"):Connect(function(id, data)
-        if InstantCollectEnabled then
+        if InstantCollectReady and InstantCollectEnabled then
             table.insert(OrbBatch, id)
         end
     end)
@@ -992,7 +994,7 @@ end)
 
 task.spawn(function()
     while task.wait(0.25) do
-        if InstantCollectEnabled and #OrbBatch > 0 then
+        if InstantCollectReady and InstantCollectEnabled and #OrbBatch > 0 then
             local clone = table.clone(OrbBatch)
             OrbBatch = {}
             pcall(function()
@@ -1006,7 +1008,7 @@ end)
 
 pcall(function()
     Network.Fired("Spawn Lootbag"):Connect(function(id, data)
-        if not InstantCollectEnabled then return end
+        if not InstantCollectReady or not InstantCollectEnabled then return end
         local isBoost = (data.reward and data.reward[1] == "Boost")
         local boostData = isBoost and {data.reward[3], data.reward[2]} or nil
         InstantCollect(id, data.position, isBoost, boostData)
@@ -3899,7 +3901,8 @@ Misc_Tab:CreateToggle({
     value = true,
     flag = "InstantCollect",
     callback = function(Value)
-        InstantCollectEnabled = Value
+        InstantCollectWanted = Value
+        InstantCollectEnabled = InstantCollectReady and Value
         if not Value then
             OrbBatch = {}
         end
@@ -3981,6 +3984,12 @@ Misc_Tab:CreateToggle({
 Misc_Tab:CreateSection({ name = "Info" })
 pcall(function()
     Misc_Tab:CreateSection({ name = "PSX Mod Hub - Improved | Giant Chest inteligente" })
+end)
+
+task.spawn(function()
+    task.wait(5)
+    InstantCollectReady = true
+    InstantCollectEnabled = InstantCollectWanted
 end)
 
 print("[PSX Mod Hub] Loaded successfully!")
