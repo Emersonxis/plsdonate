@@ -242,6 +242,13 @@ local AreaRoundRobinIndex = 0
 local Giant_Chest_Selected = nil
 local Teleportable_Breakables = {}
 
+-- Balloon Event (experimental, desativado por padrão)
+local AutoBalloonFarm = false
+local BalloonArea = nil
+local BalloonVipLink = ""
+local BalloonRejoinDelay = 5
+local BalloonStatus = "idle"
+
 local Send_Webhook = false
 local WebhookURL = ""
 local UserID = ""
@@ -3385,6 +3392,72 @@ Col_Tab:CreateToggle({
 })
 
 -- ====================== TAB: EXPERIMENTAL ======================
+local function balloonCodeFromText(text)
+    text = tostring(text or "")
+    return text:match("[?&]code=([%w%-]+)") or text:match("^([%w%-]+)$")
+end
+
+local function balloonList(areaName)
+    local result = {}
+    for id, coin in pairs(ServerCoins or {}) do
+        local name = tostring(coin and (coin.n or coin.name or coin.Name) or "")
+        if coin and coin.p and name:lower():find("balloon", 1, true)
+            and (not areaName or coin.a == areaName) then
+            table.insert(result, { id = id, position = coin.p })
+        end
+    end
+    return result
+end
+
+local function farmBalloonOnce(areaName)
+    local pets = getEquippedPets()
+    local balloons = balloonList(areaName)
+    if #pets == 0 or #balloons == 0 then return #balloons end
+    local maxTargets = math.min(#balloons, MAX_BREAKABLES or 8)
+    for index, petUID in ipairs(pets) do
+        local target = balloons[((index - 1) % maxTargets) + 1]
+        if target then
+            pcall(function()
+                Network.Invoke("Join Coin", target.id, { petUID })
+                Network.Fire("Change Pet Target", petUID, "Coin", target.id)
+                Network.Fire("Farm Coin", target.id, petUID)
+            end)
+        end
+    end
+    return #balloons
+end
+
+local function rejoinBalloonVip()
+    local code = balloonCodeFromText(BalloonVipLink)
+    if not code then
+        BalloonStatus = "VIP code invalido"
+        return false
+    end
+    local ok = pcall(function()
+        game:GetService("TeleportService"):TeleportToPrivateServer(game.PlaceId, code, { player })
+    end)
+    BalloonStatus = ok and "rejoining VIP" or "falha no rejoin"
+    return ok
+end
+
+local function runBalloonFarm()
+    task.spawn(function()
+        while AutoBalloonFarm do
+            local count = balloonList(BalloonArea)
+            if #count > 0 then
+                BalloonStatus = "farmando"
+                farmBalloonOnce(BalloonArea)
+            else
+                BalloonStatus = "area vazia"
+                task.wait(1)
+            end
+            task.wait(0.25)
+        end
+        BalloonStatus = "idle"
+    end)
+end
+
+-- ====================== TAB: EXPERIMENTAL ======================
 local Exp_Tab = window:CreateTab({ name = "Experimental", icon = "flask-conical" })
 Exp_Tab:CreateSection({ name = "Remotes / Util" })
 
@@ -3616,6 +3689,63 @@ Exp_Tab:CreateToggle({
             end
             settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
         end)
+    end,
+})
+
+Exp_Tab:CreateSection({ name = "Balloon Event (novo)" })
+Exp_Tab:CreateInput({
+    name = "VIP Share Link / Code",
+    value = BalloonVipLink,
+    placeholder = "https://www.roblox.com/share?code=...&type=Server",
+    flag = "BalloonVipLink",
+    callback = function(Text)
+        BalloonVipLink = tostring(Text or "")
+    end,
+})
+Exp_Tab:CreateDropdown({
+    name = "Balloon Area",
+    options = AllGameAreas,
+    value = {},
+    multiSelect = false,
+    flag = "BalloonArea",
+    callback = function(Options)
+        BalloonArea = pickDropdown(Options)
+    end,
+})
+Exp_Tab:CreateSlider({
+    name = "Delay do reset VIP",
+    Range = {2, 30},
+    Increment = 1,
+    Suffix = "s",
+    value = BalloonRejoinDelay,
+    flag = "BalloonRejoinDelay",
+    callback = function(Value)
+        BalloonRejoinDelay = math.max(2, tonumber(Value) or 5)
+    end,
+})
+Exp_Tab:CreateToggle({
+    name = "Auto Farm Balloon",
+    value = false,
+    flag = "AutoBalloonFarm",
+    callback = function(Value)
+        AutoBalloonFarm = Value
+        if Value then
+            runBalloonFarm()
+        else
+            BalloonStatus = "idle"
+        end
+    end,
+})
+Exp_Tab:CreateButton({
+    name = "Rejoin VIP agora",
+    callback = function()
+        rejoinBalloonVip()
+    end,
+})
+Exp_Tab:CreateButton({
+    name = "Status dos Balloons",
+    callback = function()
+        notify("Balloon", BalloonStatus .. " | encontrados: " .. tostring(#balloonList(BalloonArea)), 4)
     end,
 })
 
