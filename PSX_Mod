@@ -1085,7 +1085,36 @@ end)
 pcall(function()
     getgenv().RAYFIELD_SECURE = true
 end)
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
+local function loadRayfieldGen2()
+    local loaders = {
+        "https://sirius.menu/gen2",
+        "https://sirius.menu/gen2-preview",
+    }
+    local errors = {}
+    for _, url in ipairs(loaders) do
+        local okSource, source = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if okSource and type(source) == "string" and #source > 500 then
+            local okCompile, chunk = pcall(loadstring, source)
+            if okCompile and type(chunk) == "function" then
+                local okRun, result = pcall(chunk)
+                if okRun and type(result) == "table" and type(result.CreateWindow) == "function" then
+                    print("[PSX Mod Hub] Rayfield carregada:", url)
+                    return result
+                end
+                table.insert(errors, url .. " -> retorno invalido: " .. tostring(result))
+            else
+                table.insert(errors, url .. " -> compilacao: " .. tostring(chunk))
+            end
+        else
+            table.insert(errors, url .. " -> HttpGet: " .. tostring(source))
+        end
+    end
+    error("[PSX Mod Hub] Falha ao carregar Rayfield Gen2: " .. table.concat(errors, " | "))
+end
+
+local Rayfield = loadRayfieldGen2()
 
 local window = Rayfield:CreateWindow({
     name = "PSX Mod Hub",
