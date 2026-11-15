@@ -230,6 +230,7 @@ local SniperMode = "Multi" -- Multi / Single
 
 local MAX_BREAKABLES = 8
 local RANGE = 200
+local FarmSpeed = 0.15
 local AutoFarmBreakables = false
 local AutoFarmBreakablesRandom = false
 local AutoFarmBreakablesArea = false
@@ -238,6 +239,9 @@ local Auto_Teleport = false
 
 local AreaToFarm = nil
 local AreaFarmMethod = "Nearest"
+local AreaPriorityTargets = {}
+local PetAssignMode = "Spread"
+local AreaStickyUntilBreak = true
 local AreaRoundRobinIndex = 0
 local Giant_Chest_Selected = nil
 local Teleportable_Breakables = {}
@@ -1874,6 +1878,92 @@ AutoDelete_Tab:CreateToggle({
     end,
 })
 
+local function farmCoinHealth(coin)
+    if type(coin) ~= "table" then return 0 end
+    return tonumber(coin.h or coin.hp or coin.health or coin.Health or coin.m or coin.maxHealth) or 0
+end
+
+local function farmCoinName(coin)
+    return tostring(coin and (coin.n or coin.name or coin.Name) or "")
+end
+
+local function matchesFarmPriority(name, selected)
+    if not selected or #selected == 0 then return true end
+    local lowerName = tostring(name or ""):lower()
+    for _, wanted in ipairs(selected) do
+        local lowerWanted = tostring(wanted):lower()
+        if lowerName == lowerWanted or lowerName:find(lowerWanted, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+local function collectAreaFarmTargets(areaName, method, selected, origin)
+    local targets = {}
+    for id, coin in pairs(ServerCoins or {}) do
+        if coin and coin.p and coin.a == areaName then
+            local name = farmCoinName(coin)
+            if method ~= "Priority" or matchesFarmPriority(name, selected) then
+                table.insert(targets, {
+                    id = id,
+                    p = coin.p,
+                    name = name,
+                    health = farmCoinHealth(coin),
+                    distance = origin and (coin.p - origin).Magnitude or 0,
+                })
+            end
+        end
+    end
+    if method == "More Health" then
+        table.sort(targets, function(a, b) return a.health > b.health end)
+    elseif method == "Less Health" then
+        table.sort(targets, function(a, b) return a.health < b.health end)
+    elseif method == "Random" then
+        for i = #targets, 2, -1 do
+            local j = math.random(1, i)
+            targets[i], targets[j] = targets[j], targets[i]
+        end
+    else
+        table.sort(targets, function(a, b) return a.distance < b.distance end)
+    end
+    while #targets > math.max(1, MAX_BREAKABLES or 1) do
+        table.remove(targets)
+    end
+    return targets
+end
+
+local function assignFarmPets(pets, targets)
+    local assigned = {}
+    if not pets or #pets == 0 or not targets or #targets == 0 then return assigned end
+    if PetAssignMode == "OnePerBreakable" then
+        for i = 1, math.min(#pets, #targets) do
+            assigned[targets[i].id] = { pets[i] }
+        end
+    else
+        for i, petUID in ipairs(pets) do
+            local target = targets[((i - 1) % #targets) + 1]
+            assigned[target.id] = assigned[target.id] or {}
+            table.insert(assigned[target.id], petUID)
+        end
+    end
+    return assigned
+end
+
+local function fireFarmAssignments(assigned)
+    for targetId, pets in pairs(assigned or {}) do
+        task.spawn(function()
+            pcall(function() Network.Invoke("Join Coin", targetId, pets) end)
+            for _, petUID in ipairs(pets) do
+                pcall(function()
+                    Network.Fire("Change Pet Target", petUID, "Coin", targetId)
+                    Network.Fire("Farm Coin", targetId, petUID)
+                end)
+            end
+        end)
+    end
+end
+
 local autoFarmTab = window:CreateTab({ name = "Auto Farm", icon = "swords" })
 
 autoFarmTab:CreateSlider({
@@ -1950,7 +2040,7 @@ autoFarmTab:CreateToggle({
                     end
                 end
 
-                task.wait(0.15)
+                task.wait(FarmSpeed or 0.15)
             end
         end)
     end,
@@ -2011,7 +2101,7 @@ autoFarmTab:CreateToggle({
                     end
                 end
 
-                task.wait(0.15)
+                task.wait(FarmSpeed or 0.15)
             end
         end)
     end,
@@ -2028,6 +2118,61 @@ autoFarmTab:CreateDropdown({
     end,
 })
 
+autoFarmTab:CreateSlider({
+    name = "Farm Speed (delay ciclo)",
+    Range = {0.05, 1.00},
+    Increment = 0.05,
+    Suffix = "s",
+    value = FarmSpeed,
+    flag = "FarmSpeed",
+    callback = function(Value)
+        FarmSpeed = math.max(0.05, tonumber(Value) or 0.15)
+    end,
+})
+
+autoFarmTab:CreateDropdown({
+    name = "Area Farm Method",
+    options = {"Nearest", "Random", "Priority", "More Health", "Less Health"},
+    value = {"Nearest"},
+    multiSelect = false,
+    flag = "AreaFarmMethod",
+    callback = function(Options)
+        AreaFarmMethod = pickDropdown(Options) or "Nearest"
+    end,
+})
+
+autoFarmTab:CreateDropdown({
+    name = "Area Priority Breakables",
+    options = makeUniqueBreakableOptions(DynamicBreakables, true),
+    value = {},
+    multiSelect = true,
+    flag = "AreaPriorityTargets",
+    callback = function(Options)
+        AreaPriorityTargets = listDropdown(Options)
+    end,
+})
+
+autoFarmTab:CreateDropdown({
+    name = "Pet Assign Mode",
+    options = {"Spread (divide todos)", "1 pet por breakable"},
+    value = {"Spread (divide todos)"},
+    multiSelect = false,
+    flag = "PetAssignMode",
+    callback = function(Options)
+        local selected = pickDropdown(Options) or "Spread"
+        PetAssignMode = tostring(selected):find("1 pet", 1, true) and "OnePerBreakable" or "Spread"
+    end,
+})
+
+autoFarmTab:CreateToggle({
+    name = "Sticky ate quebrar",
+    value = true,
+    flag = "AreaStickyUntilBreak",
+    callback = function(Value)
+        AreaStickyUntilBreak = Value
+    end,
+})
+
 autoFarmTab:CreateToggle({
     name = "Auto Farm Area Mode",
     value = false,
@@ -2036,9 +2181,8 @@ autoFarmTab:CreateToggle({
         AutoFarmBreakablesArea = Value
         if not AutoFarmBreakablesArea then return end
         ensureNetworkBypass()
-
-        -- Mesma logica do Random, filtrando pela Area selecionada (mais rapido)
         task.spawn(function()
+            local stickyIds = {}
             while AutoFarmBreakablesArea do
                 if not HumanoidRootPart or not HumanoidRootPart.Parent then
                     task.wait(0.5)
@@ -2054,40 +2198,37 @@ autoFarmTab:CreateToggle({
                     task.wait(0.4)
                     continue
                 end
-
-                local validTargets = {}
-                for id, coin in pairs(ServerCoins) do
-                    if coin.p and coin.a == AreaToFarm then
-                        table.insert(validTargets, { id = id, p = coin.p })
+                local targets = collectAreaFarmTargets(AreaToFarm, AreaFarmMethod, AreaPriorityTargets, HumanoidRootPart.Position)
+                if AreaStickyUntilBreak then
+                    local sticky = {}
+                    for id in pairs(stickyIds) do
+                        local coin = ServerCoins[id]
+                        if coin and coin.p and coin.a == AreaToFarm then
+                            table.insert(sticky, {
+                                id = id,
+                                p = coin.p,
+                                name = farmCoinName(coin),
+                                health = farmCoinHealth(coin),
+                                distance = (coin.p - HumanoidRootPart.Position).Magnitude,
+                            })
+                        end
                     end
+                    stickyIds = {}
+                    for _, target in ipairs(sticky) do stickyIds[target.id] = true end
+                    for _, target in ipairs(targets) do
+                        if #sticky >= math.max(1, MAX_BREAKABLES or 1) then break end
+                        if not stickyIds[target.id] then
+                            table.insert(sticky, target)
+                            stickyIds[target.id] = true
+                        end
+                    end
+                    targets = sticky
+                else
+                    stickyIds = {}
+                    for _, target in ipairs(targets) do stickyIds[target.id] = true end
                 end
-
-                if #validTargets > 0 then
-                    while #validTargets > MAX_BREAKABLES do
-                        table.remove(validTargets, math.random(1, #validTargets))
-                    end
-                    local byTarget = {}
-                    for _, petUID in ipairs(equippedPets) do
-                        local target = validTargets[math.random(1, #validTargets)]
-                        byTarget[target.id] = byTarget[target.id] or {}
-                        table.insert(byTarget[target.id], petUID)
-                    end
-                    for tid, pets in pairs(byTarget) do
-                        task.spawn(function()
-                            pcall(function()
-                                Network.Invoke("Join Coin", tid, pets)
-                            end)
-                            for _, petUID in ipairs(pets) do
-                                pcall(function()
-                                    Network.Fire("Change Pet Target", petUID, "Coin", tid)
-                                    Network.Fire("Farm Coin", tid, petUID)
-                                end)
-                            end
-                        end)
-                    end
-                end
-
-                task.wait(0.15)
+                fireFarmAssignments(assignFarmPets(equippedPets, targets))
+                task.wait(FarmSpeed or 0.15)
             end
         end)
     end,
