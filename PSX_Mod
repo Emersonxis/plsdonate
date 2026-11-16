@@ -2594,6 +2594,7 @@ end
 WorldHopOld = WorldHopOld or {
     Enabled = false,
     Delay = 5,
+    SpawnDelay = 3,
     LoadTimeout = 12,
     Worlds = { "Spawn World" },
     WorldKeys = {},
@@ -2678,7 +2679,10 @@ local function worldHopWaitForLoad(worldKey)
             if WorldCmdsOld and WorldCmdsOld.Get then current = WorldCmdsOld.Get() end
         end)
         if loaded and (not worldKey or tostring(current) == tostring(worldKey)) then
-            task.wait(0.5)
+            -- O mapa já existe, mas os coins chegam depois. Não testar a
+            -- ausência antes deste intervalo, senão o hop troca de mundo
+            -- enquanto os breakables ainda estão spawnando.
+            task.wait(math.max(1, tonumber(WorldHopOld.SpawnDelay) or 3))
             pcall(LoadAllCoinsInternal)
             return true
         end
@@ -2728,13 +2732,21 @@ function WorldHopOld.Run()
                         task.wait(1)
                         continue
                     end
+                    local hadTargets = false
                     local emptySince = nil
                     while WorldHopOld.Enabled do
                         pcall(LoadAllCoinsInternal)
+                        local countBeforeFarm = worldHopCountTargets()
+                        if countBeforeFarm > 0 then hadTargets = true end
                         local count = worldHopFarmSelected()
                         if count == 0 then
                             emptySince = emptySince or tick()
-                            if tick() - emptySince >= 1.2 then break end
+                            -- Depois de encontrar alvos, só avança quando
+                            -- eles sumirem de forma estável. Se nunca houve
+                            -- alvo neste mundo, respeita o tempo de spawn e
+                            -- então segue sem ficar preso indefinidamente.
+                            local requiredEmpty = hadTargets and 2.5 or 1.5
+                            if tick() - emptySince >= requiredEmpty then break end
                         else
                             emptySince = nil
                         end
@@ -2757,6 +2769,17 @@ autoFarmTab:CreateSlider({
     flag = "OldWorldHopDelay",
     callback = function(Value)
         WorldHopOld.Delay = math.max(1, tonumber(Value) or 5)
+    end,
+})
+autoFarmTab:CreateSlider({
+    name = "World Hop: espera spawn dos breakables",
+    Range = {1, 10},
+    Increment = 1,
+    Suffix = "s",
+    value = 3,
+    flag = "OldWorldHopSpawnDelay",
+    callback = function(Value)
+        WorldHopOld.SpawnDelay = math.max(1, tonumber(Value) or 3)
     end,
 })
 worldHopWorldDropdown = autoFarmTab:CreateDropdown({
