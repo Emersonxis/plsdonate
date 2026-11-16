@@ -1,0 +1,461 @@
+-- Script Path: game:GetService("ReplicatedStorage").Library.Client.WorldCmds
+-- Took 0.02s to decompile.
+-- Executor: Delta (1.0.745.1142)
+
+local v_u_1 = {}
+local v_u_2 = require(game:GetService("ReplicatedStorage"):WaitForChild("Library"))
+local v_u_3 = v_u_2.Things:WaitForChild("Coins")
+local v_u_4 = v_u_2.Things:WaitForChild("Orbs")
+local v_u_5 = v_u_2.Things:WaitForChild("Lootbags")
+function v_u_1.Load(p6) -- name: Load
+    -- upvalues: (copy) v_u_2, (copy) v_u_3, (copy) v_u_4, (copy) v_u_5
+    v_u_2.Variables.LoadingWorld = true
+    local v7 = v_u_2.Shared.IsTradingPlaza and "Trading Plaza" or p6
+    local v8 = not game:GetService("RunService"):IsStudio() and (v7 == "Trading Plaza" and not v_u_2.Shared.IsTradingPlaza) and "Spawn" or v7
+    local v9 = v_u_2.GUIFX.Loading(v8)
+    v_u_2.Network.Fire("Request World", v8)
+    local v10 = v_u_2.FFlags.GetNumber("WorldLoadTimeoutSeconds")
+    local v11 = os.clock()
+    while not v_u_2.Player.Get("PlayerGui"):FindFirstChild("__MAP") do
+        if v10 > 0 and v10 < os.clock() - v11 then
+            v9()
+            v_u_2.Variables.LoadingWorld = false
+            v_u_2.Message.New("Could not load " .. tostring(v8) .. ". Please try again.")
+            return
+        end
+        v_u_2.RenderStepped()
+    end
+    v_u_2.Player.Get("Torso").Anchored = true
+    if game.Workspace:FindFirstChild("__MAP") then
+        game.Workspace:FindFirstChild("__MAP"):Destroy()
+    end
+    v_u_3:ClearAllChildren()
+    v_u_4:ClearAllChildren()
+    v_u_5:ClearAllChildren()
+    local v12 = v_u_2.Player.Get("PlayerGui"):FindFirstChild("__MAP")
+    local v13 = v12:WaitForChild("MAP")
+    local v14 = v12:WaitForChild("LIGHTING")
+    local v15 = v14:WaitForChild("Settings")
+    local v_u_16 = v_u_2.Directory.Worlds[v8]
+    for _, v17 in ipairs(game.Lighting:GetChildren()) do
+        v17:Destroy()
+    end
+    v13:FindFirstChild("Spawns"):Destroy()
+    for _, v18 in ipairs(v14:GetChildren()) do
+        if v18.ClassName == "Configuration" then
+            continue
+        end
+        local v19 = v18:Clone()
+        v19.Name = "__WORLDFX"
+        v19.Parent = game.Lighting
+    end
+    for _, v20 in ipairs(v15:GetChildren()) do
+        game.Lighting[v20.Name] = v20.Value
+    end
+    local v21 = v_u_2.Debris:FindFirstChild("__MAPDEBRIS")
+    if v21 then
+        v21:ClearAllChildren()
+    else
+        v21 = Instance.new("Folder")
+        v21.Name = "__MAPDEBRIS"
+        v21.Parent = v_u_2.Debris
+    end
+    if v13:FindFirstChild("Debris") then
+        v13.Debris.Parent = v21
+    end
+    v13.Name = "__MAP"
+    v13.Parent = game.Workspace
+    for _, v22 in ipairs(v13:WaitForChild("Audio"):GetDescendants()) do
+        if v22.ClassName ~= "Sound" then
+            continue
+        end
+        v_u_2.Audio.Play(string.match(v22.SoundId, "%d+"), v22.Parent, v22.Pitch, v22.Volume, v22.MaxDistance, v22.SoundGroup, v22.Looped).RollOffMinDistance = v22.RollOffMinDistance
+    end
+    game.Workspace.Gravity = v_u_16.gravity or 196.2
+    v12:Destroy()
+    local v23 = v13:FindFirstChild("PlayerSpawns"):GetChildren()
+    while not v_u_2.Player.Get("Character").PrimaryPart do
+        v_u_2.RenderStepped()
+    end
+    v_u_2.Player.Get("Character"):SetPrimaryPartCFrame(v23[math.random(1, #v23)].CFrame + Vector3.new(0, 8, 0))
+    v_u_2.Player.Get("Torso").Anchored = false
+    v_u_2.Player.Get("Humanoid").PlatformStand = false
+    v_u_2.Player.Get("HumanoidRootPart").Velocity = Vector3.new()
+    v_u_2.Player.Get("HumanoidRootPart").RotVelocity = Vector3.new()
+    v_u_2.Signal.Fire("World Changed", v8, v13)
+    wait(0.5)
+    coroutine.wrap(function()
+        -- upvalues: (ref) v_u_2, (copy) v_u_16
+        wait(1.5)
+        if not v_u_2.Variables.LoadingWorld then
+            v_u_2.Audio.Play("rbxassetid://7358008634", script, 1, 0.3)
+            local v24 = v_u_2.GUI.WorldLoaded
+            local v25 = v24.WorldTitle
+            v25.Text = "~" .. v_u_16.display .. "~"
+            v25.TextTransparency = 1
+            v25.TextStrokeTransparency = 1
+            v25.Position = UDim2.new(0.5, 0, 0.025, 0)
+            v24.Gui.Enabled = true
+            v_u_2.Functions.FastTween(v25:FindFirstChildOfClass("UIStroke"), {
+                ["Transparency"] = 0
+            }, { 0.4, "Sine", "Out" })
+            v_u_2.Functions.FastTween(v25, {
+                ["TextTransparency"] = 0,
+                ["TextStrokeTransparency"] = 0,
+                ["Position"] = nil,
+                ["Position"] = UDim2.new(0.5, 0, 0.05, 0)
+            }, { 0.4, "Sine", "Out" }).Completed:Wait()
+            wait(2)
+            v_u_2.Functions.FastTween(v25:FindFirstChildOfClass("UIStroke"), {
+                ["Transparency"] = 1
+            }, { 0.4, "Sine", "In" })
+            v_u_2.Functions.FastTween(v25, {
+                ["TextTransparency"] = 1,
+                ["TextStrokeTransparency"] = 1,
+                ["Position"] = nil,
+                ["Position"] = UDim2.new(0.5, 0, 0.025, 0)
+            }, { 0.4, "Sine", "In" }).Completed:Wait()
+            v24.Gui.Enabled = false
+        end
+    end)()
+    v9()
+    v_u_2.Variables.LoadingWorld = false
+end
+function v_u_1.HasArea(p26) -- name: HasArea
+    -- upvalues: (copy) v_u_2
+    return v_u_2.Functions.SearchArray(v_u_2.Save.Get().AreasUnlocked, p26)
+end
+function v_u_1.Get() -- name: Get
+    -- upvalues: (copy) v_u_2
+    return v_u_2.Save.Get().World
+end
+function v_u_1.GetMap() -- name: GetMap
+    return game.Workspace:WaitForChild("__MAP")
+end
+function v_u_1.GetDir() -- name: GetDir
+    -- upvalues: (copy) v_u_2, (copy) v_u_1
+    return v_u_2.Directory.Worlds[v_u_1.Get()]
+end
+function v_u_1.HasLoaded() -- name: HasLoaded
+    -- upvalues: (copy) v_u_2
+    if v_u_2.Variables.LoadingWorld == nil or v_u_2.Variables.LoadingWorld == true then
+        return false
+    else
+        return game.Workspace:FindFirstChild("__MAP") and game.Workspace:FindFirstChild("__MAP"):FindFirstChild("PlayerSpawns") and true or false
+    end
+end
+function v_u_1.CanDoAction() -- name: CanDoAction
+    -- upvalues: (copy) v_u_2, (copy) v_u_1
+    local v27 = not (v_u_2.Variables.LoadingWorld or v_u_2.Variables.UsingCannon)
+    if v27 then
+        if v_u_2.Variables.OpeningEgg <= 0 and not v_u_2.Variables.Trading then
+            v27 = not v_u_2.Variables.UsingMachine and v_u_1.HasLoaded() or false
+        else
+            v27 = false
+        end
+    end
+    return v27
+end
+function v_u_1.GetAllEggs() -- name: GetAllEggs
+    -- upvalues: (copy) v_u_1
+    local v28 = {}
+    local v29 = v_u_1.GetMap()
+    if v29 then
+        local v30 = v29:FindFirstChild("Eggs")
+        if v30 then
+            for _, v31 in ipairs(v30:GetChildren()) do
+                if not v31:FindFirstChild("Eggs") then
+                    continue
+                end
+                for _, v32 in ipairs(v31.Eggs:GetChildren()) do
+                    if not v32:GetAttribute("ID") then
+                        continue
+                    end
+                    table.insert(v28, v32)
+                end
+            end
+        end
+    end
+    return v28
+end
+function v_u_1.GetAllGates() -- name: GetAllGates
+    -- upvalues: (copy) v_u_1
+    local v33 = {}
+    local v34 = v_u_1.GetMap()
+    if v34 then
+        local v35 = v34:FindFirstChild("Gates")
+        if v35 then
+            for _, v36 in ipairs(v35:GetChildren()) do
+                table.insert(v33, v36)
+            end
+        end
+    end
+    return v33
+end
+v_u_2.Network.Invoked("Has Loaded").OnInvoke = function()
+    -- upvalues: (copy) v_u_1, (copy) v_u_2
+    if v_u_1 and v_u_1.HasLoaded then
+        return v_u_1.HasLoaded()
+    elseif v_u_2 and (v_u_2.WorldCmds and v_u_2.WorldCmds.HasLoaded) then
+        return v_u_2.WorldCmds.HasLoaded()
+    else
+        return false
+    end
+end
+return v_u_1
+
+-- // Function Dumper made by King.Kevin
+-- // Script Path: game:GetService("ReplicatedStorage").Library.Client.WorldCmds
+
+--[[
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+        1 [table]:
+        1 [table] table: 0xf7b4554f89271139
+                1 [function] = GetMap
+                2 [function] = CanDoAction
+                3 [function] = HasArea
+                4 [function] = HasLoaded
+                5 [function] = GetAllGates
+                6 [function] = GetAllEggs
+                7 [function] = GetDir
+                8 [function] = Load
+                9 [function] = Get
+        2 [table]:
+        2 [table] table: 0xca7a715d3b7f5ccb
+
+Function Constants: Unknown Name
+        1 [string] = HasLoaded
+        2 [string] = WorldCmds
+
+====================================================================================================
+
+Function Dump: CanDoAction
+
+Function Upvalues: CanDoAction
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+
+Function Constants: CanDoAction
+        1 [string] = Variables
+        2 [string] = LoadingWorld
+        3 [string] = UsingCannon
+        4 [string] = OpeningEgg
+        5 [string] = Trading
+        6 [string] = UsingMachine
+        7 [string] = HasLoaded
+
+====================================================================================================
+
+Function Dump: GetDir
+
+Function Upvalues: GetDir
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+
+Function Constants: GetDir
+        1 [string] = Directory
+        2 [string] = Worlds
+        3 [string] = Get
+
+====================================================================================================
+
+Function Dump: GetMap
+
+Function Upvalues: GetMap
+
+Function Constants: GetMap
+        1 [string] = game
+        2 [Instance] = Ugc
+        3 [string] = Workspace
+        4 [string] = __MAP
+        5 [string] = WaitForChild
+
+====================================================================================================
+
+Function Dump: GetAllGates
+
+Function Upvalues: GetAllGates
+        1 [table] (Recursive table detected)
+
+Function Constants: GetAllGates
+        1 [string] = GetMap
+        2 [string] = Gates
+        3 [string] = FindFirstChild
+        4 [string] = ipairs
+        6 [string] = GetChildren
+        7 [string] = table
+        8 [string] = insert
+
+====================================================================================================
+
+Function Dump: GetAllEggs
+
+Function Upvalues: GetAllEggs
+        1 [table] (Recursive table detected)
+
+Function Constants: GetAllEggs
+        1 [string] = GetMap
+        2 [string] = Eggs
+        3 [string] = FindFirstChild
+        4 [string] = ipairs
+        6 [string] = GetChildren
+        7 [string] = ID
+        8 [string] = GetAttribute
+        9 [string] = table
+        10 [string] = insert
+
+====================================================================================================
+
+Function Dump: HasLoaded
+
+Function Upvalues: HasLoaded
+        1 [table] (Recursive table detected)
+
+Function Constants: HasLoaded
+        1 [string] = Variables
+        2 [string] = LoadingWorld
+        3 [string] = game
+        4 [Instance] = Ugc
+        5 [string] = Workspace
+        6 [string] = __MAP
+        7 [string] = FindFirstChild
+        8 [string] = PlayerSpawns
+
+====================================================================================================
+
+Function Dump: Get
+
+Function Upvalues: Get
+        1 [table] (Recursive table detected)
+
+Function Constants: Get
+        1 [string] = Save
+        2 [string] = Get
+        3 [string] = World
+
+====================================================================================================
+
+Function Dump: HasArea
+
+Function Upvalues: HasArea
+        1 [table] (Recursive table detected)
+
+Function Constants: HasArea
+        1 [string] = Functions
+        2 [string] = SearchArray
+        3 [string] = Save
+        4 [string] = Get
+        5 [string] = AreasUnlocked
+
+====================================================================================================
+
+Function Dump: Load
+
+Function Upvalues: Load
+        1 [table] (Recursive table detected)
+        2 [Instance] = Coins
+        3 [Instance] = Orbs
+        4 [Instance] = Lootbags
+
+Function Constants: Load
+        1 [string] = Variables
+        2 [string] = LoadingWorld
+        3 [string] = Shared
+        4 [string] = IsTradingPlaza
+        5 [string] = Trading Plaza
+        6 [string] = game
+        7 [Instance] = Ugc
+        8 [string] = RunService
+        9 [string] = GetService
+        10 [string] = IsStudio
+        11 [string] = Spawn
+        12 [string] = GUIFX
+        13 [string] = Loading
+        14 [string] = Network
+        15 [string] = Fire
+        16 [string] = Request World
+        17 [string] = FFlags
+        18 [string] = GetNumber
+        19 [string] = WorldLoadTimeoutSeconds
+        20 [string] = os
+        21 [string] = clock
+        23 [string] = Player
+        24 [string] = Get
+        25 [string] = PlayerGui
+        26 [string] = __MAP
+        27 [string] = FindFirstChild
+        28 [string] = Message
+        29 [string] = New
+        30 [string] = Could not load 
+        31 [string] = tostring
+        33 [string] = . Please try again.
+        34 [string] = RenderStepped
+        35 [string] = Torso
+        36 [string] = Anchored
+        37 [string] = Workspace
+        38 [string] = Destroy
+        39 [string] = ClearAllChildren
+        40 [string] = MAP
+        41 [string] = WaitForChild
+        42 [string] = LIGHTING
+        43 [string] = Settings
+        44 [string] = Directory
+        45 [string] = Worlds
+        46 [string] = ipairs
+        48 [string] = Lighting
+        49 [string] = GetChildren
+        50 [string] = Spawns
+        51 [string] = ClassName
+        52 [string] = Configuration
+        53 [string] = Clone
+        54 [string] = __WORLDFX
+        55 [string] = Name
+        56 [string] = Parent
+        57 [string] = Value
+        58 [string] = Debris
+        59 [string] = __MAPDEBRIS
+        60 [string] = Instance
+        61 [string] = new
+        63 [string] = Folder
+        64 [string] = Audio
+        65 [string] = GetDescendants
+        66 [string] = Sound
+        67 [string] = Play
+        68 [string] = string
+        69 [string] = match
+        71 [string] = SoundId
+        72 [string] = %d+
+        73 [string] = Pitch
+        74 [string] = Volume
+        75 [string] = MaxDistance
+        76 [string] = SoundGroup
+        77 [string] = Looped
+        78 [string] = RollOffMinDistance
+        79 [number] = 196.2
+        80 [string] = gravity
+        81 [string] = Gravity
+        82 [string] = PlayerSpawns
+        83 [string] = Character
+        84 [string] = PrimaryPart
+        85 [string] = math
+        86 [string] = random
+        88 [string] = CFrame
+        89 [Vector3] = 0, 8, 0
+        90 [string] = SetPrimaryPartCFrame
+        91 [string] = Humanoid
+        92 [string] = PlatformStand
+        93 [string] = HumanoidRootPart
+        94 [string] = Vector3
+        96 [string] = Velocity
+        97 [string] = RotVelocity
+        98 [string] = Signal
+        99 [string] = World Changed
+        100 [string] = wait
+        102 [number] = 0.5
+        103 [string] = coroutine
+        104 [string] = wrap
+
+====================================================================================================
+]]
