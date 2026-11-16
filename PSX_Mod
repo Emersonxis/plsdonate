@@ -2596,6 +2596,9 @@ WorldHopOld = WorldHopOld or {
     Delay = 5,
     SpawnDelay = 3,
     LoadTimeout = 12,
+    RejoinAfterLoop = false,
+    RejoinDelay = 5,
+    VipLink = "https://www.roblox.com/share?code=a72c2acbb1625b499d535a7183f11851&type=Server",
     Worlds = { "Spawn World" },
     WorldKeys = {},
 }
@@ -2717,6 +2720,30 @@ local function worldHopFarmSelected()
     return #targets
 end
 
+local function worldHopConfirmNoRespawn()
+    -- Um breakable pode reaparecer alguns segundos depois do último ser
+    -- destruído. Confirma três snapshots vazios separados por um intervalo.
+    task.wait(math.max(1, tonumber(WorldHopOld.SpawnDelay) or 3))
+    local emptyChecks = 0
+    for _ = 1, 3 do
+        if not WorldHopOld.Enabled then return false end
+        pcall(LoadAllCoinsInternal)
+        if worldHopCountTargets() > 0 then return false end
+        emptyChecks = emptyChecks + 1
+        task.wait(0.75)
+    end
+    return emptyChecks >= 3
+end
+
+local function worldHopRejoinVip()
+    local text = tostring(WorldHopOld.VipLink or "")
+    local code = text:match("[?&]code=([%w%-]+)") or text:match("^([%w%-]+)$")
+    if not code then return false end
+    return pcall(function()
+        game:GetService("TeleportService"):TeleportToPrivateServer(game.PlaceId, code, { player })
+    end)
+end
+
 function WorldHopOld.Run()
     if WorldHopOld.Running then return end
     WorldHopOld.Running = true
@@ -2733,26 +2760,30 @@ function WorldHopOld.Run()
                         continue
                     end
                     local hadTargets = false
-                    local emptySince = nil
                     while WorldHopOld.Enabled do
                         pcall(LoadAllCoinsInternal)
                         local countBeforeFarm = worldHopCountTargets()
                         if countBeforeFarm > 0 then hadTargets = true end
                         local count = worldHopFarmSelected()
                         if count == 0 then
-                            emptySince = emptySince or tick()
-                            -- Depois de encontrar alvos, só avança quando
-                            -- eles sumirem de forma estável. Se nunca houve
-                            -- alvo neste mundo, respeita o tempo de spawn e
-                            -- então segue sem ficar preso indefinidamente.
-                            local requiredEmpty = hadTargets and 2.5 or 1.5
-                            if tick() - emptySince >= requiredEmpty then break end
-                        else
-                            emptySince = nil
+                            if hadTargets then
+                                if worldHopConfirmNoRespawn() then break end
+                            else
+                                -- O mundo já teve tempo de spawn em
+                                -- worldHopWaitForLoad; uma segunda leitura
+                                -- evita trocar durante uma atualização curta.
+                                task.wait(1.5)
+                                pcall(LoadAllCoinsInternal)
+                                if worldHopCountTargets() == 0 then break end
+                            end
                         end
                         task.wait(FarmSpeed or 0.15)
                     end
                     task.wait(math.max(0, tonumber(WorldHopOld.Delay) or 5))
+                end
+                if WorldHopOld.Enabled and WorldHopOld.RejoinAfterLoop then
+                    worldHopRejoinVip()
+                    task.wait(math.max(2, tonumber(WorldHopOld.RejoinDelay) or 5))
                 end
             end
         end
@@ -2780,6 +2811,34 @@ autoFarmTab:CreateSlider({
     flag = "OldWorldHopSpawnDelay",
     callback = function(Value)
         WorldHopOld.SpawnDelay = math.max(1, tonumber(Value) or 3)
+    end,
+})
+autoFarmTab:CreateInput({
+    name = "World Hop: link do servidor VIP",
+    value = WorldHopOld.VipLink,
+    placeholder = "Link share do servidor privado",
+    flag = "OldWorldHopVipLink",
+    callback = function(Text)
+        WorldHopOld.VipLink = tostring(Text or "")
+    end,
+})
+autoFarmTab:CreateSlider({
+    name = "World Hop: espera antes do rejoin",
+    Range = {2, 30},
+    Increment = 1,
+    Suffix = "s",
+    value = 5,
+    flag = "OldWorldHopRejoinDelay",
+    callback = function(Value)
+        WorldHopOld.RejoinDelay = math.max(2, tonumber(Value) or 5)
+    end,
+})
+autoFarmTab:CreateToggle({
+    name = "World Hop: rejoin VIP após completar mundos",
+    value = false,
+    flag = "OldWorldHopRejoin",
+    callback = function(Value)
+        WorldHopOld.RejoinAfterLoop = Value
     end,
 })
 worldHopWorldDropdown = autoFarmTab:CreateDropdown({
