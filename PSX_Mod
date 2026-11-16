@@ -145,6 +145,15 @@ local Network = Library.Network
 -- Backend deliberadamente fixado no Old nesta etapa de estabilização.
 -- O suporte Framework permanece no arquivo, mas não interfere neste mod.
 local IsFrameworkBackend = false
+WorldCmdsOld = Library.WorldCmds
+if not WorldCmdsOld then
+    pcall(function()
+        local client = ReplicatedStorage:FindFirstChild("Library")
+            and ReplicatedStorage.Library:FindFirstChild("Client")
+        local module = client and client:FindFirstChild("WorldCmds")
+        if module then WorldCmdsOld = require(module) end
+    end)
+end
 local FrameworkWorldCmds = IsFrameworkBackend and Library.WorldCmds or nil
 local FrameworkThings = IsFrameworkBackend and Library.Things or nil
 local FrameworkSave = IsFrameworkBackend and Library.Save or nil
@@ -1236,12 +1245,17 @@ window = Rayfield:CreateWindow({
     subtitle = "Improved Edition · Gen2",
     theme = "cobalt",
     sidebarLayout = true,
+    showName = "PSX",
+    showIconOnly = false,
     configuration = {
         autoSave = true,
         autoLoad = true,
         fileName = "PSX_Mod_Hub_Gen2",
     },
 })
+-- A Gen2 oficial não possui uma propriedade startMinimized. O método Hide()
+-- é a forma documentada de deixar somente o botão recolhido visível.
+StartMinimized = true
 
 
 -- Gen2 dropdown: single = string | multi = {string}
@@ -2581,12 +2595,49 @@ WorldHopOld = WorldHopOld or {
     Enabled = false,
     Delay = 5,
     LoadTimeout = 12,
-    Worlds = {
-        "Spawn World", "Fantasy World", "Tech World", "Axolotl Ocean",
-        "Pixel World", "Cat World", "Doodle World", "Kawaii World",
-        "Limbo World", "Void World",
-    },
+    Worlds = { "Spawn World" },
+    WorldKeys = {},
 }
+
+local function buildWorldHopOptions()
+    local result, keys = {}, {}
+    local worlds = Library and Library.Directory and Library.Directory.Worlds
+    if type(worlds) == "table" then
+        for key, info in pairs(worlds) do
+            if type(info) == "table" and not info.hidden and info.isVIP ~= true then
+                local display = tostring(info.display or info.displayName or info.name or key)
+                table.insert(result, display)
+                keys[display] = tostring(key)
+            end
+        end
+    end
+    if #result == 0 then
+        result = {
+            "Spawn World", "Fantasy World", "Tech World", "Axolotl Ocean",
+            "Pixel World", "Cat World", "Doodle World", "Kawaii World",
+            "Limbo World", "Void World",
+        }
+    end
+    table.sort(result, function(a, b) return worldRank(a) < worldRank(b) end)
+    WorldHopOld.WorldKeys = keys
+    return result
+end
+
+local function resolveWorldHopKey(display)
+    display = tostring(display or "")
+    if WorldHopOld.WorldKeys[display] then return WorldHopOld.WorldKeys[display] end
+    local worlds = Library and Library.Directory and Library.Directory.Worlds
+    if type(worlds) == "table" then
+        for key, info in pairs(worlds) do
+            local shown = type(info) == "table" and (info.display or info.displayName or info.name)
+            if tostring(key) == display or tostring(shown or "") == display then
+                return tostring(key)
+            end
+        end
+    end
+    local fallback = display:gsub(" World$", "")
+    return fallback == "Spawn" and "Spawn" or fallback
+end
 
 local function worldHopTargetMatches(coin)
     if not coin or not coin.p or not coin.n or #SniperTargets == 0 then return false end
@@ -2602,29 +2653,38 @@ local function worldHopCountTargets()
 end
 
 local function worldHopTravel(worldName)
-    if tostring(worldName) == "Spawn World" then return true end
-    local command = "Travel to the " .. tostring(worldName)
-    local ok = pcall(function() Network.Invoke(command) end)
-    if not ok then pcall(function() Network.Fire(command) end) end
-    return ok
+    local worldKey = resolveWorldHopKey(worldName)
+    local worldCmds = WorldCmdsOld
+    if type(worldCmds) == "table" and type(worldCmds.Load) == "function" then
+        local ok = pcall(function() worldCmds.Load(worldKey) end)
+        return ok, worldKey
+    end
+    -- Fallback compatível com versões Old que ainda expõem somente o remote.
+    local ok = pcall(function() Network.Fire("Request World", worldKey) end)
+    return ok, worldKey
 end
 
-local function worldHopWaitForLoad()
+local function worldHopWaitForLoad(worldKey)
     local started = tick()
-    local sawLoaded = false
     while WorldHopOld.Enabled and tick() - started < (WorldHopOld.LoadTimeout or 12) do
-        local loaded = true
+        local loaded = false
         pcall(function()
-            if Library.WorldCmds and Library.WorldCmds.HasLoaded then
-                loaded = Library.WorldCmds.HasLoaded() ~= false
+            if WorldCmdsOld and WorldCmdsOld.HasLoaded then
+                loaded = WorldCmdsOld.HasLoaded() == true
             end
         end)
-        if loaded then sawLoaded = true end
-        pcall(LoadAllCoinsInternal)
-        if sawLoaded and (worldHopCountTargets() > 0 or tick() - started >= 2) then return true end
+        local current = nil
+        pcall(function()
+            if WorldCmdsOld and WorldCmdsOld.Get then current = WorldCmdsOld.Get() end
+        end)
+        if loaded and (not worldKey or tostring(current) == tostring(worldKey)) then
+            task.wait(0.5)
+            pcall(LoadAllCoinsInternal)
+            return true
+        end
         task.wait(0.35)
     end
-    return sawLoaded
+    return false
 end
 
 local function worldHopFarmSelected()
@@ -2663,8 +2723,11 @@ function WorldHopOld.Run()
             else
                 for _, worldName in ipairs(WorldHopOld.Worlds) do
                     if not WorldHopOld.Enabled then break end
-                    worldHopTravel(worldName)
-                    worldHopWaitForLoad()
+                    local travelled, worldKey = worldHopTravel(worldName)
+                    if not travelled or not worldHopWaitForLoad(worldKey) then
+                        task.wait(1)
+                        continue
+                    end
                     local emptySince = nil
                     while WorldHopOld.Enabled do
                         pcall(LoadAllCoinsInternal)
@@ -2694,6 +2757,16 @@ autoFarmTab:CreateSlider({
     flag = "OldWorldHopDelay",
     callback = function(Value)
         WorldHopOld.Delay = math.max(1, tonumber(Value) or 5)
+    end,
+})
+worldHopWorldDropdown = autoFarmTab:CreateDropdown({
+    name = "World Hop: mundos permitidos",
+    options = buildWorldHopOptions(),
+    value = { "Spawn World" },
+    multiSelect = true,
+    flag = "OldWorldHopWorlds",
+    callback = function(Options)
+        WorldHopOld.Worlds = listDropdown(Options)
     end,
 })
 autoFarmTab:CreateToggle({
@@ -4179,3 +4252,11 @@ task.spawn(function()
 end)
 
 print("[PSX Mod Hub] Loaded successfully! Library: " .. tostring(LibraryPath) .. " | score=" .. tostring(LibraryScore))
+if StartMinimized then
+    task.defer(function()
+        task.wait(0.15)
+        pcall(function()
+            if window and window.Hide then window:Hide() end
+        end)
+    end)
+end
