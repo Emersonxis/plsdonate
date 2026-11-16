@@ -282,13 +282,15 @@ local Giant_Chest_Selected = nil
 local Teleportable_Breakables = {}
 
 -- Balloon Event (experimental, desativado por padrão)
-local AutoBalloonFarm = false
-local BalloonSelectedWorlds = {}
-local BalloonVipLink = ""
-local BalloonRejoinDelay = 5
-local BalloonWorldDelay = 2
-local BalloonResetVipAfterLoop = false
-local BalloonStatus = "idle"
+local Balloon = {
+    AutoFarm = false,
+    SelectedWorlds = {},
+    VipLink = "",
+    RejoinDelay = 5,
+    WorldDelay = 2,
+    ResetVipAfterLoop = false,
+    Status = "idle",
+}
 
 local Send_Webhook = false
 local WebhookURL = ""
@@ -3582,18 +3584,18 @@ Col_Tab:CreateToggle({
 })
 
 -- ====================== TAB: EXPERIMENTAL ======================
-local function balloonCodeFromText(text)
+function Balloon.CodeFromText(text)
     text = tostring(text or "")
     return text:match("[?&]code=([%w%-]+)") or text:match("^([%w%-]+)$")
 end
 
-local BalloonWorldOptions = {
+Balloon.WorldOptions = {
     "Spawn World", "Fantasy World", "Tech World", "Axolotl Ocean",
     "Pixel World", "Cat World", "Doodle World", "Kawaii World",
     "Limbo World", "Void World",
 }
 
-local function balloonList()
+function Balloon.List()
     local result = {}
     for id, coin in pairs(ServerCoins or {}) do
         local name = tostring(coin and (coin.n or coin.name or coin.Name) or "")
@@ -3604,9 +3606,9 @@ local function balloonList()
     return result
 end
 
-local function farmBalloonOnce()
+function Balloon.FarmOnce()
     local pets = getEquippedPets()
-    local balloons = balloonList()
+    local balloons = Balloon.List()
     if #pets == 0 or #balloons == 0 then return #balloons end
     local maxTargets = math.min(#balloons, MAX_BREAKABLES or 8)
     for index, petUID in ipairs(pets) do
@@ -3622,7 +3624,7 @@ local function farmBalloonOnce()
     return #balloons
 end
 
-local function travelToBalloonWorld(worldName)
+function Balloon.TravelToWorld(worldName)
     worldName = tostring(worldName or "")
     if worldName == "" or worldName == "Spawn World" then return true end
     local command = "Travel to the " .. worldName
@@ -3637,49 +3639,49 @@ local function travelToBalloonWorld(worldName)
     return ok
 end
 
-local function rejoinBalloonVip()
-    local code = balloonCodeFromText(BalloonVipLink)
+function Balloon.RejoinVip()
+    local code = Balloon.CodeFromText(Balloon.VipLink)
     if not code then
-        BalloonStatus = "VIP code invalido"
+        Balloon.Status = "VIP code invalido"
         return false
     end
     local ok = pcall(function()
         game:GetService("TeleportService"):TeleportToPrivateServer(game.PlaceId, code, { player })
     end)
-    BalloonStatus = ok and "rejoining VIP" or "falha no rejoin"
+    Balloon.Status = ok and "rejoining VIP" or "falha no rejoin"
     return ok
 end
 
-local function runBalloonFarm()
+function Balloon.Run()
     task.spawn(function()
-        while AutoBalloonFarm do
-            local worlds = BalloonSelectedWorlds
+        while Balloon.AutoFarm do
+            local worlds = Balloon.SelectedWorlds
             if not worlds or #worlds == 0 then
-                BalloonStatus = "selecione mundos"
+                Balloon.Status = "selecione mundos"
                 task.wait(1)
             else
                 for _, worldName in ipairs(worlds) do
-                    if not AutoBalloonFarm then break end
-                    BalloonStatus = "indo para " .. tostring(worldName)
-                    travelToBalloonWorld(worldName)
-                    task.wait(BalloonWorldDelay)
+                    if not Balloon.AutoFarm then break end
+                    Balloon.Status = "indo para " .. tostring(worldName)
+                    Balloon.TravelToWorld(worldName)
+                    task.wait(Balloon.WorldDelay)
                     pcall(LoadAllCoinsInternal)
-                    while AutoBalloonFarm and #balloonList() > 0 do
-                        BalloonStatus = "farmando " .. tostring(worldName)
-                        farmBalloonOnce()
+                    while Balloon.AutoFarm and #Balloon.List() > 0 do
+                        Balloon.Status = "farmando " .. tostring(worldName)
+                        Balloon.FarmOnce()
                         task.wait(FarmSpeed or 0.15)
                         pcall(LoadAllCoinsInternal)
                     end
-                    task.wait(BalloonWorldDelay)
+                    task.wait(Balloon.WorldDelay)
                 end
-                if AutoBalloonFarm and BalloonResetVipAfterLoop then
-                    BalloonStatus = "reset VIP"
-                    rejoinBalloonVip()
-                    task.wait(BalloonRejoinDelay)
+                if Balloon.AutoFarm and Balloon.ResetVipAfterLoop then
+                    Balloon.Status = "reset VIP"
+                    Balloon.RejoinVip()
+                    task.wait(Balloon.RejoinDelay)
                 end
             end
         end
-        BalloonStatus = "idle"
+        Balloon.Status = "idle"
     end)
 end
 
@@ -3923,21 +3925,21 @@ local Event_Tab = window:CreateTab({ name = "Event", icon = "party-popper" })
 Event_Tab:CreateSection({ name = "Balloon Farm por mundo" })
 Event_Tab:CreateInput({
     name = "VIP Share Link / Code",
-    value = BalloonVipLink,
+    value = Balloon.VipLink,
     placeholder = "https://www.roblox.com/share?code=...&type=Server",
     flag = "BalloonVipLink",
     callback = function(Text)
-        BalloonVipLink = tostring(Text or "")
+        Balloon.VipLink = tostring(Text or "")
     end,
 })
 Event_Tab:CreateDropdown({
     name = "Mundos do Balloon Farm",
-    options = BalloonWorldOptions,
+    options = Balloon.WorldOptions,
     value = {},
     multiSelect = true,
     flag = "BalloonWorlds",
     callback = function(Options)
-        BalloonSelectedWorlds = listDropdown(Options)
+        Balloon.SelectedWorlds = listDropdown(Options)
     end,
 })
 Event_Tab:CreateSlider({
@@ -3945,10 +3947,10 @@ Event_Tab:CreateSlider({
     Range = {1, 10},
     Increment = 1,
     Suffix = "s",
-    value = BalloonWorldDelay,
+    value = Balloon.WorldDelay,
     flag = "BalloonWorldDelay",
     callback = function(Value)
-        BalloonWorldDelay = math.max(1, tonumber(Value) or 2)
+        Balloon.WorldDelay = math.max(1, tonumber(Value) or 2)
     end,
 })
 Event_Tab:CreateSlider({
@@ -3956,10 +3958,10 @@ Event_Tab:CreateSlider({
     Range = {2, 30},
     Increment = 1,
     Suffix = "s",
-    value = BalloonRejoinDelay,
+    value = Balloon.RejoinDelay,
     flag = "BalloonRejoinDelay",
     callback = function(Value)
-        BalloonRejoinDelay = math.max(2, tonumber(Value) or 5)
+        Balloon.RejoinDelay = math.max(2, tonumber(Value) or 5)
     end,
 })
 Event_Tab:CreateToggle({
@@ -3967,7 +3969,7 @@ Event_Tab:CreateToggle({
     value = false,
     flag = "BalloonResetVipAfterLoop",
     callback = function(Value)
-        BalloonResetVipAfterLoop = Value
+        Balloon.ResetVipAfterLoop = Value
     end,
 })
 Event_Tab:CreateToggle({
@@ -3975,24 +3977,24 @@ Event_Tab:CreateToggle({
     value = false,
     flag = "AutoBalloonFarm",
     callback = function(Value)
-        AutoBalloonFarm = Value
+        Balloon.AutoFarm = Value
         if Value then
-            runBalloonFarm()
+            Balloon.Run()
         else
-            BalloonStatus = "idle"
+            Balloon.Status = "idle"
         end
     end,
 })
 Event_Tab:CreateButton({
     name = "Rejoin VIP agora",
     callback = function()
-        rejoinBalloonVip()
+        Balloon.RejoinVip()
     end,
 })
 Event_Tab:CreateButton({
     name = "Status dos Balloons",
     callback = function()
-        notify("Balloon", BalloonStatus .. " | encontrados: " .. tostring(#balloonList()), 4)
+        notify("Balloon", Balloon.Status .. " | encontrados: " .. tostring(#Balloon.List()), 4)
     end,
 })
 
