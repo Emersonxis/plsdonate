@@ -1210,9 +1210,8 @@ local function runRemoteSource(source)
     return chunk()
 end
 
-local Rayfield = runRemoteSource(game:HttpGet("https://sirius.menu/gen2"))
-
-local window = Rayfield:CreateWindow({
+Rayfield = runRemoteSource(game:HttpGet("https://sirius.menu/gen2"))
+window = Rayfield:CreateWindow({
     name = "PSX Mod Hub",
     subtitle = "Improved Edition · Gen2",
     theme = "cobalt",
@@ -1329,7 +1328,7 @@ local function buyEggExact(eggName, requested)
     return true, amount, err
 end
 -- ====================== TAB: HATCHING ======================
-local Hatching_Tab = window:CreateTab({ name = "Hatching", icon = "egg" })
+Hatching_Tab = window:CreateTab({ name = "Hatching", icon = "egg" })
 
 Hatching_Tab:CreateDropdown({
     name = "Select Egg",
@@ -1466,7 +1465,7 @@ Hatching_Tab:CreateToggle({
 })
 
 -- ====================== TAB: PETS ======================
-local Pet_Tab = window:CreateTab({ name = "Pets", icon = "cat" })
+Pet_Tab = window:CreateTab({ name = "Pets", icon = "cat" })
 
 Pet_Tab:CreateSection({ name = "Craft Amounts (quantos pets por craft)" })
 Pet_Tab:CreateInput({
@@ -1859,7 +1858,7 @@ end)
 
 -- ====================== TAB: AUTO FARM ======================
 -- ====================== TAB: AUTO DELETE ======================
-local AutoDelete_Tab = window:CreateTab({ name = "Auto Delete", icon = "trash-2" })
+AutoDelete_Tab = window:CreateTab({ name = "Auto Delete", icon = "trash-2" })
 AutoDelete_Tab:CreateSection({ name = "Excluir por raridade" })
 
 AutoDelete_Tab:CreateDropdown({
@@ -2110,7 +2109,7 @@ local function fireFarmAssignments(assigned)
     end
 end
 
-local autoFarmTab = window:CreateTab({ name = "Auto Farm", icon = "swords" })
+autoFarmTab = window:CreateTab({ name = "Auto Farm", icon = "swords" })
 
 autoFarmTab:CreateSlider({
     name = "Max Breakables",
@@ -2381,7 +2380,7 @@ autoFarmTab:CreateToggle({
 })
 
 autoFarmTab:CreateSection({ name = "Giant Chest" })
-local giantDropdown = autoFarmTab:CreateDropdown({
+giantDropdown = autoFarmTab:CreateDropdown({
     name = "Select Giant Chest",
     options = All_Giant_Chest,
         multiSelect = false,
@@ -2459,7 +2458,7 @@ autoFarmTab:CreateToggle({
 
 autoFarmTab:CreateSection({ name = "Auto Teleport" })
 local refreshBreakableDropdowns
-local teleportDropdown = autoFarmTab:CreateDropdown({
+teleportDropdown = autoFarmTab:CreateDropdown({
     name = "Breakables to Teleport to",
     options = (#DynamicBreakables > 0 and DynamicBreakables or priorityList),
     value = {},
@@ -2528,7 +2527,7 @@ autoFarmTab:CreateToggle({
 
 -- ====================== SNIPER FARM ======================
 autoFarmTab:CreateSection({ name = "Sniper Farm" })
-local sniperTargetsDropdown = autoFarmTab:CreateDropdown({
+sniperTargetsDropdown = autoFarmTab:CreateDropdown({
     name = "Sniper Targets",
     options = sniperDefaultList,
     value = {},
@@ -2681,7 +2680,7 @@ task.defer(function()
 end)
 
 -- ====================== TAB: GUIs (PlayerGui) ======================
-local Gui_Tab = window:CreateTab({ name = "GUIs", icon = "layout-grid" })
+Gui_Tab = window:CreateTab({ name = "GUIs", icon = "layout-grid" })
 Gui_Tab:CreateSection({ name = "Abrir GUIs do PlayerGui (nao desativa nada automaticamente)" })
 
 local function setPlayerGuiEnabled(name, state)
@@ -2794,7 +2793,7 @@ Gui_Tab:CreateInput({
 task.defer(rebuildGuiToggles)
 
 -- ====================== TAB: ENCHANT ======================
-local Enchant_Tab = window:CreateTab({ name = "Enchant", icon = "sparkles" })
+Enchant_Tab = window:CreateTab({ name = "Enchant", icon = "sparkles" })
 Enchant_Tab:CreateSection({ name = "Auto Enchant - somente pets equipados" })
 
 local AutoEnchant = false
@@ -2915,7 +2914,7 @@ Enchant_Tab:CreateToggle({
 })
 
 -- ====================== TAB: COLLECTION / INDEX ======================
-local Col_Tab = window:CreateTab({ name = "Collection", icon = "book-open" })
+Col_Tab = window:CreateTab({ name = "Collection", icon = "book-open" })
 Col_Tab:CreateSection({ name = "Pet Collection" })
 
 local CollectionVariant = "Dark Matter"
@@ -3615,7 +3614,7 @@ function Balloon.Run()
 end
 
 -- ====================== TAB: EXPERIMENTAL ======================
-local Exp_Tab = window:CreateTab({ name = "Experimental", icon = "flask-conical" })
+Exp_Tab = window:CreateTab({ name = "Experimental", icon = "flask-conical" })
 Exp_Tab:CreateSection({ name = "Remotes / Util" })
 
 
@@ -3850,7 +3849,7 @@ Exp_Tab:CreateToggle({
 })
 
 -- ====================== TAB: EVENT ======================
-local Event_Tab = window:CreateTab({ name = "Event", icon = "party-popper" })
+Event_Tab = window:CreateTab({ name = "Event", icon = "party-popper" })
 Event_Tab:CreateSection({ name = "Balloon Farm por mundo" })
 Event_Tab:CreateInput({
     name = "VIP Share Link / Code",
