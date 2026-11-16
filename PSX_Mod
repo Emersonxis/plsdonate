@@ -45,47 +45,80 @@ Safe_Part.Parent = Workspace
 Safe_Part.CFrame = HumanoidRootPart.CFrame - Vector3.new(0, 5, 0)
 
 -- ====================== LIBRARY (auto-detect path) ======================
--- Detecta o caminho correto do Library uma vez (Framework ou legado)
-local function resolveLibrary()
-    local candidates = {
-        function()
-            local fw = ReplicatedStorage:FindFirstChild("Framework") or ReplicatedStorage:WaitForChild("Framework", 8)
-            if not fw then return nil end
-            local mod = fw:FindFirstChild("Library") or fw:WaitForChild("Library", 8)
-            if mod then return require(mod), "ReplicatedStorage.Framework.Library" end
-        end,
-        function()
-            local mod = ReplicatedStorage:FindFirstChild("Library") or ReplicatedStorage:WaitForChild("Library", 3)
-            if mod and mod:IsA("ModuleScript") then
-                return require(mod), "ReplicatedStorage.Library"
-            end
-        end,
-        function()
-            -- alguns forks: ReplicatedStorage.Modules.Library
-            local mods = ReplicatedStorage:FindFirstChild("Modules")
-            if mods then
-                local mod = mods:FindFirstChild("Library")
-                if mod then return require(mod), "ReplicatedStorage.Modules.Library" end
-            end
-        end,
-    }
-    for _, try in ipairs(candidates) do
-        local ok, lib, path = pcall(function()
-            local a, b = try()
-            return a, b
-        end)
-        if ok and lib then
-            return lib, path
-        end
+-- Seleciona a Library mais completa entre a variante Framework e a legada.
+local function libraryScore(lib)
+    if type(lib) ~= "table" then return -1 end
+    local score = 0
+    local net = lib.Network
+    local dir = lib.Directory
+    local save = lib.Save
+    if type(net) == "table" then
+        if type(net.Invoke) == "function" then score = score + 3 end
+        if type(net.Fire) == "function" then score = score + 2 end
+        if type(net.Fired) == "function" then score = score + 1 end
     end
-    error("[PSX Mod Hub] Nao foi possivel achar Library. Espere o jogo carregar e execute de novo.")
+    if type(dir) == "table" then
+        if type(dir.Pets) == "table" then score = score + 2 end
+        if type(dir.Eggs) == "table" then score = score + 1 end
+        if type(dir.Coins) == "table" then score = score + 1 end
+        if type(dir.Areas) == "table" then score = score + 1 end
+        if type(dir.Worlds) == "table" then score = score + 1 end
+    end
+    if type(save) == "table" and type(save.Get) == "function" then score = score + 2 end
+    if type(lib.PetCmds) == "table" then score = score + 1 end
+    if type(lib.WorldCmds) == "table" then score = score + 1 end
+    if lib.Loaded ~= nil then score = score + 1 end
+    return score
 end
 
-local Library, LibraryPath = resolveLibrary()
--- Dump oficial: while not Library.Loaded do Heartbeat:Wait() end
+local function addLibraryCandidate(list, seen, instance, path)
+    if not instance or not instance:IsA("ModuleScript") or seen[instance] then return end
+    seen[instance] = true
+    table.insert(list, { instance = instance, path = path })
+end
+
+local function resolveLibrary()
+    local candidates, seen = {}, {}
+    local framework = ReplicatedStorage:FindFirstChild("Framework")
+    local legacy = ReplicatedStorage:FindFirstChild("Library")
+    local modules = ReplicatedStorage:FindFirstChild("Modules")
+
+    if framework then
+        addLibraryCandidate(candidates, seen, framework:FindFirstChild("Library"), "ReplicatedStorage.Framework.Library")
+    end
+    addLibraryCandidate(candidates, seen, legacy, "ReplicatedStorage.Library")
+    if modules then
+        addLibraryCandidate(candidates, seen, modules:FindFirstChild("Library"), "ReplicatedStorage.Modules.Library")
+    end
+
+    -- Aguarda os caminhos comuns somente se ainda não apareceram.
+    if #candidates == 0 then
+        local fw = ReplicatedStorage:WaitForChild("Framework", 10)
+        if fw then addLibraryCandidate(candidates, seen, fw:FindFirstChild("Library"), "ReplicatedStorage.Framework.Library") end
+        addLibraryCandidate(candidates, seen, ReplicatedStorage:WaitForChild("Library", 5), "ReplicatedStorage.Library")
+    end
+
+    local bestLib, bestPath, bestScore = nil, nil, -1
+    for _, candidate in ipairs(candidates) do
+        local ok, lib = pcall(require, candidate.instance)
+        if ok and lib then
+            local score = libraryScore(lib)
+            if score > bestScore then
+                bestLib, bestPath, bestScore = lib, candidate.path, score
+            end
+        end
+    end
+    if not bestLib or bestScore < 8 then
+        error("[PSX Mod Hub] Nenhuma Library funcional foi encontrada. Aguarde o carregamento do mod e tente novamente.")
+    end
+    return bestLib, bestPath, bestScore
+end
+
+local Library, LibraryPath, LibraryScore = resolveLibrary()
+-- Variantes oficiais podem carregar a tabela depois do require.
 pcall(function()
     local t0 = os.clock()
-    while not Library.Loaded and (os.clock() - t0) < 60 do
+    while Library.Loaded == false and (os.clock() - t0) < 60 do
         task.wait(0.1)
     end
 end)
@@ -4051,4 +4084,4 @@ task.spawn(function()
     InstantCollectEnabled = InstantCollectWanted
 end)
 
-print("[PSX Mod Hub] Loaded successfully!")
+print("[PSX Mod Hub] Loaded successfully! Library: " .. tostring(LibraryPath) .. " | score=" .. tostring(LibraryScore))
