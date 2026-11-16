@@ -3999,7 +3999,7 @@ Event_Tab:CreateButton({
 })
 
 -- ====================== TAB: MISC ======================
-local Misc_Tab = window:CreateTab({ name = "Misc", icon = "settings" })
+Misc_Tab = window:CreateTab({ name = "Misc", icon = "settings" })
 
 Misc_Tab:CreateSection({ name = "Collect & Claims" })
 Misc_Tab:CreateToggle({
