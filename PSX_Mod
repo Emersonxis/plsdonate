@@ -2598,6 +2598,7 @@ WorldHopOld = WorldHopOld or {
     LoadTimeout = 12,
     RejoinAfterLoop = false,
     RejoinDelay = 5,
+    LoopsBeforeRejoin = 2,
     VipLink = "https://www.roblox.com/share?code=a72c2acbb1625b499d535a7183f11851&type=Server",
     Worlds = { "Spawn World" },
     WorldKeys = {},
@@ -2748,6 +2749,7 @@ function WorldHopOld.Run()
     if WorldHopOld.Running then return end
     WorldHopOld.Running = true
     task.spawn(function()
+        local completedLoops = 0
         while WorldHopOld.Enabled do
             if #SniperTargets == 0 then
                 task.wait(0.5)
@@ -2781,9 +2783,12 @@ function WorldHopOld.Run()
                     end
                     task.wait(math.max(0, tonumber(WorldHopOld.Delay) or 5))
                 end
-                if WorldHopOld.Enabled and WorldHopOld.RejoinAfterLoop then
+                completedLoops = completedLoops + 1
+                local loopLimit = math.max(1, math.floor(tonumber(WorldHopOld.LoopsBeforeRejoin) or 2))
+                if WorldHopOld.Enabled and WorldHopOld.RejoinAfterLoop and completedLoops >= loopLimit then
                     worldHopRejoinVip()
                     task.wait(math.max(2, tonumber(WorldHopOld.RejoinDelay) or 5))
+                    completedLoops = 0
                 end
             end
         end
@@ -2831,6 +2836,17 @@ autoFarmTab:CreateSlider({
     flag = "OldWorldHopRejoinDelay",
     callback = function(Value)
         WorldHopOld.RejoinDelay = math.max(2, tonumber(Value) or 5)
+    end,
+})
+autoFarmTab:CreateSlider({
+    name = "World Hop: loops antes do rejoin",
+    Range = {1, 10},
+    Increment = 1,
+    Suffix = "loop(s)",
+    value = 2,
+    flag = "OldWorldHopLoopsBeforeRejoin",
+    callback = function(Value)
+        WorldHopOld.LoopsBeforeRejoin = math.max(1, math.floor(tonumber(Value) or 2))
     end,
 })
 autoFarmTab:CreateToggle({
