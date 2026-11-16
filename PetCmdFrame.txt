@@ -1,0 +1,331 @@
+-- Script Path: game:GetService("ReplicatedStorage").Framework.Client["5 | PetCmds"]
+-- Took 0s to decompile.
+-- Executor: Delta (1.0.745.1142)
+
+local v_u_1 = {}
+local v_u_2 = nil
+coroutine.wrap(function()
+    -- upvalues: (ref) v_u_2
+    v_u_2 = require(game.ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Library"))
+end)()
+local v_u_3 = {}
+function v_u_1.Get(p4) -- name: Get
+    -- upvalues: (ref) v_u_3, (ref) v_u_2
+    local v5 = v_u_3[p4]
+    if v5 then
+        local v6 = v5[1]
+        local v7 = v_u_2.Save.Get(v6)
+        if v7 then
+            local v8 = v7.Pets[v5[2]]
+            if v8 and v8.uid == p4 then
+                return v8, v6
+            end
+        end
+    end
+    for _, v9 in ipairs(game.Players:GetPlayers()) do
+        local v10 = v_u_2.Save.Get(v9)
+        if not v10 then
+            continue
+        end
+        for v11, v12 in ipairs(v10.Pets) do
+            if v12.uid ~= p4 then
+                continue
+            end
+            v_u_3[p4] = { v9, v11 }
+            return v12, v9
+        end
+    end
+end
+function v_u_1.GetEquipped(p13) -- name: GetEquipped
+    -- upvalues: (ref) v_u_2
+    local v14 = {}
+    for _, v15 in ipairs(v_u_2.Save.Get(p13).Pets) do
+        if not v15.e then
+            continue
+        end
+        table.insert(v14, v15)
+    end
+    return v14
+end
+function v_u_1.HasBestEquipped(p16) -- name: HasBestEquipped
+    -- upvalues: (ref) v_u_2, (copy) v_u_1
+    local v17 = v_u_2.Save.Get(p16)
+    if not v17 then
+        return false
+    end
+    local v18 = v_u_1.GetEquipped(p16)
+    local v19 = v_u_2.Shared.SortPets((v_u_2.Functions.CloneTable(v17.Pets)))
+    local v20 = v17.InfPetsEnabled and #v17.Pets or v_u_2.Shared.GetMaxEquippedSlots(v17)
+    local v21 = {}
+    for v22 = 1, v20 do
+        local v23 = v19[v22]
+        if not v23 then
+            break
+        end
+        v21[v23.uid] = true
+    end
+    local v24 = true
+    for v25 = 1, v20 do
+        local v26 = v18[v25]
+        if not (v26 and v21[v26.uid]) then
+            v24 = false
+            break
+        end
+        v21[v26.uid] = nil
+    end
+    local v27 = {}
+    for _, v28 in pairs(v17.Pets) do
+        table.insert(v27, v28)
+    end
+    return #v18 == #v27 and true or v24
+end
+game.Players.PlayerRemoving:Connect(function(p29)
+    -- upvalues: (ref) v_u_3
+    for v30, v31 in pairs(v_u_3) do
+        if v31 and (v31[1] and v31[1] ~= p29) then
+            continue
+        end
+        v_u_3[v30] = nil
+    end
+end)
+coroutine.wrap(function()
+    -- upvalues: (ref) v_u_3
+    while wait(300) do
+        v_u_3 = {}
+    end
+end)()
+return v_u_1
+
+-- // Function Dumper made by King.Kevin
+-- // Script Path: game:GetService("ReplicatedStorage").Framework.Client["5 | PetCmds"]
+
+--[[
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+        1 [table]:
+        1 [table] table: 0x454ec10cfc0b8faf
+                1 [table]:
+                id3e7e885b91c44dde957afd77fceb08bd [table] table: 0xc458f4630b6e5c8c
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 1
+                2 [table]:
+                idd097791123f54b16bb530aee1aa622c2 [table] table: 0xbcb3b7b8bfd0e2d6
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 2
+                3 [table]:
+                id6389de22c9d54e70bff0d17c1499702f [table] table: 0x54d1d70827292e4a
+                        1 [Instance] = to_arab
+                        2 [number] = 10
+                4 [table]:
+                idd1f32424553d40009f09bd6e8f4d2b8b [table] table: 0x273f12750f5698f6
+                        1 [Instance] = to_arab
+                        2 [number] = 24
+                5 [table]:
+                id9206f356fc8e43138c6e2cdc459e6edf [table] table: 0x68a4fd62a8ae0ebc
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 16
+                6 [table]:
+                id0d8e06d8921a44308b191cbbf7c79e47 [table] table: 0xe4b9c0b53376be07
+                        1 [Instance] = to_arab
+                        2 [number] = 11
+                7 [table]:
+                id54d89852acdd461696e6c742264449ac [table] table: 0x5278a89c32be4f8e
+                        1 [Instance] = to_arab
+                        2 [number] = 16
+                8 [table]:
+                idd803993b59d247b7a6b693ab066b2e96 [table] table: 0xf918dce0e0f6cc77
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 11
+                9 [table]:
+                id9c76ae63853442ad9280fcbf61a78513 [table] table: 0x47401fd91ec94f3d
+                        1 [Instance] = to_arab
+                        2 [number] = 5
+                10 [table]:
+                ide86c2c98d37f4e0ea8883a0139664107 [table] table: 0x62bbae944d9e28de
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 14
+                11 [table]:
+                id26d2953415a9457bbf84fc42ead848d4 [table] table: 0xc97b036e704ec010
+                        1 [Instance] = to_arab
+                        2 [number] = 27
+                12 [table]:
+                ide3552ad965ee4211b0beb86fb91e5a55 [table] table: 0xfff396603c964a3b
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 17
+                13 [table]:
+                id3fb356db762e4e15aab1b21438313877 [table] table: 0xec6f08583766100f
+                        1 [Instance] = to_arab
+                        2 [number] = 29
+                14 [table]:
+                id8c694b8d6b66421cafee332547bcb7a6 [table] table: 0x0d943516888c96a0
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 8
+                15 [table]:
+                idf560813a2b504c1ba55810087ca30319 [table] table: 0x101f0391ef4b8ea7
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 9
+                16 [table]:
+                idf545be20d8434597b2c59c5ec25443c4 [table] table: 0x16c806103da929c3
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 18
+                17 [table]:
+                id8d17827f8dd643df86847078434aa949 [table] table: 0xd1be60216b85d0b5
+                        1 [Instance] = to_arab
+                        2 [number] = 28
+                18 [table]:
+                id6a67df75ac80461bb597b4194c453412 [table] table: 0xbf646cbf4a746024
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 12
+                19 [table]:
+                id521eae281a2d48b7b7cfdc49849417e4 [table] table: 0x845ad0170ac4a66d
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 13
+                20 [table]:
+                id91c3904b0d4a42b28c6692663b1028e1 [table] table: 0x0fe5b96016b5bc87
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 4
+                21 [table]:
+                id9350b90cecce49e9a60d5c9e2e7168ed [table] table: 0x5fe7845117cea996
+                        1 [Instance] = to_arab
+                        2 [number] = 6
+                22 [table]:
+                id84892eb894cc45358080322f864a4b8a [table] table: 0x9f3248bb0a6f29fa
+                        1 [Instance] = to_arab
+                        2 [number] = 19
+                23 [table]:
+                id29034df1540d4ce6b68a2e0808519eb7 [table] table: 0xf9572bea216d31d7
+                        1 [Instance] = to_arab
+                        2 [number] = 8
+                24 [table]:
+                id74d65a0a08e94e7fb652030ff9019281 [table] table: 0x5ebc04f4e002615d
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 15
+                25 [table]:
+                ide4d704ab8678470aa564111f9e436996 [table] table: 0x08f46550d9de5b3c
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 19
+                26 [table]:
+                ideee0944046da4ffc969fb5fcbb648380 [table] table: 0x007f73f5b9d3b06e
+                        1 [Instance] = to_arab
+                        2 [number] = 31
+                27 [table]:
+                id05116cd6932547b8b16219c25a454130 [table] table: 0x01e9164a851e2b55
+                        1 [Instance] = to_arab
+                        2 [number] = 7
+                28 [table]:
+                id17432b65cfdc46e4843c1e33ca8e8cdb [table] table: 0x598c89c379b63257
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 3
+                29 [table]:
+                id4aa202606fe74ad88176cc2833eeb8d7 [table] table: 0xa5c3e34bf5d840d2
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 10
+                30 [table]:
+                id4bc3128ac9814ac381cc00bfe149187f [table] table: 0x74bbea0a861ec9cd
+                        1 [Instance] = to_arab
+                        2 [number] = 25
+                31 [table]:
+                idcef201c153b34703855dc5d683c6155c [table] table: 0xc7a11c778bf8dbdd
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 6
+                32 [table]:
+                id39f11b72988146049e1f5fbeb3b7512d [table] table: 0x30e701db94111097
+                        1 [Instance] = to_arab
+                        2 [number] = 4
+                33 [table]:
+                id8c67873d3b7541ccb78195e967360dd7 [table] table: 0x01087a4412adf76d
+                        1 [Instance] = to_arab
+                        2 [number] = 15
+                34 [table]:
+                id2ce6685676d544078ffe91be12ad1008 [table] table: 0xfc350319a0938f36
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 5
+                35 [table]:
+                ida713034db94e429da20fdea6e15ea258 [table] table: 0x60b1818f4b62ae21
+                        1 [Instance] = to_arab
+                        2 [number] = 9
+                36 [table]:
+                id33a3a4f6d50e4ca0b71bd524813de704 [table] table: 0x9fa92887aaba998c
+                        1 [Instance] = Emerson_GTA
+                        2 [number] = 7
+
+Function Constants: Unknown Name
+        1 [string] = wait
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+        1 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+        1 [string] = pairs
+
+====================================================================================================
+
+Function Dump: GetEquipped
+
+Function Upvalues: GetEquipped
+        1 [table]:
+        1 [table] table: 0x278e230f59ac4af5
+
+Function Constants: GetEquipped
+        1 [string] = ipairs
+        3 [string] = Save
+        4 [string] = Get
+        5 [string] = Pets
+        6 [string] = e
+        7 [string] = table
+        8 [string] = insert
+
+====================================================================================================
+
+Function Dump: HasBestEquipped
+
+Function Upvalues: HasBestEquipped
+        1 [table] (Recursive table detected)
+        2 [table]:
+        2 [table] table: 0xc24bdf5973361265
+                1 [function] = GetEquipped
+                2 [function] = HasBestEquipped
+                3 [function] = Get
+
+Function Constants: HasBestEquipped
+        1 [string] = Save
+        2 [string] = Get
+        3 [string] = GetEquipped
+        4 [string] = Shared
+        5 [string] = SortPets
+        6 [string] = Functions
+        7 [string] = CloneTable
+        8 [string] = Pets
+        9 [string] = InfPetsEnabled
+        10 [string] = GetMaxEquippedSlots
+        11 [string] = uid
+        12 [string] = pairs
+        14 [string] = table
+        15 [string] = insert
+
+====================================================================================================
+
+Function Dump: Get
+
+Function Upvalues: Get
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+
+Function Constants: Get
+        1 [string] = Save
+        2 [string] = Get
+        3 [string] = Pets
+        4 [string] = uid
+        5 [string] = ipairs
+        7 [string] = game
+        8 [Instance] = Ugc
+        9 [string] = Players
+        10 [string] = GetPlayers
+
+====================================================================================================
+]]

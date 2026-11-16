@@ -1,0 +1,1134 @@
+-- Script Path: game:GetService("StarterPlayer").StarterPlayerScripts.Scripts.Game.Pets
+-- Took 0.07s to decompile.
+-- Executor: Delta (1.0.745.1142)
+
+local v_u_1 = require(game.ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Library"))
+while not v_u_1.Loaded do
+    game:GetService("RunService").Heartbeat:Wait()
+end
+local v_u_2 = Random.new()
+local v_u_3 = {}
+local v_u_4 = {}
+local v_u_5 = {}
+local v_u_6 = 0
+local function v_u_14(p7) -- name: isBadCFrame
+    local v8 = p7.Position
+    local v9 = p7.LookVector
+    local v10
+    if v8.X == v8.X and (v8.Y == v8.Y and (v8.Z == v8.Z and (v9.X == v9.X and (v9.Y == v9.Y and v9.Z == v9.Z)))) then
+        local v11 = v8.X
+        if math.abs(v11) > 1000000 then
+            v10 = true
+        else
+            local v12 = v8.Y
+            if math.abs(v12) > 1000000 then
+                v10 = true
+            else
+                local v13 = v8.Z
+                v10 = math.abs(v13) > 1000000
+            end
+        end
+    else
+        v10 = true
+    end
+    return v10
+end
+local v_u_15 = nil
+local v_u_16 = nil
+local v_u_17 = {
+    "rbxassetid://6840608566",
+    "rbxassetid://6840608533",
+    "rbxassetid://6840608598",
+    "rbxassetid://6840608504"
+}
+local v_u_18 = true
+local v_u_19 = nil
+local function v_u_49(p20) -- name: u9
+    -- upvalues: (copy) v_u_1, (copy) v_u_4, (copy) v_u_2, (copy) v_u_3
+    local v21, v22 = v_u_1.PetCmds.Get(p20)
+    if v21 then
+        local v23 = v_u_1.Player.Get("Character", v22)
+        local v24 = v_u_1.Player.Get("Humanoid", v22)
+        if v23 and (v24 and v23.PrimaryPart) then
+            local v25 = v_u_1.Save.Get(v22, true)
+            if v25 and v25.World == v_u_1.WorldCmds.Get() then
+                local v26 = v21.id
+                local v27 = v21.g
+                local v28 = v21.nk
+                local v29 = v_u_1.Directory.Pets[v26]
+                local v30 = v29.rarity
+                local v31 = v27 and v29.modelGold or v29.model
+                if v31 then
+                    local v_u_32 = v31:Clone()
+                    v_u_4[v_u_32] = true
+                    v_u_32.Anchored = true
+                    v_u_32.CanCollide = false
+                    local v33 = v_u_32:FindFirstChildOfClass("SpecialMesh")
+                    v_u_32.Name = p20
+                    local v34 = v23:GetPrimaryPartCFrame() * CFrame.new(0, 0, -5)
+                    local v35 = v24.HipHeight / 2
+                    v_u_32.CFrame = v34 - Vector3.new(0, v35, 0)
+                    if v33.VertexColor == Vector3.new(1, 1, 1) then
+                        v33.VertexColor = Vector3.new(1.125, 1.125, 1.125)
+                    end
+                    v_u_32.Parent = v_u_1.Things.Pets
+                    if v27 then
+                        v_u_32:FindFirstChildOfClass("SpecialMesh").VertexColor = Vector3.new(1.45, 1.45, 1.45)
+                        for _, v36 in ipairs(v_u_1.Assets.Particles:FindFirstChild("Golden Pet"):GetChildren()) do
+                            v36:Clone().Parent = v_u_32
+                        end
+                    end
+                    if v21.r then
+                        v_u_32:FindFirstChildOfClass("SpecialMesh").VertexColor = Vector3.new(2, 2, 2)
+                        for _, v37 in ipairs(v_u_1.Assets.Particles:FindFirstChild("Rainbow Pet"):GetChildren()) do
+                            local v38 = v37:Clone()
+                            v38.Name = "__RAINBOWPARTICLES"
+                            v38.Parent = v_u_32
+                        end
+                        for _, v39 in ipairs(v_u_1.Assets.Other:FindFirstChild("Rainbow Pet"):GetChildren()) do
+                            local v40 = v39:Clone()
+                            v40.Name = "__RAINBOWFX"
+                            v40.Parent = v_u_32
+                        end
+                    end
+                    if v21.dm then
+                        v_u_32:FindFirstChildOfClass("SpecialMesh").VertexColor = Vector3.new(20, 0.6, 20)
+                    end
+                    local v41 = string.find(v29.name, "Pixel") ~= nil and "Pixel" or nil
+                    local v42 = v_u_1.Assets.Billboards.Pet:Clone()
+                    v42.Nickname.Text = v28
+                    local v43 = (v_u_32:FindFirstChild("center").Position - v_u_32:FindFirstChild("bottom").Position).Y * 2
+                    v42.StudsOffset = Vector3.new(0, v43, 0)
+                    v42.Name = "__BILLBOARD"
+                    if v_u_1.Shared.PetRarityNumbers[v30] >= 2 then
+                        local v44 = v42.Rarity
+                        v44.Text = v30
+                        v_u_1.Shared.ApplyRarityColor(v44, v30)
+                        v44.Visible = true
+                        v42.StudsOffset = v42.StudsOffset + Vector3.new(0, 1, 0)
+                    end
+                    v42.Parent = v_u_32
+                    coroutine.wrap(function()
+                        -- upvalues: (ref) v_u_1, (copy) v_u_32, (ref) v_u_2
+                        v_u_1.RenderStepped()
+                        if v_u_32.Parent then
+                            local v45 = v_u_1.Assets.Particles:FindFirstChild("Pet Spawn"):Clone()
+                            v45.Parent = v_u_32
+                            v45:Emit(8)
+                            v_u_1.Audio.Play("rbxassetid://7000720081", v_u_32, v_u_2:NextNumber(0.95, 1.05), 0.125, 125)
+                            v_u_1.Functions.AddDebris(v45, 4)
+                        end
+                    end)()
+                    v_u_32:SetAttribute("Owner", v22.Name)
+                    v_u_32:SetAttribute("Dir", v26)
+                    v_u_32:SetAttribute("ID", p20)
+                    local _ = v29.huge == nil or not v29.huge
+                    local v46 = v_u_3
+                    local v47 = {
+                        ["physical"] = nil,
+                        ["uid"] = nil,
+                        ["id"] = nil,
+                        ["owner"] = nil,
+                        ["target"] = nil,
+                        ["networkTarget"] = nil,
+                        ["row"] = 0,
+                        ["rowPlace"] = 0,
+                        ["rowTotal"] = 0,
+                        ["moving"] = false,
+                        ["distance"] = nil,
+                        ["raycast"] = nil,
+                        ["farming"] = false,
+                        ["arrived"] = false,
+                        ["selectionFunc"] = nil,
+                        ["walkSoundTick"] = nil,
+                        ["playerDistCheckTick"] = 0,
+                        ["hat"] = nil,
+                        ["hatOffset"] = nil,
+                        ["targetuid"] = 0,
+                        ["nickname"] = nil,
+                        ["spawnTick"] = nil,
+                        ["speed"] = nil,
+                        ["centerAttachment"] = nil,
+                        ["bottomAttachment"] = nil,
+                        ["huge"] = nil,
+                        ["special"] = nil,
+                        ["physical"] = v_u_32,
+                        ["uid"] = p20,
+                        ["id"] = v26,
+                        ["owner"] = v22,
+                        ["hatOffset"] = CFrame.new(0, 0.9, 0),
+                        ["nickname"] = v28,
+                        ["spawnTick"] = os.clock()
+                    }
+                    local v48 = 1 + (v21.s / 100) ^ 0.4
+                    v47.speed = math.clamp(v48, 1, 7) * 0.25
+                    v47.centerAttachment = v_u_32:FindFirstChild("center")
+                    v47.bottomAttachment = v_u_32:FindFirstChild("bottom")
+                    v47.huge = v29.huge
+                    v47.special = v41
+                    v46[p20] = v47
+                    if v22 == v_u_1.LocalPlayer then
+                        v_u_1.Signal.Fire("Added Client Pet", p20)
+                    end
+                else
+                    v_u_1.Print("Pet doesn\'t exist - " .. v26 .. (v27 and " (gold)" or ""), true)
+                end
+            else
+                return
+            end
+        else
+            return
+        end
+    else
+        v_u_1.Print("Failed to get pet data for petId [bold]" .. p20 .. "[/bold]", true)
+        return
+    end
+end
+local v_u_50 = nil
+function ChangePetTargetPlayer(p51) -- name: ChangePetTargetPlayer
+    -- upvalues: (copy) v_u_1, (copy) v_u_3
+    if p51 then
+        local v52, v53 = v_u_1.PetCmds.Get(p51)
+        local v54 = v52 and v53 and (v53 ~= v_u_1.LocalPlayer and v_u_3[p51])
+        if v54 then
+            v54.target = v54.owner
+            v54.farming = false
+        end
+    end
+end
+function ChangePetTargetCoin(p55, p56) -- name: ChangePetTargetCoin
+    -- upvalues: (copy) v_u_1, (copy) v_u_3
+    if p55 then
+        if p56 then
+            local v57, v58 = v_u_1.PetCmds.Get(p55)
+            if v57 and (v58 and v58 ~= v_u_1.LocalPlayer) then
+                local v59 = v_u_3[p55]
+                local v60 = v_u_1.Things.Coins:FindFirstChild(p56)
+                if v59 and v60 then
+                    v59.target = v60:FindFirstChild("POS")
+                    v59.farming = true
+                end
+            end
+        end
+    else
+        return
+    end
+end
+local v_u_61 = nil
+function NetworkUpdate() -- name: NetworkUpdate
+    -- upvalues: (copy) v_u_3, (copy) v_u_1, (ref) v_u_61
+    for _, v62 in pairs(v_u_3) do
+        local v63 = v62.uid
+        local v64 = v62.owner
+        local v65 = v62.target
+        if v64 ~= v_u_1.LocalPlayer or v65 == v62.networkTarget then
+            continue
+        end
+        v62.networkTarget = v65
+        if v62.farming then
+            v_u_1.Network.Fire("Change Pet Target", v63, "Coin", (v65.Parent:GetAttribute("ID")))
+        else
+            if v65 ~= v64 then
+                continue
+            end
+            v_u_1.Network.Fire("Change Pet Target", v63, "Player")
+        end
+    end
+    coroutine.wrap(function()
+        -- upvalues: (ref) v_u_61, (ref) v_u_1, (ref) v_u_3
+        if v_u_61 then
+            if os.clock() - v_u_61 > 1.5 then
+                v_u_61 = os.clock()
+                local v66 = v_u_1.Network.Invoke("Get Coin Targets")
+                if v66 then
+                    for v67, v68 in pairs(v66) do
+                        local v69 = v68.t
+                        if not v_u_3[v67] then
+                            continue
+                        end
+                        if v69 == "Coin" then
+                            ChangePetTargetCoin(v67, v68.id)
+                        else
+                            if v69 ~= "Player" then
+                                continue
+                            end
+                            ChangePetTargetPlayer(v67)
+                        end
+                    end
+                else
+                    v_u_1.Print("Failed to get targets of other players")
+                end
+            end
+        else
+            v_u_61 = os.clock()
+            local v70 = v_u_1.Network.Invoke("Get Coin Targets")
+            if not v70 then
+                v_u_1.Print("Failed to get targets of other players")
+                return
+            end
+            for v71, v72 in pairs(v70) do
+                local v73 = v72.t
+                if not v_u_3[v71] then
+                    continue
+                end
+                if v73 == "Coin" then
+                    ChangePetTargetCoin(v71, v72.id)
+                else
+                    if v73 ~= "Player" then
+                        continue
+                    end
+                    ChangePetTargetPlayer(v71)
+                end
+            end
+        end
+    end)()
+end
+function UpdateRaycastParams() -- name: UpdateRaycastParams
+    -- upvalues: (copy) v_u_1, (ref) v_u_16
+    local v74 = {}
+    for _, v75 in ipairs(v_u_1.WorldCmds.GetMap():GetChildren()) do
+        if v75.Name == "Debris" or (v75.Name == "PlayerSpawns" or (v75.Name == "Teleports" or v75.Name == "Audio")) then
+            continue
+        end
+        table.insert(v74, v75)
+    end
+    v_u_16 = RaycastParams.new()
+    v_u_16.FilterDescendantsInstances = { v74 }
+    v_u_16.FilterType = Enum.RaycastFilterType.Whitelist
+    v_u_16.IgnoreWater = true
+end
+v_u_1.Signal.Fired("World Changed"):Connect(function()
+    UpdateRaycastParams()
+end)
+function UpdatePetSoundsSetting() -- name: UpdatePetSoundsSetting
+    -- upvalues: (copy) v_u_1, (ref) v_u_18
+    local v76 = v_u_1.Save.Get()
+    if v76 then
+        v_u_18 = v76.Settings.PetSFX == 1
+    end
+end
+v_u_1.Signal.Fired("Stat Changed"):Connect(function(p77)
+    if p77 == "Settings" then
+        UpdatePetSoundsSetting()
+    end
+end)
+UpdatePetSoundsSetting()
+v_u_1.Network.Fired("Pet Target Coin"):Connect(function(p78, p79)
+    ChangePetTargetCoin(p78, p79)
+end)
+v_u_1.Network.Fired("Pet Target Player"):Connect(function(p80)
+    ChangePetTargetPlayer(p80)
+end)
+v_u_1.Network.Fired("Player Teleported"):Connect(function(p81)
+    -- upvalues: (copy) v_u_1, (copy) v_u_3, (copy) v_u_4
+    local v82 = v_u_1.Save.Get(p81, true)
+    if v82 and v82.Pets then
+        for _, v83 in ipairs(v82.Pets) do
+            local v84 = v83.uid
+            local v85 = v_u_3[v84]
+            if not v83.e or (not v85 or v85.farming) then
+                continue
+            end
+            local v86 = v_u_3[v84]
+            if not v86 then
+                continue
+            end
+            local v87 = v86.physical
+            if v87 then
+                v_u_4[v87] = nil
+                v87:Destroy()
+            end
+            v_u_3[v84] = nil
+            if v86.owner ~= v_u_1.LocalPlayer then
+                continue
+            end
+            v_u_1.Signal.Fire("Removed Client Pet", v84)
+        end
+    end
+end)
+local function v_u_124(p88, p89) -- name: u12
+    -- upvalues: (copy) v_u_1, (copy) v_u_3, (copy) v_u_2
+    local v90 = v_u_1.Save.Get()
+    if v90 then
+        if p88 then
+            local v91 = v90.Settings.PetsControl == 2 and true or p89
+            local v_u_92 = p88:GetAttribute("ID")
+            p88:FindFirstChild("Pets"):GetChildren()
+            local _ = v_u_1.Directory.Coins[p88:GetAttribute("Name")]
+            local v_u_93 = p88:FindFirstChild("POS")
+            local function v101(p94) -- name: v67
+                -- upvalues: (ref) v_u_3, (ref) v_u_1, (copy) v_u_93
+                local v95 = nil
+                local v96 = nil
+                local v97 = nil
+                for v98, v99 in pairs(v_u_3) do
+                    if v99.owner ~= v_u_1.LocalPlayer then
+                        continue
+                    end
+                    local v100 = (v_u_93.CFrame.p - v99.physical.CFrame.p).Magnitude
+                    if v95 and v100 >= v96 or not (p94 and p94(v99)) and p94 then
+                        continue
+                    end
+                    v97 = v99
+                    v96 = v100
+                    v95 = v98
+                end
+                return v95, v97
+            end
+            local v102 = {}
+            local v103 = {}
+            if v91 then
+                for v104, v105 in pairs(v_u_3) do
+                    if v105.owner ~= v_u_1.LocalPlayer then
+                        continue
+                    end
+                    table.insert(v102, v104)
+                end
+            else
+                local v107, _ = v101(function(p106)
+                    return not p106.farming
+                end)
+                if v107 then
+                    table.insert(v102, v107)
+                else
+                    local v110, _ = v101(function(p108)
+                        -- upvalues: (copy) v_u_93
+                        local v109 = p108.farming
+                        if v109 then
+                            v109 = p108.target ~= v_u_93
+                        end
+                        return v109
+                    end)
+                    if v110 then
+                        table.insert(v102, v110)
+                    else
+                        local v113, _ = v101(function(p111)
+                            -- upvalues: (copy) v_u_93
+                            local v112 = p111.farming
+                            if v112 then
+                                v112 = p111.target == v_u_93
+                            end
+                            return v112
+                        end)
+                        if v113 then
+                            local v114 = {}
+                            for v115, v116 in pairs(v_u_3) do
+                                if v116.owner ~= v_u_1.LocalPlayer or (not v116.farming or v116.target ~= v_u_93) then
+                                    continue
+                                end
+                                table.insert(v114, v115)
+                            end
+                            if #v114 > 0 then
+                                v103 = v114
+                            end
+                        end
+                    end
+                end
+            end
+            if #v102 > 0 then
+                local v117 = v_u_1.Network.Invoke("Join Coin", v_u_92, v102)
+                if v_u_1.Functions.DictionaryLength(v117) > 0 then
+                    v_u_1.Audio.Play("rbxassetid://7004964432", script)
+                end
+                for v_u_118, v119 in pairs(v117) do
+                    if v119 then
+                        local v_u_120 = v_u_3[v_u_118]
+                        if v_u_120.selectionFunc then
+                            v_u_120.selectionFunc()
+                            v_u_120.selectionFunc = nil
+                        end
+                        v_u_120.farming = true
+                        v_u_120.target = v_u_93
+                        v_u_120.follower = nil
+                        v_u_120.arrived = false
+                        v_u_120.selectionFunc = v_u_1.WorldFX.CoinSelection(v_u_120.physical, p88)
+                        v_u_120.targetuid = v_u_120.targetuid + 1
+                        v_u_120.randomRotation = v_u_2:NextNumber(0, 360)
+                        coroutine.wrap(function()
+                            -- upvalues: (ref) v_u_3, (copy) v_u_118, (copy) v_u_120, (copy) v_u_93, (ref) v_u_1, (copy) v_u_92
+                            while v_u_3[v_u_118] and (v_u_120.farming and (v_u_120.target == v_u_93 and v_u_120.targetuid == v_u_120.targetuid)) do
+                                if v_u_120.arrived then
+                                    v_u_1.Network.Fire("Farm Coin", v_u_92, v_u_118)
+                                    return
+                                end
+                                wait(0.33)
+                            end
+                        end)()
+                    else
+                        v_u_1.Print("Pet failed to join coin -- " .. v_u_118)
+                    end
+                end
+            end
+            if #v103 > 0 then
+                for v121, v122 in pairs((v_u_1.Network.Invoke("Leave Coin", v_u_92, v103))) do
+                    if v122 then
+                        local v123 = v_u_3[v121]
+                        if v123.selectionFunc then
+                            v123.selectionFunc()
+                            v123.selectionFunc = nil
+                        end
+                        v123.farming = false
+                        v123.target = nil
+                    else
+                        v_u_1.Print("Pet failed to leave coin -- " .. v121)
+                    end
+                end
+            end
+        end
+    else
+        return
+    end
+end
+v_u_1.Signal.Fired("Select Coin"):Connect(function(p125)
+    -- upvalues: (copy) v_u_124
+    v_u_124(p125)
+end)
+v_u_1.Signal.Fired("Group Select Coin"):Connect(function(p126)
+    -- upvalues: (copy) v_u_124
+    v_u_124(p126, true)
+end)
+v_u_1.Signal.Fired("World Changed"):Connect(function()
+    -- upvalues: (copy) v_u_3, (copy) v_u_4, (copy) v_u_1
+    for v127, _ in pairs(v_u_3) do
+        local v128 = v_u_3[v127]
+        if not v128 then
+            continue
+        end
+        local v129 = v128.physical
+        if v129 then
+            v_u_4[v129] = nil
+            v129:Destroy()
+        end
+        v_u_3[v127] = nil
+        if v128.owner ~= v_u_1.LocalPlayer then
+            continue
+        end
+        v_u_1.Signal.Fire("Removed Client Pet", v127)
+    end
+end)
+v_u_1.RunService:BindToRenderStep("PetsRender", Enum.RenderPriority.Last.Value, function()
+    -- upvalues: (copy) v_u_1, (ref) v_u_15, (copy) v_u_3, (copy) v_u_2, (ref) v_u_16, (copy) v_u_14, (copy) v_u_17, (ref) v_u_18, (ref) v_u_6, (copy) v_u_4
+    if v_u_1.WorldCmds.HasLoaded() then
+        if not v_u_15 then
+            v_u_15 = os.clock()
+        end
+        local v_u_130 = v_u_1.Save.Get()
+        local v_u_131 = (os.clock() - v_u_15) * 60
+        local v_u_132 = {
+            ["pets"] = {},
+            ["cframes"] = {},
+            ["RayRenders"] = {}
+        }
+        for _, v_u_133 in pairs(v_u_3) do
+            local v134 = v_u_133.uid
+            local v_u_135 = v_u_1.PetCmds.Get(v134)
+            local v_u_136 = os.clock()
+            local function v273()
+                -- upvalues: (copy) v_u_135, (copy) v_u_133, (ref) v_u_1, (copy) v_u_130, (copy) v_u_136, (ref) v_u_2, (ref) v_u_16, (copy) v_u_131, (ref) v_u_14, (copy) v_u_132, (ref) v_u_17, (ref) v_u_18
+                if v_u_135 then
+                    local v137 = v_u_133.physical
+                    local v138 = v_u_133.id
+                    local v139 = v_u_1.Directory.Pets[v138]
+                    local v140 = v139.sounds
+                    local v141 = v139.fly
+                    local v142 = v_u_133.speed
+                    local v143 = 3.25
+                    local v144 = v_u_133.target
+                    local v145 = v_u_133.owner
+                    local v146 = v_u_133.farming
+                    local v147 = v_u_133.row
+                    local v148 = v_u_133.rowPlace
+                    local v149 = v_u_133.rowTotal
+                    local v150
+                    if v144 then
+                        v150 = v144:IsA("Player")
+                    else
+                        v150 = v144
+                    end
+                    local v151
+                    if v147 == 0 or v148 == 0 then
+                        v151 = false
+                    elseif v149 == 0 then
+                        v151 = false
+                    else
+                        v151 = v150
+                    end
+                    if v_u_130.Settings.ShowOtherPets == 2 and v145 ~= v_u_1.LocalPlayer then
+                        return "critical"
+                    else
+                        if v150 then
+                            v144 = v144.Character
+                        end
+                        if v144 ~= nil and v144.Parent ~= nil then
+                            if v145 == nil or v145.Parent == nil then
+                                return "critical"
+                            end
+                            if v137 == nil or v137.Parent == nil then
+                                return "critical"
+                            end
+                            if not v144 or (not v144:IsA("Model") or v144.PrimaryPart) then
+                                if v150 and v_u_136 - v_u_133.playerDistCheckTick >= 1 then
+                                    if v145:DistanceFromCharacter(v137.CFrame.p) >= 200 then
+                                        v137.CFrame = v144:GetPrimaryPartCFrame() * CFrame.new(0, 0, -5)
+                                    else
+                                        v_u_133.playerDistCheckTick = v_u_136
+                                    end
+                                end
+                                if v146 then
+                                    v142 = v142 + (v_u_130.Upgrades["Pet Walkspeed"] or 0) * 0.2
+                                end
+                                local v152, v153 = v_u_1.Shared.HasPower(v_u_135, "Agility")
+                                if v152 then
+                                    v142 = v142 * v_u_1.Shared.GetPowerDir("Agility", v153).value
+                                end
+                                local v154, _ = v_u_1.Shared.HasPower(v_u_135, "Royalty")
+                                if v154 then
+                                    v142 = v142 * 1.5
+                                end
+                                local v155 = v_u_130.World == "Void"
+                                if v155 then
+                                    v142 = v142 * 0.4
+                                end
+                                if v150 then
+                                    local v156 = math.min(v142, 1)
+                                    local v157 = v_u_133.spawnTick
+                                    v142 = v156 + math.sin(v157) / 8
+                                end
+                                if v146 and not v144:IsA("Model") then
+                                    v144 = v144.Parent:FindFirstChild("Coin")
+                                    if v144 and v144:IsA("BasePart") then
+                                        local v158 = v144.Size
+                                        local v159 = v158.X
+                                        local v160 = v158.Z
+                                        local v161 = math.max(v159, v160) / 2 * 1.1 + 3.5
+                                        v143 = math.max(v161, 4.5)
+                                    end
+                                end
+                                local v162 = v_u_133.centerAttachment
+                                local v163 = v_u_133.bottomAttachment
+                                local _ = v162.CFrame
+                                local _ = v162.WorldCFrame
+                                local _ = v163.WorldCFrame
+                                local v164 = v144:IsA("Model") and v144:GetPrimaryPartCFrame() or v144.CFrame
+                                local v165
+                                if v146 then
+                                    if not v_u_133.randomRotation then
+                                        v_u_133.randomRotation = v_u_2:NextNumber(0, 360)
+                                    end
+                                    local v166 = CFrame.Angles
+                                    local v167 = v_u_133.randomRotation
+                                    v165 = v164 * v166(0, math.rad(v167), 0) * CFrame.new(0, 0, v143)
+                                else
+                                    v165 = v164 * CFrame.new(0, 0, v143)
+                                end
+                                if v151 then
+                                    local v168 = -(3 * v149 + 3) / 2 + 3 * v148
+                                    local v169 = v143 * v147
+                                    if v_u_133.huge then
+                                        local v170 = v_u_133.totalHuges
+                                        local v171 = v_u_133.hugePlace
+                                        local v172 = (v170 + 1) / 2
+                                        math.round(v172)
+                                        local v173 = (v171 + 1) / 3
+                                        local v174 = math.round(v173)
+                                        local v175 = v170 - (v174 - 1) * 3
+                                        local v176 = math.min(v175, 3)
+                                        v169 = v169 + (v174 * 8 - 2)
+                                        v168 = -(v176 * 6 + 6) / 2 + 6 * (v171 - (v174 - 1) * 3)
+                                    end
+                                    local v177 = CFrame.new(v168, 0, v169)
+                                    v165 = v165 * v177
+                                    v164 = v164 * v177
+                                end
+                                local v178 = v137.CFrame
+                                local v179 = v137.Size
+                                local v180 = v_u_133
+                                local v181 = ((v164.X - v178.X) ^ 2 + (v164.Z - v178.Z) ^ 2) ^ 0.5 or v_u_133.distance
+                                v180.distance = math.max(v181, 0.01)
+                                local v182 = v_u_133
+                                local v183 = workspace
+                                local v184 = v178.p
+                                local v185 = v179.Y / 2
+                                local v186 = v184 + Vector3.new(0, v185, 0)
+                                local v187 = v165.Y - v178.Y + 1
+                                local v188 = math.max(v187, 0)
+                                local v189 = v186 + Vector3.new(0, v188, 0)
+                                local v190 = (v178.Y - v165.Y) / 4
+                                local v191 = math.max(v190, 0)
+                                local v192 = v183:Raycast(v189 - Vector3.new(0, v191, 0), (Vector3.new(0, -1, 0)).Unit * 200, v_u_16)
+                                local v193
+                                if v192 then
+                                    v193 = v192.Position
+                                    if not v192.Instance then
+                                        v193 = nil
+                                    end
+                                    v_u_133.lastr = v193
+                                else
+                                    v193 = nil
+                                end
+                                v182.raycast = v193 or v165
+                                v_u_133.moving = v_u_133.moving
+                                v_u_133.arrived = v_u_133.distance < v143 + 1
+                                local v194
+                                if v_u_133.movingTick == nil then
+                                    v194 = v_u_133.moving and v_u_136 or v_u_133.movingTick
+                                else
+                                    v194 = v_u_133.movingTick
+                                end
+                                v_u_133.movingTick = v194
+                                v_u_133.randomSoundTick = v_u_133.randomSoundTick or v_u_136
+                                v_u_133.walkSoundTick = v_u_133.walkSoundTick or v_u_136
+                                local v195
+                                if v_u_133.farmingTick == nil and v_u_133.farming then
+                                    v195 = v_u_133.arrived and os.clock() or v_u_133.farmingTick
+                                else
+                                    v195 = v_u_133.farmingTick
+                                end
+                                v_u_133.farmingTick = v195
+                                v_u_133.lastMovingCheck = v_u_133.lastMovingCheck or v_u_136
+                                local v196 = v_u_133
+                                local v197 = v_u_133.lastPositionLerp
+                                if not v197 then
+                                    local v198 = CFrame.new(v165.p)
+                                    local v199 = v165.Y
+                                    v197 = v198 - Vector3.new(0, v199, 0)
+                                end
+                                v196.lastPositionLerp = v197
+                                v_u_133.lastRotationLerp = v_u_133.lastRotationLerp or CFrame.new()
+                                v_u_133.lastRaycastLerp = v_u_133.lastRaycastLerp or CFrame.new(0, v165.Y, 0)
+                                v_u_133.lastAnimationLerp = v_u_133.lastAnimationLerp or CFrame.new()
+                                v_u_133.lastFarmingLerp = v_u_133.lastFarmingLerp or CFrame.new()
+                                v_u_133.lastDist = v_u_133.lastDist or 0
+                                if v_u_136 - v_u_133.lastMovingCheck >= 0.2 then
+                                    v_u_133.lastMovingCheck = v_u_136
+                                    v_u_133.moving = v143 + 0.5 < v_u_133.distance
+                                end
+                                local v200 = v_u_133.distance
+                                local v201 = v_u_133.moving
+                                local _ = v_u_133.spawnTick
+                                local v202 = v_u_133.movingTick
+                                local v203 = v_u_133.farmingTick
+                                local v204 = v_u_133.lastPositionLerp
+                                local v205 = CFrame.new(v165.p)
+                                local v206 = v165.Y
+                                local v207 = v205 - Vector3.new(0, v206, 0)
+                                local v208 = v_u_131 * (1 / v200) * v142
+                                local v209 = v204:Lerp(v207, (math.clamp(v208, 0, 1)))
+                                local v210, v211
+                                if v178.p == v165.p then
+                                    v210 = 0
+                                    v211 = 0
+                                else
+                                    local v212 = CFrame.new
+                                    local v213 = v178.Y
+                                    local v214 = (v178 - Vector3.new(0, v213, 0)).p
+                                    local v215 = v164.Y
+                                    local v216
+                                    v216, v211, v210 = v212(v214, (v164 - Vector3.new(0, v215, 0)).p):ToOrientation()
+                                end
+                                local v217 = v_u_133.lastRotationLerp
+                                local v218 = CFrame.fromOrientation(0, v211, v210)
+                                local v219 = v_u_131 * 0.2
+                                local v220 = v217:Lerp(v218, (math.clamp(v219, 0, 1)))
+                                local v221 = v_u_133.lastRaycastLerp
+                                local v222 = CFrame.new(0, v_u_133.raycast.Y, 0)
+                                local v223 = v_u_131 * 0.2
+                                local v224 = v221:Lerp(v222, (math.clamp(v223, 0, 1)))
+                                local v225 = v201 and (v202 and v_u_136 - v202 or 0) or 0
+                                local v226 = v225 * (v155 and 4.5 or 11)
+                                local v227 = math.sin(v226)
+                                local v228, v229
+                                if v141 then
+                                    local v230 = CFrame.new
+                                    local v231 = v_u_136 * 4
+                                    v228 = v230(0, math.sin(v231) / 2 + 3.5, 0)
+                                    v229 = CFrame.Angles(v201 and -0.08726646259971647 or 0, 0, 0)
+                                else
+                                    v228 = CFrame.new(0, math.abs(v227) * 3, 0)
+                                    v229 = CFrame.Angles(v227 / 2, 0, v227 / 8)
+                                end
+                                if v138 == "154" or v138 == "242" then
+                                    local v232 = CFrame.Angles
+                                    local v233 = v_u_136 * 100
+                                    v229 = v229 * v232(0, 0, (math.rad(v233)))
+                                end
+                                local v234 = v_u_133.lastAnimationLerp
+                                local v235 = v228 * v229
+                                local v236 = v_u_131 * (v201 and 0.5 or 0.2)
+                                local v237 = v234:Lerp(v235, (math.clamp(v236, 0, 1)))
+                                if v146 then
+                                    v146 = v_u_133.arrived and v203
+                                end
+                                local v238 = v_u_133.lastFarmingLerp
+                                local v239 = CFrame.Angles
+                                local v240 = (v146 and v_u_136 - v203 or 0) * 11
+                                local v241 = v239(0, 0, math.sin(v240) / 2)
+                                local v242 = v_u_131 * (v146 and 0.5 or 0.2)
+                                local v243 = v238:Lerp(v241, (math.clamp(v242, 0, 1)))
+                                local v244 = CFrame.new(0, v163.CFrame:Inverse().Y, 0)
+                                local v245 = v209 * v224 * v243 * v220 * v244 * v237
+                                if v_u_14(v245) then
+                                    v_u_133.lastPositionLerp = nil
+                                    v_u_133.lastRotationLerp = nil
+                                    v_u_133.lastRaycastLerp = nil
+                                    v_u_133.lastAnimationLerp = nil
+                                    v_u_133.lastFarmingLerp = nil
+                                    if not v_u_14(v164) then
+                                        v137.CFrame = v164 * CFrame.new(0, 0, v143)
+                                    end
+                                    return true
+                                end
+                                local v246 = v_u_132.pets
+                                table.insert(v246, v137)
+                                local v247 = v_u_132.cframes
+                                table.insert(v247, v245)
+                                if v_u_133.hat and v_u_133.hatOffset then
+                                    local v248 = v_u_132.pets
+                                    local v249 = v_u_133.hat
+                                    table.insert(v248, v249)
+                                    local v250 = v_u_132.cframes
+                                    local v251 = v245 * v_u_133.hatOffset
+                                    table.insert(v250, v251)
+                                end
+                                if v201 and (not v141 and (v225 % (v155 and 0.65 or 0.3) <= 0.1 and v_u_136 - v_u_133.walkSoundTick > 1)) then
+                                    v_u_133.walkSoundTick = v_u_136
+                                    local _ = v140.walk
+                                    v_u_1.Audio.Play(v_u_17, v137, v_u_2:NextNumber(0.95, 1.2), 0.01, 60)
+                                end
+                                if not v201 and (v_u_2:NextNumber() <= 0.001 and (v_u_136 - v_u_133.randomSoundTick >= 6 and v_u_18)) then
+                                    v_u_133.randomSoundTick = v_u_136
+                                    local v252 = v140.random
+                                    if #v252 > 0 then
+                                        v_u_1.Audio.Play(v252[math.random(1, #v252)], v137, 1, 0.5, 140)
+                                    end
+                                end
+                                local v253 = v_u_133.special
+                                if v253 and (v253 == "Pixel" and (v201 and (not v141 and v_u_2:NextInteger(1, 10) == 1))) then
+                                    local v254 = Instance.new("Part")
+                                    v254.Anchored = true
+                                    v254.CanCollide = false
+                                    v254.CastShadow = false
+                                    v254.Size = Vector3.new(1, 1, 1) * v_u_2:NextNumber(0.4, 0.66)
+                                    v254.Color = Color3.fromRGB(255, 255, 255)
+                                    local v255 = v137.CFrame
+                                    local v256 = v_u_2:NextNumber(-1, 1)
+                                    local v257 = v163.Position.Y + v_u_2:NextNumber(-1, 1)
+                                    local v258 = v_u_2
+                                    v254.CFrame = v255 + Vector3.new(v256, v257, v258:NextNumber(-1, 1))
+                                    v254.Name = "pixelFX"
+                                    v254.Parent = v_u_1.Debris
+                                    local v259 = v_u_2:NextNumber(0.33, 0.6)
+                                    local v260 = v_u_1.Functions.FastTween
+                                    local v261 = {
+                                        ["Size"] = v254.Size * v_u_2:NextNumber(0.25, 0.4)
+                                    }
+                                    local v262 = v254.CFrame * CFrame.new(0, 0, v_u_2:NextNumber(1, 2))
+                                    local v263 = v_u_2:NextNumber(0.25, 1.5)
+                                    v261.CFrame = v262 + Vector3.new(0, v263, 0)
+                                    v260(v254, v261, { v259, "Linear" })
+                                    v_u_1.Functions.AddDebris(v254, v259)
+                                end
+                                if v_u_135.r then
+                                    local v264 = v137:FindFirstChild("__RAINBOWFX")
+                                    local v265 = v137:FindFirstChild("__RAINBOWPARTICLES")
+                                    if v264 and v265 then
+                                        local v266 = Color3.fromHSV(v_u_136 / 1.5 % 1, 1, 1)
+                                        v264.Color3 = v266
+                                        v265.Color = ColorSequence.new(v266)
+                                    end
+                                end
+                                local v267 = v_u_135.dm and v137:FindFirstChildOfClass("SpecialMesh")
+                                if v267 then
+                                    local v268 = v_u_136
+                                    local v269 = math.sin(v268)
+                                    local v270 = v269 * 5 + 15
+                                    local v271 = v269 * 5 + 15
+                                    v267.VertexColor = Vector3.new(v270, 0.6, v271)
+                                end
+                                local v272 = v137:FindFirstChild("__BILLBOARD")
+                                if v272 then
+                                    v272.Nickname.Text = v_u_135.nk
+                                end
+                                v_u_133.lastPositionLerp = v209
+                                v_u_133.lastRotationLerp = v220
+                                v_u_133.lastRaycastLerp = v224
+                                v_u_133.lastAnimationLerp = v237
+                                v_u_133.lastFarmingLerp = v243
+                                v_u_133.lastDist = v200
+                                v_u_133.movingTick = v_u_133.moving and v_u_133.movingTick or nil
+                                return true
+                            end
+                        end
+                    end
+                else
+                    return "critical"
+                end
+            end
+            local v274, v275 = pcall(v273)
+            if not v274 and os.clock() - v_u_6 > 2 then
+                v_u_6 = os.clock()
+                warn("[Pets] render error: " .. tostring(v275))
+            end
+            if v275 == true or v275 ~= "critical" then
+                continue
+            end
+            local v276 = v_u_3[v134]
+            if not v276 then
+                continue
+            end
+            local v277 = v276.physical
+            if v277 then
+                v_u_4[v277] = nil
+                v277:Destroy()
+            end
+            v_u_3[v134] = nil
+            if v276.owner ~= v_u_1.LocalPlayer then
+                continue
+            end
+            v_u_1.Signal.Fire("Removed Client Pet", v134)
+        end
+        game.Workspace:BulkMoveTo(v_u_132.pets, v_u_132.cframes)
+        v_u_15 = os.clock()
+    end
+end)
+local function v_u_347() -- name: u19
+    -- upvalues: (copy) v_u_1, (ref) v_u_19, (copy) v_u_3, (copy) v_u_5, (copy) v_u_49, (copy) v_u_4, (ref) v_u_50
+    local v278 = v_u_1.Save.Get()
+    if v278 then
+        if not v_u_19 or os.clock() - v_u_19 >= 0.2 then
+            local v279 = v278.Settings.ShowOtherPets == 2
+            for _, v280 in ipairs(game.Players:GetPlayers()) do
+                local v281 = v_u_1.Save.Get(v280, true)
+                if not v281 or (not v281.Pets or v279 and v280 ~= v_u_1.LocalPlayer) then
+                    continue
+                end
+                for _, v282 in ipairs(v281.Pets) do
+                    local v283 = v282.uid
+                    if not v282.e or (v_u_3[v283] or (v_u_5[v283] or 0) > os.clock()) then
+                        continue
+                    end
+                    local v284 = v_u_49
+                    local v285, v286 = pcall(v284, v283)
+                    if v285 then
+                        v_u_5[v283] = nil
+                    else
+                        v_u_5[v283] = os.clock() + 1
+                        warn("[Pets] spawn failed for " .. tostring(v283) .. ": " .. tostring(v286))
+                    end
+                end
+            end
+            v_u_19 = os.clock()
+        end
+        for _, v287 in pairs(v_u_3) do
+            local v288 = v287.uid
+            local v289, v290 = v_u_1.PetCmds.Get(v288)
+            if v289 and (v289.e and (v290 and v290.Parent)) then
+                continue
+            end
+            local v291 = v_u_3[v288]
+            if not v291 then
+                continue
+            end
+            local v292 = v291.physical
+            if v292 then
+                v_u_4[v292] = nil
+                v292:Destroy()
+            end
+            v_u_3[v288] = nil
+            if v291.owner ~= v_u_1.LocalPlayer then
+                continue
+            end
+            v_u_1.Signal.Fire("Removed Client Pet", v288)
+        end
+        for v293 in pairs(v_u_4) do
+            local v294 = v_u_3[v293:GetAttribute("ID")]
+            if v293.Parent and (v294 and v294.physical == v293) then
+                continue
+            end
+            v_u_4[v293] = nil
+            v293:Destroy()
+        end
+        if not v_u_50 or os.clock() - v_u_50 > 0.2 then
+            v_u_1.WorldCmds.Get()
+            for _, v295 in pairs(v_u_3) do
+                local v296 = v295.owner
+                if v296 == v_u_1.LocalPlayer then
+                    continue
+                end
+                local v297 = v_u_1.Save.Get(v296, true)
+                if v297 and v297.World == v_u_1.WorldCmds.Get() then
+                    continue
+                end
+                local v298 = v295.uid
+                local v299 = v_u_3[v298]
+                if not v299 then
+                    continue
+                end
+                local v300 = v299.physical
+                if v300 then
+                    v_u_4[v300] = nil
+                    v300:Destroy()
+                end
+                v_u_3[v298] = nil
+                if v299.owner ~= v_u_1.LocalPlayer then
+                    continue
+                end
+                v_u_1.Signal.Fire("Removed Client Pet", v298)
+            end
+            v_u_50 = os.clock()
+        end
+        for _, v301 in pairs(v_u_3) do
+            local v302 = v301.follower
+            local v303 = v301.target
+            local v304 = v301.physical
+            if v301.farming and (v303 == nil or v303.Parent == nil) then
+                v301.farming = false
+            end
+            for _, v305 in pairs(v_u_3) do
+                if v302 ~= v305.physical and v305.target == v304 then
+                    v305.target = nil
+                end
+                if v303 == v305.physical or v305.follower ~= v304 then
+                    continue
+                end
+                v305.follower = nil
+            end
+        end
+        local v306 = {}
+        for _, v307 in pairs(v_u_3) do
+            local v308 = v307.owner
+            local v309 = v307.target
+            if v309 == nil or v309.Parent == nil then
+                v307.target = v308
+                v309 = v308
+            end
+            if v309 == v308 then
+                if not v306[v308] then
+                    v306[v308] = {
+                        ["organized"] = {
+                            {}
+                        },
+                        ["list"] = {}
+                    }
+                end
+                local v310 = v306[v308].list
+                local v311 = v307.uid
+                table.insert(v310, v311)
+            else
+                v307.row = 0
+                v307.rowPlace = 0
+                v307.rowTotal = 0
+            end
+        end
+        for _, v312 in pairs(v306) do
+            table.sort(v312.list, function(p313, p314)
+                -- upvalues: (ref) v_u_1
+                local v315 = v_u_1.PetCmds.Get(p313)
+                local v316 = v_u_1.PetCmds.Get(p314)
+                local v317 = v_u_1.Directory.Pets[v315.id]
+                local v318 = v_u_1.Directory.Pets[v316.id]
+                if v315.s == v316.s or v317.huge == v318.huge then
+                    return v316.idt < v315.idt
+                elseif v317.huge or v318.huge then
+                    return v318.huge
+                else
+                    return v316.s < v315.s
+                end
+            end)
+        end
+        for _, v319 in pairs(v306) do
+            local v320 = v319.organized
+            local _, _, _ = ipairs(v319.list)
+            for _, v321 in ipairs(v319.list) do
+                local v322 = v_u_1.Directory.Pets[v_u_1.PetCmds.Get(v321).id].huge
+                local v323 = {}
+                for v324, v325 in pairs(v320) do
+                    local v326 = { v324, #v325 }
+                    table.insert(v323, v326)
+                end
+                table.sort(v323, function(p327, p328)
+                    return p327[2] < p328[2]
+                end)
+                for v329, v330 in ipairs(v323) do
+                    if #v323 < v330[2] or v322 then
+                        if #v323 <= v329 then
+                            local v331 = #v323 + 1
+                            if not v320[v331] then
+                                v320[v331] = {}
+                            end
+                            local v332 = v320[v331]
+                            table.insert(v332, v321)
+                        else
+                            if not v322 then
+                                continue
+                            end
+                            local v333 = #v323 + 1
+                            if not v320[v333] then
+                                v320[v333] = {}
+                            end
+                            local v334 = v320[v333]
+                            table.insert(v334, v321)
+                        end
+                    else
+                        local v335 = v330[1]
+                        if not v320[v335] then
+                            v320[v335] = {}
+                        end
+                        local v336 = v320[v335]
+                        table.insert(v336, v321)
+                    end
+                end
+            end
+            local v337 = 0
+            local v338 = 1
+            for v339, v340 in pairs(v320) do
+                for v341, v342 in ipairs(v340) do
+                    local v343 = v_u_3[v342]
+                    if not v343 then
+                        continue
+                    end
+                    v343.row = v339
+                    v343.rowPlace = v341
+                    v343.rowTotal = #v340
+                    if v343.huge then
+                        v337 = v337 + 1
+                        v343.row = v338
+                        v343.hugePlace = v337
+                    else
+                        v338 = math.max(v338, v339)
+                    end
+                end
+            end
+            for _, v344 in pairs(v320) do
+                for _, v345 in ipairs(v344) do
+                    local v346 = v_u_3[v345]
+                    if not (v346 and v346.huge) then
+                        continue
+                    end
+                    v346.totalHuges = v337
+                end
+            end
+        end
+    end
+end
+coroutine.wrap(function()
+    -- upvalues: (copy) v_u_1, (copy) v_u_347, (ref) v_u_6
+    while true do
+        while v_u_1.WorldCmds.HasLoaded() do
+            local v348 = v_u_347
+            local v349, v350 = pcall(v348)
+            if not v349 and os.clock() - v_u_6 > 2 then
+                v_u_6 = os.clock()
+                warn("[Pets] update error: " .. tostring(v350))
+            end
+            local v351 = NetworkUpdate
+            local v352, v353 = pcall(v351)
+            if not v352 and os.clock() - v_u_6 > 2 then
+                v_u_6 = os.clock()
+                warn("[Pets] network update error: " .. tostring(v353))
+            end
+            v_u_1.RenderStepped()
+        end
+        v_u_1.Heartbeat()
+    end
+end)()
