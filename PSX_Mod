@@ -98,6 +98,25 @@ local function resolveLibrary()
         addLibraryCandidate(candidates, seen, ReplicatedStorage:WaitForChild("Library", 5), "ReplicatedStorage.Library")
     end
 
+    -- Nesta versão o alvo principal é o mod baseado em LibraryOld. Se o
+    -- caminho clássico existir e for funcional, ele sempre tem prioridade;
+    -- isso evita que um Framework parcialmente carregado seja escolhido.
+    local legacyLib, legacyPath, legacyScore = nil, nil, -1
+    for _, candidate in ipairs(candidates) do
+        if candidate.path == "ReplicatedStorage.Library" then
+            local ok, lib = pcall(require, candidate.instance)
+            if ok and lib then
+                local score = libraryScore(lib)
+                if score > legacyScore then
+                    legacyLib, legacyPath, legacyScore = lib, candidate.path, score
+                end
+            end
+        end
+    end
+    if legacyLib and legacyScore >= 8 then
+        return legacyLib, legacyPath, legacyScore
+    end
+
     local bestLib, bestPath, bestScore = nil, nil, -1
     for _, candidate in ipairs(candidates) do
         local ok, lib = pcall(require, candidate.instance)
@@ -123,8 +142,9 @@ pcall(function()
     end
 end)
 local Network = Library.Network
-local IsFrameworkBackend = tostring(LibraryPath):find("Framework", 1, true) ~= nil
-    or (Library.Signal ~= nil and Library.WorldCmds ~= nil and Library.Things ~= nil)
+-- Backend deliberadamente fixado no Old nesta etapa de estabilização.
+-- O suporte Framework permanece no arquivo, mas não interfere neste mod.
+local IsFrameworkBackend = false
 local FrameworkWorldCmds = IsFrameworkBackend and Library.WorldCmds or nil
 local FrameworkThings = IsFrameworkBackend and Library.Things or nil
 local FrameworkSave = IsFrameworkBackend and Library.Save or nil
@@ -2327,7 +2347,6 @@ autoFarmTab:CreateToggle({
         if not AutoFarmBreakablesArea then return end
         ensureNetworkBypass()
         task.spawn(function()
-            local stickyIds = {}
             while AutoFarmBreakablesArea do
                 if not HumanoidRootPart or not HumanoidRootPart.Parent then
                     task.wait(0.5)
@@ -2343,37 +2362,37 @@ autoFarmTab:CreateToggle({
                     task.wait(0.4)
                     continue
                 end
-                local targets = collectAreaFarmTargets(AreaToFarm, AreaFarmMethod, AreaPriorityTargets, HumanoidRootPart.Position)
-                if AreaStickyUntilBreak then
-                    local sticky = {}
-                    for id in pairs(stickyIds) do
-                        local coin = ServerCoins[id]
-                        if coin and coin.p and coin.a == AreaToFarm then
-                            table.insert(sticky, {
-                                id = id,
-                                p = coin.p,
-                                name = farmCoinName(coin),
-                                health = farmCoinHealth(coin),
-                                distance = (coin.p - HumanoidRootPart.Position).Magnitude,
-                            })
-                        end
+                -- Caminho original da LibraryOld. Não usa o adaptador de
+                -- snapshot Framework nem Farm Coin atrasado.
+                local validTargets = {}
+                for id, coin in pairs(ServerCoins or {}) do
+                    if coin and coin.p and coin.a == AreaToFarm then
+                        table.insert(validTargets, { id = id, p = coin.p })
                     end
-                    stickyIds = {}
-                    for _, target in ipairs(sticky) do stickyIds[target.id] = true end
-                    for _, target in ipairs(targets) do
-                        if #sticky >= math.max(1, MAX_BREAKABLES or 1) then break end
-                        if not stickyIds[target.id] then
-                            table.insert(sticky, target)
-                            stickyIds[target.id] = true
-                        end
-                    end
-                    targets = sticky
-                else
-                    stickyIds = {}
-                    for _, target in ipairs(targets) do stickyIds[target.id] = true end
                 end
-                fireFarmAssignments(assignFarmPets(equippedPets, targets))
-                task.wait(FarmSpeed or 0.15)
+                if #validTargets > 0 then
+                    while #validTargets > math.max(1, MAX_BREAKABLES or 1) do
+                        table.remove(validTargets, math.random(1, #validTargets))
+                    end
+                    local byTarget = {}
+                    for _, petUID in ipairs(equippedPets) do
+                        local target = validTargets[math.random(1, #validTargets)]
+                        byTarget[target.id] = byTarget[target.id] or {}
+                        table.insert(byTarget[target.id], petUID)
+                    end
+                    for targetId, pets in pairs(byTarget) do
+                        task.spawn(function()
+                            pcall(function() Network.Invoke("Join Coin", targetId, pets) end)
+                            for _, petUID in ipairs(pets) do
+                                pcall(function()
+                                    Network.Fire("Change Pet Target", petUID, "Coin", targetId)
+                                    Network.Fire("Farm Coin", targetId, petUID)
+                                end)
+                            end
+                        end)
+                    end
+                end
+                task.wait(0.15)
             end
         end)
     end,
@@ -2556,6 +2575,139 @@ refreshBreakableDropdowns = function(showNotify)
     if showNotify then notify("Breakables", "Detectados: " .. #list, 3) end
     return list, sniperOpts, giantOpts
 end
+
+-- ====================== WORLD HOP OLD / SNIPER ======================
+WorldHopOld = WorldHopOld or {
+    Enabled = false,
+    Delay = 5,
+    LoadTimeout = 12,
+    Worlds = {
+        "Spawn World", "Fantasy World", "Tech World", "Axolotl Ocean",
+        "Pixel World", "Cat World", "Doodle World", "Kawaii World",
+        "Limbo World", "Void World",
+    },
+}
+
+local function worldHopTargetMatches(coin)
+    if not coin or not coin.p or not coin.n or #SniperTargets == 0 then return false end
+    return matchesFarmPriority(coin.n, SniperTargets)
+end
+
+local function worldHopCountTargets()
+    local count = 0
+    for _, coin in pairs(ServerCoins or {}) do
+        if worldHopTargetMatches(coin) then count = count + 1 end
+    end
+    return count
+end
+
+local function worldHopTravel(worldName)
+    if tostring(worldName) == "Spawn World" then return true end
+    local command = "Travel to the " .. tostring(worldName)
+    local ok = pcall(function() Network.Invoke(command) end)
+    if not ok then pcall(function() Network.Fire(command) end) end
+    return ok
+end
+
+local function worldHopWaitForLoad()
+    local started = tick()
+    local sawLoaded = false
+    while WorldHopOld.Enabled and tick() - started < (WorldHopOld.LoadTimeout or 12) do
+        local loaded = true
+        pcall(function()
+            if Library.WorldCmds and Library.WorldCmds.HasLoaded then
+                loaded = Library.WorldCmds.HasLoaded() ~= false
+            end
+        end)
+        if loaded then sawLoaded = true end
+        pcall(LoadAllCoinsInternal)
+        if sawLoaded and (worldHopCountTargets() > 0 or tick() - started >= 2) then return true end
+        task.wait(0.35)
+    end
+    return sawLoaded
+end
+
+local function worldHopFarmSelected()
+    local pets = getEquippedPets()
+    local targets = {}
+    for id, coin in pairs(ServerCoins or {}) do
+        if worldHopTargetMatches(coin) then table.insert(targets, { id = id, p = coin.p }) end
+    end
+    while #targets > math.max(1, MAX_BREAKABLES or 1) do table.remove(targets) end
+    if #pets == 0 or #targets == 0 then return 0 end
+    local byTarget = {}
+    for i, petUID in ipairs(pets) do
+        local target = targets[((i - 1) % #targets) + 1]
+        byTarget[target.id] = byTarget[target.id] or {}
+        table.insert(byTarget[target.id], petUID)
+    end
+    for targetId, assigned in pairs(byTarget) do
+        pcall(function() Network.Invoke("Join Coin", targetId, assigned) end)
+        for _, petUID in ipairs(assigned) do
+            pcall(function()
+                Network.Fire("Change Pet Target", petUID, "Coin", targetId)
+                Network.Fire("Farm Coin", targetId, petUID)
+            end)
+        end
+    end
+    return #targets
+end
+
+function WorldHopOld.Run()
+    if WorldHopOld.Running then return end
+    WorldHopOld.Running = true
+    task.spawn(function()
+        while WorldHopOld.Enabled do
+            if #SniperTargets == 0 then
+                task.wait(0.5)
+            else
+                for _, worldName in ipairs(WorldHopOld.Worlds) do
+                    if not WorldHopOld.Enabled then break end
+                    worldHopTravel(worldName)
+                    worldHopWaitForLoad()
+                    local emptySince = nil
+                    while WorldHopOld.Enabled do
+                        pcall(LoadAllCoinsInternal)
+                        local count = worldHopFarmSelected()
+                        if count == 0 then
+                            emptySince = emptySince or tick()
+                            if tick() - emptySince >= 1.2 then break end
+                        else
+                            emptySince = nil
+                        end
+                        task.wait(FarmSpeed or 0.15)
+                    end
+                    task.wait(math.max(0, tonumber(WorldHopOld.Delay) or 5))
+                end
+            end
+        end
+        WorldHopOld.Running = false
+    end)
+end
+
+autoFarmTab:CreateSlider({
+    name = "World Hop: espera entre mundos",
+    Range = {1, 15},
+    Increment = 1,
+    Suffix = "s",
+    value = 5,
+    flag = "OldWorldHopDelay",
+    callback = function(Value)
+        WorldHopOld.Delay = math.max(1, tonumber(Value) or 5)
+    end,
+})
+autoFarmTab:CreateToggle({
+    name = "World Hop pelos alvos do Sniper (Old)",
+    value = false,
+    flag = "OldWorldHop",
+    callback = function(Value)
+        WorldHopOld.Enabled = Value
+        if Value then
+            ensureNetworkBypass()
+            WorldHopOld.Run()
+        end
+    end,
+})
 
 -- Atualiza sozinho apos o servidor popular Get Coins; o botao manual continua disponivel.
 task.spawn(function()
