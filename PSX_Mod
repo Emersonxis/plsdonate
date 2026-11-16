@@ -123,6 +123,90 @@ pcall(function()
     end
 end)
 local Network = Library.Network
+local IsFrameworkBackend = tostring(LibraryPath):find("Framework", 1, true) ~= nil
+    or (Library.Signal ~= nil and Library.WorldCmds ~= nil and Library.Things ~= nil)
+local FrameworkWorldCmds = IsFrameworkBackend and Library.WorldCmds or nil
+local FrameworkThings = IsFrameworkBackend and Library.Things or nil
+local FrameworkSave = IsFrameworkBackend and Library.Save or nil
+
+local function frameworkReadyForAction()
+    if not IsFrameworkBackend then return true end
+    local okLoaded, loaded = pcall(function()
+        return FrameworkWorldCmds and FrameworkWorldCmds.HasLoaded and FrameworkWorldCmds.HasLoaded()
+    end)
+    if not okLoaded or loaded == false then return false end
+    local okAction, canAct = pcall(function()
+        return not FrameworkWorldCmds.CanDoAction or FrameworkWorldCmds.CanDoAction()
+    end)
+    return okAction and canAct ~= false
+end
+
+local function resolveFrameworkEggId(selected)
+    if not IsFrameworkBackend then return selected end
+    local selectedText = tostring(selected or "")
+    local ok, eggs = pcall(function()
+        return FrameworkWorldCmds and FrameworkWorldCmds.GetAllEggs and FrameworkWorldCmds.GetAllEggs()
+    end)
+    if ok and type(eggs) == "table" then
+        for _, egg in ipairs(eggs) do
+            local id = egg and egg.GetAttribute and egg:GetAttribute("ID")
+            if id then
+                local info = Egg_Directory[tostring(id)] or Egg_Directory[id]
+                local display = type(info) == "table" and (info.displayName or info.name)
+                if tostring(id) == selectedText or tostring(display or "") == selectedText
+                    or (egg.Name and egg.Name == selectedText) then
+                    return id
+                end
+            end
+        end
+    end
+    local direct = Egg_Directory[selectedText]
+    if type(direct) == "table" and direct.id then return direct.id end
+    return selected
+end
+
+local function frameworkHasTripleEgg()
+    if not IsFrameworkBackend then return false end
+    local save
+    pcall(function() save = FrameworkSave and FrameworkSave.Get() end)
+    local passes = save and (save.Gamepasses or save.GamePasses)
+    if type(passes) ~= "table" then return false end
+    return passes["Triple Egg Open"] == true
+        or passes.TripleEggOpen == true
+        or passes["Triple Egg"] == true
+end
+
+local function frameworkCoinSnapshot()
+    local result = {}
+    local coins = FrameworkThings and FrameworkThings.Coins
+    if not coins then return result end
+    for _, coin in pairs(coins:GetChildren()) do
+        local id = coin:GetAttribute("ID")
+        local pos = coin:FindFirstChild("POS")
+        if id and pos then
+            result[tostring(id)] = {
+                p = pos.Position,
+                n = coin:GetAttribute("Name") or coin.Name,
+                instance = coin,
+            }
+        end
+    end
+    return result
+end
+
+
+local function farmCoinCompat(coinId, petUID)
+    if IsFrameworkBackend then
+        task.spawn(function()
+            task.wait(0.33)
+            pcall(function()
+                Network.Fire("Farm Coin", coinId, petUID)
+            end)
+        end)
+    else
+        Network.Fire("Farm Coin", coinId, petUID)
+    end
+end
 
 local function resolvePetCmds()
     if Library.Client and Library.Client.PetCmds then return Library.Client.PetCmds end
@@ -245,13 +329,6 @@ local PendingDarkMatterUIDs = {} -- UIDs enviados pra maquina, pra claim/skip
 local AutoDelete = false
 local Auto_Delete_Rarity = {}
 local AutoLockHuges = false
-
--- Multi-egg sequential hatch
-local AutoMultiHatch = false
-local MultiSelectedEggs = {}
-local MultiEggsPerEgg = 50
-local MultiHatchWorld = "Spawn World"
-local MultiHatchMode = "Normal" -- Normal / Golden
 
 local InstantCollectEnabled = false
 local InstantCollectWanted = true
@@ -1054,6 +1131,10 @@ end)
 
 -- ====================== COINS LOADER ======================
 local function LoadAllCoinsInternal()
+    if IsFrameworkBackend then
+        ServerCoins = frameworkCoinSnapshot()
+        return
+    end
     local response = Library.Network.Invoke("Get Coins")
     if response then
         ServerCoins = response
@@ -1180,6 +1261,9 @@ local HatchAmountsCache = {}
 local HatchAmountsCacheAt = {}
 
 local function getAllowedHatchAmounts(eggName)
+    if IsFrameworkBackend then
+        return {1, 3}
+    end
     local now = os.clock()
     if HatchAmountsCache[eggName] and now - (HatchAmountsCacheAt[eggName] or 0) < 3 then
         return HatchAmountsCache[eggName]
@@ -1222,6 +1306,18 @@ end
 
 local function buyEggExact(eggName, requested)
     if not eggName or HatchRequestBusy then return false, 0 end
+    if IsFrameworkBackend then
+        if not frameworkReadyForAction() then return false, 0, "Framework bloqueado ou mapa carregando" end
+        local eggId = resolveFrameworkEggId(eggName)
+        local triple = tonumber(requested) >= 3 and frameworkHasTripleEgg()
+        HatchRequestBusy = true
+        local ok, result = pcall(function()
+            return Network.Invoke("Buy Egg", eggId, triple)
+        end)
+        HatchRequestBusy = false
+        if not ok or result == false then return false, triple and 3 or 1, result end
+        return true, triple and 3 or 1, result
+    end
     local amount = chooseHatchAmount(eggName, requested)
     HatchRequestBusy = true
     local ok, result, err = pcall(function()
@@ -1232,7 +1328,6 @@ local function buyEggExact(eggName, requested)
     if result == false then return false, amount, err end
     return true, amount, err
 end
-
 -- ====================== TAB: HATCHING ======================
 local Hatching_Tab = window:CreateTab({ name = "Hatching", icon = "egg" })
 
@@ -2008,7 +2103,7 @@ local function fireFarmAssignments(assigned)
             for _, petUID in ipairs(pets) do
                 pcall(function()
                     Network.Fire("Change Pet Target", petUID, "Coin", targetId)
-                    Network.Fire("Farm Coin", targetId, petUID)
+                    farmCoinCompat(targetId, petUID)
                 end)
             end
         end)
@@ -2084,7 +2179,7 @@ autoFarmTab:CreateToggle({
                             for _, petUID in ipairs(pets) do
                                 pcall(function()
                                     Network.Fire("Change Pet Target", petUID, "Coin", tid)
-                                    Network.Fire("Farm Coin", tid, petUID)
+                                    farmCoinCompat(tid, petUID)
                                 end)
                             end
                         end)
@@ -2145,7 +2240,7 @@ autoFarmTab:CreateToggle({
                             for _, petUID in ipairs(pets) do
                                 pcall(function()
                                     Network.Fire("Change Pet Target", petUID, "Coin", tid)
-                                    Network.Fire("Farm Coin", tid, petUID)
+                                    farmCoinCompat(tid, petUID)
                                 end)
                             end
                         end)
@@ -2349,7 +2444,7 @@ autoFarmTab:CreateToggle({
                     task.spawn(function()
                         pcall(function()
                             Network.Fire("Change Pet Target", pet, "Coin", breakableID)
-                            Network.Fire("Farm Coin", breakableID, pet)
+                            farmCoinCompat(breakableID, pet)
                         end)
                     end)
                 end
@@ -2547,7 +2642,7 @@ autoFarmTab:CreateToggle({
                     for _, petUID in ipairs(equippedPets) do
                         pcall(function()
                             Network.Fire("Change Pet Target", petUID, "Coin", t.id)
-                            Network.Fire("Farm Coin", t.id, petUID)
+                            farmCoinCompat(t.id, petUID)
                         end)
                     end
                 else
@@ -2566,7 +2661,7 @@ autoFarmTab:CreateToggle({
                             for _, petUID in ipairs(pets) do
                                 pcall(function()
                                     Network.Fire("Change Pet Target", petUID, "Coin", tid)
-                                    Network.Fire("Farm Coin", tid, petUID)
+                                    farmCoinCompat(tid, petUID)
                                 end)
                             end
                         end)
@@ -2584,172 +2679,6 @@ task.defer(function()
     task.wait(1)
     pcall(function() refreshBreakableDropdowns(false) end)
 end)
-
--- ====================== TAB: MULTI HATCH (por mundo) ======================
-local Multi_Tab = window:CreateTab({ name = "Multi Hatch", icon = "layers" })
-
--- Eggs por mundo (wiki PSX) + golden
-local EggsByWorld = {
-    ["Spawn World"] = {
-        "Cracked Egg", "Spotted Egg", "Wood Egg", "Grass Egg", "Beachball Egg", "Coconut Egg",
-        "Rock Egg", "Geode Egg", "Snow Egg", "Ice Egg", "Icicle Egg", "Yeti Egg",
-        "Cactus Egg", "Spiked Egg", "Obsidian Egg", "Magma Egg", "Dominus Egg",
-    },
-    ["Fantasy World"] = {
-        "Enchanted Egg", "Relic Egg", "Samurai Egg", "Rainbow Egg", "Haunted Egg",
-        "Hell Egg", "Heaven Egg", "Empyrean Egg",
-    },
-    ["Tech World"] = {
-        "Metal Egg", "Tech Egg", "Titanium Egg", "Dark Tech Egg", "Steampunk Egg",
-        "Mechanical Egg", "Lab Egg", "Chemical Egg", "Alien Egg", "Martian Egg",
-        "Planet Egg", "Glitch Egg", "Hacker Egg",
-    },
-    ["Axolotl Ocean"] = {
-        "Axolotl Egg", "Shiny Axolotl Egg",
-    },
-    ["Pixel World"] = {
-        "Pixel Egg", "Pixel Kyoto Egg", "Pixel Alps Egg", "Pixel Vault Egg",
-    },
-    ["Cat World"] = {
-        "Cat Egg", "Cat Backyard Egg", "Cat Taiga Egg", "Cat Kingdom Egg",
-    },
-    ["Doodle World"] = {
-        "Doodle Egg", "Doodle Peaks Egg", "Doodle Farm Egg", "Doodle Oasis Egg",
-    },
-    ["Kawaii World"] = {
-        "Kawaii Egg", "Kawaii Tokyo Egg", "Kawaii Village Egg",
-    },
-}
-
-local function buildEggOptions(world, mode)
-    local base = EggsByWorld[world] or {}
-    local opts = {}
-    -- Prefer eggs that exist no Directory do jogo
-    local dir = {}
-    pcall(function()
-        for name, _ in pairs(Egg_Directory) do
-            dir[name] = true
-        end
-    end)
-    for _, egg in ipairs(base) do
-        local name = (mode == "Golden") and ("Golden " .. egg) or egg
-        if next(dir) == nil or dir[name] or dir[egg] then
-            table.insert(opts, name)
-        end
-    end
-    -- Se Directory tiver eggs extras do mundo, inclui
-    for name, _ in pairs(dir) do
-        if mode == "Golden" then
-            if name:find("Golden ") and not table.find(opts, name) then
-                -- skip auto-add all golden; keep list focused
-            end
-        end
-    end
-    if #opts == 0 then
-        -- fallback: tudo do Directory filtrando golden
-        for name, _ in pairs(dir) do
-            local isG = name:find("Golden ") ~= nil
-            if (mode == "Golden" and isG) or (mode ~= "Golden" and not isG) then
-                table.insert(opts, name)
-            end
-        end
-        table.sort(opts)
-    end
-    return opts
-end
-
-local multiEggDropdown
-Multi_Tab:CreateDropdown({
-    name = "World",
-    options = {
-        "Spawn World", "Fantasy World", "Tech World", "Axolotl Ocean",
-        "Pixel World", "Cat World", "Doodle World", "Kawaii World",
-    },
-    value = {"Spawn World"},
-    multiSelect = false,
-    flag = "MultiWorld",
-    callback = function(Options)
-        MultiHatchWorld = pickDropdown(Options) or "Spawn World"
-        local opts = buildEggOptions(MultiHatchWorld, MultiHatchMode)
-        -- Rayfield nem sempre tem Refresh; recria selecao
-        MultiSelectedEggs = {}
-    end,
-})
-
-Multi_Tab:CreateDropdown({
-    name = "Type",
-    options = {"Normal", "Golden"},
-    value = {"Normal"},
-    multiSelect = false,
-    flag = "MultiType",
-    callback = function(Options)
-        MultiHatchMode = pickDropdown(Options) or "Normal"
-        MultiSelectedEggs = {}
-    end,
-})
-
-Multi_Tab:CreateDropdown({
-    name = "Eggs (multi select)",
-    options = buildEggOptions("Spawn World", "Normal"),
-    value = {},
-    multiSelect = true,
-    flag = "MultiEggSelect2",
-    callback = function(Options)
-        MultiSelectedEggs = listDropdown(Options)
-    end,
-})
-
-Multi_Tab:CreateInput({
-    name = "Qtd por egg",
-    value = "50",
-    placeholder = "50",
-    flag = "MultiEggsPerEgg2",
-    callback = function(Text)
-        local n = tonumber(Text)
-        if n and n >= 1 then
-            MultiEggsPerEgg = math.floor(n)
-        end
-    end,
-})
-
-Multi_Tab:CreateToggle({
-    name = "Start Multi Hatch Sequential",
-    value = false,
-    flag = "AutoMultiHatch2",
-    callback = function(Value)
-        AutoMultiHatch = Value
-        if not AutoMultiHatch then return end
-
-        task.spawn(function()
-            while AutoMultiHatch do
-                -- Se dropdown vazio, monta lista do mundo atual
-                local eggs = MultiSelectedEggs
-                if not eggs or #eggs == 0 then
-                    eggs = buildEggOptions(MultiHatchWorld, MultiHatchMode)
-                end
-                if #eggs == 0 then
-                    task.wait(1)
-                    continue
-                end
-
-                for _, eggName in ipairs(eggs) do
-                    if not AutoMultiHatch then break end
-                    local opened = 0
-                    while opened < MultiEggsPerEgg and AutoMultiHatch do
-                        local ok, actualAmount = buyEggExact(eggName, HatchAmount)
-                        if ok then
-                            opened = opened + math.max(1, actualAmount or 1)
-                        end
-                        task.wait(0.2)
-                    end
-                end
-                task.wait(0.4)
-            end
-        end)
-    end,
-})
-
-Multi_Tab:CreateSection({ name = "Usa Eggs por abertura da aba Hatching (1/3/8)" })
 
 -- ====================== TAB: GUIs (PlayerGui) ======================
 local Gui_Tab = window:CreateTab({ name = "GUIs", icon = "layout-grid" })
@@ -3617,7 +3546,7 @@ function Balloon.FarmOnce()
             pcall(function()
                 Network.Invoke("Join Coin", target.id, { petUID })
                 Network.Fire("Change Pet Target", petUID, "Coin", target.id)
-                Network.Fire("Farm Coin", target.id, petUID)
+                farmCoinCompat(target.id, petUID)
             end)
         end
     end
