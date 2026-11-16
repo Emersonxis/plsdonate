@@ -1115,7 +1115,19 @@ end)
 pcall(function()
     getgenv().RAYFIELD_SECURE = true
 end)
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
+local function runRemoteSource(source)
+    local compiler = loadstring or load
+    if type(compiler) ~= "function" then
+        error("[PSX Mod Hub] Este executor nao oferece loadstring nem load.")
+    end
+    local chunk, compileError = compiler(source)
+    if type(chunk) ~= "function" then
+        error("[PSX Mod Hub] Falha ao compilar Rayfield: " .. tostring(compileError))
+    end
+    return chunk()
+end
+
+local Rayfield = runRemoteSource(game:HttpGet("https://sirius.menu/gen2"))
 
 local window = Rayfield:CreateWindow({
     name = "PSX Mod Hub",
