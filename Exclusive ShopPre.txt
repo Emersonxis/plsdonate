@@ -1,0 +1,1174 @@
+-- Script Path: game:GetService("Players").Emerson_GTA.PlayerScripts.Scripts.GUIs["Exclusive Shop -- pre exclusive egg"]
+-- Took 0.05s to decompile.
+-- Executor: Delta (1.0.747.1486)
+
+local v_u_1 = require(game:GetService("ReplicatedStorage"):WaitForChild("Library"))
+while not v_u_1.Loaded do
+    game:GetService("RunService").Heartbeat:Wait()
+end
+local v_u_2 = v_u_1.GUI.ExclusiveShop
+local v_u_3 = false
+local function v_u_19(p4, p5) -- name: GetPetSetupKey
+    local v6 = type(p5) == "table" and p5 and p5 or {}
+    local v7 = table.concat
+    local v8 = {}
+    local v9 = tostring(p4)
+    local v10 = v6.g == true
+    local v11 = tostring(v10)
+    local v12 = v6.r == true
+    local v13 = tostring(v12)
+    local v14 = v6.dm == true
+    local v15 = tostring(v14)
+    local v16 = v6.hc == true
+    local v17 = tostring(v16)
+    local v18 = v6.sh == true
+    __set_list(v8, 1, {v9, v11, v13, v15, v17, (tostring(v18))})
+    return v7(v8, ":")
+end
+local function v_u_24(p20) -- name: PrepareShopPetUI
+    local v21 = p20:FindFirstChild("Level")
+    if v21 then
+        v21.Visible = false
+    end
+    local v22 = p20:FindFirstChild("Locked")
+    if v22 then
+        v22.Visible = false
+    end
+    local v23 = p20:FindFirstChild("Equipped")
+    if v23 then
+        v23.Visible = false
+    end
+    p20.BackgroundTransparency = 1
+    p20.AutoButtonColor = false
+    p20.Active = false
+    if not p20:FindFirstChildOfClass("UIAspectRatioConstraint") then
+        Instance.new("UIAspectRatioConstraint").Parent = p20
+    end
+end
+local function v_u_36(p_u_25, p26, p27, _) -- name: SetupDealPetIcon
+    -- upvalues: (copy) v_u_19, (copy) v_u_1, (copy) v_u_24
+    if p_u_25 then
+        local v28 = v_u_19(p26, p27)
+        local v29 = nil
+        local v30 = p_u_25 and p_u_25:FindFirstChild("PetIcon")
+        if v30 then
+            v30 = p_u_25:FindFirstChild("Level")
+        end
+        if v30 then
+            if p_u_25:GetAttribute("ShopPetUIKey") == v28 then
+                return
+            end
+            v29 = p_u_25
+        else
+            for _, v31 in ipairs(p_u_25:GetChildren()) do
+                if v31:GetAttribute("ShopPetUIKey") ~= v28 then
+                    continue
+                end
+                local v32 = v31 and v31:FindFirstChild("PetIcon")
+                if v32 then
+                    v32 = v31:FindFirstChild("Level")
+                end
+                if not v32 then
+                    continue
+                end
+                return
+            end
+            for _, v33 in ipairs(p_u_25:GetChildren()) do
+                if v33.Name ~= "PetUI" and not v33:GetAttribute("ShopPetUIKey") then
+                    continue
+                end
+                v33:Destroy()
+            end
+        end
+        pcall(function()
+            -- upvalues: (copy) p_u_25
+            p_u_25.ImageTransparency = 1
+        end)
+        local v34 = p_u_25:FindFirstChild("PetIcon")
+        if v34 and v34:IsA("ImageLabel") then
+            local v35 = p_u_25 and p_u_25:FindFirstChild("PetIcon")
+            if v35 then
+                v35 = p_u_25:FindFirstChild("Level")
+            end
+            if not v35 then
+                v34.ImageTransparency = 1
+            end
+        end
+        if not v29 then
+            v29 = v_u_1.Assets.UI.Inventory.Pet:Clone()
+            v29.Name = "PetUI"
+            v29.Size = UDim2.new(1, 0, 1, 0)
+            v29.Position = UDim2.new(0.5, 0, 0.5, 0)
+            v29.AnchorPoint = Vector2.new(0.5, 0.5)
+            v29.Parent = p_u_25
+            v29.ZIndex = 5
+        end
+        v_u_24(v29)
+        v29:SetAttribute("ShopPetUIKey", v28)
+        p_u_25:SetAttribute("ShopPetUIKey", v28)
+        v_u_1.PetUI.Create(v29, p26, p27 or {})
+    end
+end
+local function v_u_41(p37) -- name: CanReceiveMVPPet
+    if type(p37) ~= "table" then
+        return false
+    end
+    local v38 = p37.Pets
+    local v39 = type(v38) == "table" and (p37.Pets or {}) or {}
+    local v40 = p37.MaxSlots
+    return (tonumber(v40) or 0) >= #v39 + 1
+end
+local function v_u_47(p42) -- name: GetSingleMVPPetHolder
+    local v43 = p42:FindFirstChild("Pet") or p42:FindFirstChild("Image")
+    local v44 = nil
+    for _, v45 in ipairs(p42:GetChildren()) do
+        local v46 = v45.Name ~= "239" and (v45.Name ~= "PetUI" and v45:GetAttribute("ShopPetUIKey") == nil) and (v45 and v45:FindFirstChild("PetIcon"))
+        if v46 then
+            v46 = v45:FindFirstChild("Level")
+        end
+        if not v46 then
+            continue
+        end
+        if v44 then
+            v45:Destroy()
+        else
+            v44 = v45
+        end
+    end
+    return v44 or (v43 or p42)
+end
+local function v_u_51() -- name: SetupMVPPet
+    -- upvalues: (copy) v_u_2, (copy) v_u_47, (copy) v_u_36
+    local v48 = v_u_2.Container:FindFirstChild("MVP")
+    if v48 then
+        v48 = v48:FindFirstChild("Deal")
+    end
+    if v48 then
+        local v49 = v48:FindFirstChild("pet") or (v48:FindFirstChild("Pet") or v48:FindFirstChild("Splash"))
+        if v49 then
+            local v50 = v_u_47(v49)
+            if v50 then
+                v_u_36(v50, "239", {})
+            end
+        else
+            return
+        end
+    else
+        return
+    end
+end
+function UpdatePets() -- name: UpdatePets
+    -- upvalues: (copy) v_u_2, (copy) v_u_1, (ref) v_u_3
+    local v_u_52 = v_u_2.Container.Pets.Container
+    local v_u_53 = {}
+    for _, v54 in ipairs(v_u_52:GetChildren()) do
+        if not v54:GetAttribute("GeneratedExclusivePet") then
+            continue
+        end
+        v54:Destroy()
+    end
+    local function v68(p_u_55, p_u_56) -- name: Setup
+        -- upvalues: (copy) v_u_53, (ref) v_u_1, (copy) v_u_52, (ref) v_u_3
+        local v57 = p_u_55.PetData.petId
+        local v58 = tostring(v57)
+        if not v_u_53[v58] then
+            v_u_53[v58] = true
+            local v59 = v_u_1.Assets.UI.ExclusiveShop.Pet:Clone()
+            v59.Name = v58
+            v59:SetAttribute("GeneratedExclusivePet", true)
+            v59.Parent = v_u_52
+            v59.LayoutOrder = 0 + p_u_55.PetData.cost
+            local v60 = v_u_1.Assets.UI.Inventory.Pet:Clone()
+            v60.Position = UDim2.new(0.5, 0, 0, 0)
+            v60.AnchorPoint = Vector2.new(0.5, 0)
+            v60.Size = UDim2.new(1, 0, 0.6, 0)
+            v60.Parent = v59
+            Instance.new("UIAspectRatioConstraint").Parent = v60
+            v_u_1.PetUI.Create(v60, v58, p_u_55.PetData.extraData)
+            local v61 = v59:FindFirstChild("Price")
+            local v62 = v61:WaitForChild("Diamonds")
+            local v63 = v_u_1.Functions.NumberShorten
+            local v64 = p_u_55.PetData.cost
+            local v65 = tonumber(v64)
+            v62.Text = tostring(v63(v65))
+            v_u_1.GUIFX.ButtonFX(v61)
+            v61.Activated:Connect(function()
+                -- upvalues: (ref) v_u_3, (ref) v_u_1, (copy) p_u_55, (copy) p_u_56
+                if not v_u_3 then
+                    v_u_3 = true
+                    if v_u_1.Message.New("Are you sure you want to buy this for " .. v_u_1.Functions.Commas(p_u_55.PetData.cost) .. " Diamonds?", true) then
+                        local v66, v67 = v_u_1.Network.Invoke("Purchase Exclusive Pet", p_u_56)
+                        if v66 then
+                            v_u_3 = false
+                            v_u_1.Audio.Play("rbxassetid://6958723296", script, 1, 1)
+                            v_u_1.Message.New("Purchase successful! Thank you so much! :)")
+                            return
+                        end
+                        v_u_1.Message.New(v67 or "Something went wrong.")
+                    end
+                    v_u_3 = false
+                end
+            end)
+        end
+    end
+    for v69, v70 in pairs(v_u_1.Directory.ExclusivePets) do
+        if not v70.PetData then
+            continue
+        end
+        v68(v70, v69)
+    end
+end
+local v_u_71 = {}
+function UpdateBoosts()
+    -- upvalues: (copy) v_u_1, (ref) v_u_3, (copy) v_u_2, (copy) v_u_71
+    local function v78(p72) -- name: v50
+        -- upvalues: (ref) v_u_1
+        local v73 = v_u_1.Save.Get()
+        local v74 = p72:GetAttribute("Boost")
+        local v75 = v73.BoostsInventory[v74]
+        local v76 = v73.Boosts[v74]
+        p72.TimeLeft.Visible = v76 ~= nil
+        if v76 then
+            if v76 < 86400 then
+                p72.TimeLeft.Text = os.date("!%X", v76)
+            else
+                p72.TimeLeft.Text = v_u_1.Functions.TimeString(v76) .. " Left"
+            end
+        end
+        local v77 = p72.Buttons:FindFirstChild("Use")
+        v77.Visible = v75 ~= nil
+        if v75 then
+            v77:FindFirstChild("Label").Text = "Use (" .. v_u_1.Functions.Commas(v75) .. ")"
+        end
+    end
+    local function v86(p79) -- name: v58
+        -- upvalues: (ref) v_u_1, (ref) v_u_3
+        local v_u_80 = p79:GetAttribute("Boost")
+        local v81 = p79:FindFirstChild("Buttons")
+        local v82 = v81:FindFirstChild("Price")
+        v_u_1.GUIFX.ButtonFX(v82)
+        v_u_1.Assets.UI.Currency["Diamonds Gradient"]:Clone().Parent = v82.Robux
+        v82.Activated:Connect(function()
+            -- upvalues: (ref) v_u_1, (copy) v_u_80, (ref) v_u_3
+            if v_u_1.Message.New("Are you sure you would like to purchase this?", true) then
+                local v83, v84 = v_u_1.Network.Invoke("Purchase Boosts", v_u_80, false)
+                if v83 then
+                    v_u_3 = false
+                    v_u_1.Audio.Play("rbxassetid://6958723296", script, 1, 1)
+                    v_u_1.Message.New("Purchase successful! Thank you so much! :)")
+                    return
+                end
+                v_u_1.Message.New(v84 or "Something went wrong.")
+            end
+        end)
+        local v85 = v81:FindFirstChild("Use")
+        v_u_1.GUIFX.ButtonFX(v85)
+        v85.Activated:Connect(function()
+            -- upvalues: (ref) v_u_3, (ref) v_u_1, (copy) v_u_80
+            if not v_u_3 then
+                v_u_3 = true
+                v_u_1.Network.Fire("Activate Boost", v_u_80)
+                v_u_3 = false
+            end
+        end)
+    end
+    for _, v87 in ipairs(v_u_2.Container.Boosts:GetChildren()) do
+        if not v87:GetAttribute("Boost") then
+            continue
+        end
+        v78(v87)
+        if v_u_71[v87] then
+            continue
+        end
+        v_u_71[v87] = true
+        v86(v87)
+    end
+end
+local v_u_88 = {}
+local v_u_89 = nil
+function UpdateDiamonds()
+    -- upvalues: (copy) v_u_1, (copy) v_u_88, (ref) v_u_3, (ref) v_u_89, (copy) v_u_36, (copy) v_u_2
+    local function v96(p_u_90) -- name: v66
+        -- upvalues: (ref) v_u_1, (ref) v_u_88, (ref) v_u_3, (ref) v_u_89
+        local v91, v92 = v_u_1.Network.Invoke("Get Diamond Prices", (tostring(p_u_90:GetAttribute("Product"))))
+        p_u_90.Amount.Text = v_u_1.Functions.Commas(v92)
+        p_u_90.Price.Robux.Text = v_u_1.Functions.NumberShorten(v91)
+        if not v_u_88[p_u_90] then
+            v_u_88[p_u_90] = true
+            v_u_1.GUIFX.ButtonFX(p_u_90)
+            p_u_90.Activated:Connect(function()
+                -- upvalues: (ref) v_u_3, (ref) v_u_1, (copy) p_u_90, (ref) v_u_89
+                if not v_u_3 then
+                    v_u_3 = true
+                    if v_u_1.Message.New("Would you like to buy this pack?", true) then
+                        local v93 = p_u_90
+                        local v94, v95 = v_u_1.Network.Invoke("Purchase Currency", (tostring(v93:GetAttribute("Product"))))
+                        if v94 then
+                            v_u_3 = false
+                            v_u_1.Audio.Play("rbxassetid://6958723296", script, 1, 1)
+                            v_u_1.Signal.Fire("Rain Diamonds", 3.5)
+                            v_u_89()
+                            v_u_1.Message.New("Purchase successful! Thank you so much! :)")
+                            return
+                        end
+                        v_u_1.Message.New(v95 or "Something went wrong.")
+                    end
+                    v_u_3 = false
+                end
+            end)
+        end
+    end
+    v_u_36(v_u_2.Container.Diamonds.BestCurrency:FindFirstChild("1"), "2078", {})
+    v96(v_u_2.Container.Diamonds.BestCurrency)
+    for _, v97 in ipairs(v_u_2.Container.Diamonds.CurrencyGroup:GetChildren()) do
+        if v97.ClassName ~= "TextButton" then
+            continue
+        end
+        v96(v97)
+    end
+end
+local v_u_98 = {}
+local v_u_99 = false
+v_u_89 = function()
+    -- upvalues: (ref) v_u_99
+    if not v_u_99 then
+        v_u_99 = true
+        task.delay(0.15, function()
+            -- upvalues: (ref) v_u_99
+            v_u_99 = false
+            pcall(function()
+                UpdateDiamonds()
+            end)
+        end)
+    end
+end
+local v_u_100 = {
+    ["Tiny Diamonds"] = 500000,
+    ["Medium Diamonds"] = 1750000,
+    ["Large Diamonds"] = 3000000,
+    ["Massive Diamonds"] = 9500000
+}
+local v_u_101 = {}
+local v_u_102 = {}
+local function v_u_104(p103) -- name: SetupP2WHugeDiamondCatIcons
+    -- upvalues: (copy) v_u_36
+    if p103 then
+        v_u_36(p103:FindFirstChild("Normal"), "2078", {})
+        v_u_36(p103:FindFirstChild("Golden"), "2078", {
+            ["g"] = true
+        })
+        v_u_36(p103:FindFirstChild("Rainbow"), "2078", {
+            ["r"] = true
+        })
+    end
+end
+local function v_u_113(p105) -- name: SetupP2WDiamondButton
+    -- upvalues: (copy) v_u_1, (copy) v_u_101, (copy) v_u_100, (copy) v_u_102, (ref) v_u_3
+    if p105 and p105:IsA("GuiButton") then
+        local v106 = p105:GetAttribute("Product") or ""
+        local v107 = tostring(v106)
+        local v_u_108 = v_u_1.Directory.Products[v107]
+        if v_u_108 and v_u_108.ID then
+            local v109 = v_u_101
+            local v110 = v_u_108.ID
+            v109[tostring(v110)] = v107
+            local v111 = v_u_100[v107]
+            if v111 and p105:FindFirstChild("Amount") then
+                p105.Amount.Text = v_u_1.Functions.Commas(v111)
+            end
+            local v112 = p105:FindFirstChild("Price")
+            if v112 then
+                UpdatePriceFrame(v112, v_u_108.ID, false)
+            end
+            if not v_u_102[p105] then
+                v_u_102[p105] = true
+                v_u_1.GUIFX.ButtonFX(p105)
+                p105.Activated:Connect(function()
+                    -- upvalues: (ref) v_u_3, (ref) v_u_1, (copy) v_u_108
+                    if not v_u_3 then
+                        v_u_3 = true
+                        if v_u_1.Message.New("Would you like to buy this Robux diamond pack?", true) then
+                            v_u_1.Functions.PromptPurchase(v_u_108.ID, true)
+                        end
+                        v_u_3 = false
+                    end
+                end)
+            end
+        else
+            return
+        end
+    else
+        return
+    end
+end
+function UpdateP2WDiamonds()
+    -- upvalues: (copy) v_u_2, (copy) v_u_104, (copy) v_u_113
+    local v114 = v_u_2.Container:FindFirstChild("DiamondsP2W")
+    if v114 then
+        v_u_104(v114:FindFirstChild("BestCurrency"))
+        v_u_113(v114:FindFirstChild("BestCurrency"))
+        local v115 = v114:FindFirstChild("CurrencyGroup")
+        if v115 then
+            for _, v116 in ipairs(v115:GetChildren()) do
+                if not v116:IsA("TextButton") then
+                    continue
+                end
+                v_u_113(v116)
+            end
+        end
+    end
+end
+v_u_1.Network.Fired("Product Bought"):Connect(function(p117)
+    -- upvalues: (copy) v_u_101
+    if v_u_101[tostring(p117)] then
+        UpdateP2WDiamonds()
+    end
+end)
+function UpdateGamepasses()
+    -- upvalues: (copy) v_u_1, (ref) v_u_3, (copy) v_u_2, (copy) v_u_98
+    local function v119(p118) -- name: v71
+        -- upvalues: (ref) v_u_1
+        if v_u_1.Gamepasses.Owns(p118:GetAttribute("Gamepass")) then
+            if p118:FindFirstChild("Price").Robux:FindFirstChild("Diamonds Gradient") then
+                p118:FindFirstChild("Price").Robux:FindFirstChild("Diamonds Gradient"):Destroy()
+            end
+            if p118:FindFirstChild("Price").Robux:FindFirstChild("UIStroke") then
+                p118:FindFirstChild("Price").Robux:FindFirstChild("UIStroke"):Destroy()
+            end
+            p118:FindFirstChild("Price").Robux.Text = "Owns"
+            p118:FindFirstChild("Price").RobuxIcon.Image = "rbxassetid://6516386809"
+        else
+            UpdateDiamondsFrame(p118:FindFirstChild("Price"), p118:GetAttribute("Gamepass"))
+        end
+    end
+    local function v123(p_u_120) -- name: v75
+        -- upvalues: (ref) v_u_1, (ref) v_u_3
+        v_u_1.Assets.UI.Currency["Diamonds Gradient"]:Clone().Parent = p_u_120:FindFirstChild("Price").Robux
+        v_u_1.GUIFX.ButtonFX(p_u_120)
+        p_u_120.Activated:Connect(function()
+            -- upvalues: (ref) v_u_3, (ref) v_u_1, (copy) p_u_120
+            if not v_u_3 then
+                v_u_3 = true
+                if v_u_1.Message.New("Are you sure you would like to purchase this?", true) then
+                    local v121, v122 = v_u_1.Network.Invoke("Purchase Gamepass", p_u_120:GetAttribute("Gamepass"))
+                    if v121 then
+                        v_u_3 = false
+                        v_u_1.Audio.Play("rbxassetid://6958723296", script, 1, 1)
+                        v_u_1.Message.New("Purchase successful! Thank you so much! :)")
+                        return
+                    end
+                    v_u_1.Message.New(v122 or "Something went wrong.")
+                end
+                v_u_3 = false
+            end
+        end)
+    end
+    for _, v124 in ipairs(v_u_2.Gamepasses:GetChildren()) do
+        for _, v125 in ipairs(v124:GetChildren()) do
+            if not v125:GetAttribute("Gamepass") then
+                continue
+            end
+            if not v_u_98[v125] then
+                v_u_98[v125] = true
+                v123(v125)
+            end
+            v119(v125)
+        end
+    end
+end
+function Update15PetsEquipped()
+    -- upvalues: (copy) v_u_2, (copy) v_u_1, (ref) v_u_3
+    local v_u_126 = v_u_2.Container.Featured.Deal
+    if v_u_126.Visible then
+        local v127 = v_u_1.Save.Get()
+        if v127 then
+            local v128 = v127.MaxEquipped >= 15
+            local v129 = v_u_126.Title
+            local v130 = v128 and v127.MaxEquipped or v127.MaxEquipped + 7
+            v129.Text = math.max(v130, 15) .. " Pets Equipped!"
+            local v131 = v_u_126.Buttons:FindFirstChild("Price")
+            if v128 then
+                v131.Robux.Text = "Owned"
+                v131.RobuxIcon.Visible = false
+            else
+                v131.Robux.Text = "220k"
+            end
+            if not v_u_126:GetAttribute("Setup") then
+                v_u_126:SetAttribute("Setup", true)
+                v_u_1.Assets.UI.Currency["Diamonds Gradient"]:Clone().Parent = v131.Robux
+                v_u_1.GUIFX.ButtonFX(v131)
+                v131.Activated:Connect(function()
+                    -- upvalues: (ref) v_u_3, (ref) v_u_1
+                    if not v_u_3 then
+                        v_u_3 = true
+                        local v132, v133 = v_u_1.Network.Invoke("Attempt Purchase 15 Pets Equipped")
+                        if v132 then
+                            if v_u_1.Message.New("Are you sure you would like to purchase this?", true) then
+                                local v134, v135 = v_u_1.Network.Invoke("Purchase 15 Pets Equipped")
+                                if v134 then
+                                    v_u_3 = false
+                                    v_u_1.Audio.Play("rbxassetid://6958723296", script, 1, 1)
+                                    v_u_1.Message.New("Purchase successful! Thank you so much! :)")
+                                    return
+                                end
+                                v_u_1.Message.New(v135 or "Something went wrong.")
+                            end
+                        elseif v133 == "You need to buy the 8 Pets Equipped pass first. Would you like to buy it now?" then
+                            if v_u_1.Message.New(v133, true) then
+                                local v136, v137 = v_u_1.Network.Invoke("Purchase Gamepass", "8 Pets Equipped")
+                                if v136 then
+                                    v_u_3 = false
+                                    v_u_1.Audio.Play("rbxassetid://6958723296", script, 1, 1)
+                                    v_u_1.Message.New("Purchase successful! Thank you so much! :)")
+                                    return
+                                end
+                                v_u_1.Message.New(v137 or "Something went wrong.")
+                            end
+                        else
+                            v_u_1.Message.New(v133 or "Error")
+                        end
+                        v_u_3 = false
+                    end
+                end)
+                coroutine.wrap(function()
+                    -- upvalues: (copy) v_u_126, (ref) v_u_1
+                    local v138 = v_u_126:FindFirstChild("Splash")
+                    local v139 = v138.Position
+                    while true do
+                        v_u_1.Functions.FastTween(v138, {
+                            ["Position"] = v139 - UDim2.new(0, 0, 0.05, 0)
+                        }, { 1.5, "Sine", "InOut" }).Completed:Wait()
+                        v_u_1.Functions.FastTween(v138, {
+                            ["Position"] = v139
+                        }, { 1.25, "Sine", "InOut" }).Completed:Wait()
+                    end
+                end)()
+            end
+        end
+    else
+        return
+    end
+end
+function MerchAnimation() -- name: MerchAnimation
+    -- upvalues: (copy) v_u_2, (copy) v_u_1
+    local v140 = v_u_2.Container:FindFirstChild("Merch"):FindFirstChild("Deal")
+    local v_u_141 = v140.Illustrations:FindFirstChild("One")
+    local v_u_142 = v140.Illustrations:FindFirstChild("Two")
+    local v_u_143 = v_u_141.Position
+    coroutine.wrap(function()
+        -- upvalues: (ref) v_u_1, (copy) v_u_141, (copy) v_u_143
+        while true do
+            local v144 = v_u_1.Functions.FastTween
+            local v145 = v_u_141
+            local v146 = {
+                ["Position"] = v_u_143 - UDim2.new(0, 0, 0.05, 0)
+            }
+            v144(v145, v146, { 0.25, "Expo", "InOut" }).Completed:Wait()
+            local v147 = {
+                ["Position"] = v_u_143
+            }
+            v_u_1.Functions.FastTween(v_u_141, v147, { 0.35, "Quad", "InOut" }).Completed:Wait()
+            v_u_1.Functions.Wait(math.random(0, 2))
+        end
+    end)()
+    local v_u_148 = v_u_142.Position
+    coroutine.wrap(function()
+        -- upvalues: (ref) v_u_1, (copy) v_u_142, (copy) v_u_148
+        while true do
+            local v149 = v_u_1.Functions.FastTween
+            local v150 = v_u_142
+            local v151 = {
+                ["Position"] = v_u_148 - UDim2.new(0, 0, 0.05, 0)
+            }
+            v149(v150, v151, { 0.25, "Expo", "InOut" }).Completed:Wait()
+            local v152 = {
+                ["Position"] = v_u_148
+            }
+            v_u_1.Functions.FastTween(v_u_142, v152, { 0.35, "Quad", "InOut" }).Completed:Wait()
+            v_u_1.Functions.Wait(math.random(0, 2))
+        end
+    end)()
+end
+function UpdateMVPDeal() -- name: UpdateMVPDeal
+    -- upvalues: (copy) v_u_51, (copy) v_u_2, (copy) v_u_1, (ref) v_u_3, (copy) v_u_41
+    v_u_51()
+    local v153 = v_u_2.Container:FindFirstChild("MVP")
+    if v153 then
+        v153 = v153:FindFirstChild("Deal")
+    end
+    if v153 and v153.Visible then
+        if v_u_1.Save.Get() then
+            local v154 = v_u_1.Directory.Gamepasses.MVP2
+            if v154 then
+                local v_u_155 = v154.ID
+                local v156 = v153.Buttons:FindFirstChild("Price")
+                if v156 then
+                    if v_u_1.Gamepasses.Owns("MVP2") or (v_u_1.Gamepasses.Owns("MVP") or (v_u_1.Gamepasses.Owns(v_u_155) or v_u_1.Gamepasses.Owns(v_u_1.Directory.Gamepasses.MVP.ID))) then
+                        v156.Robux.Text = "Owned"
+                        v156.RobuxIcon.Visible = false
+                    else
+                        v156.RobuxIcon.Visible = true
+                        UpdatePriceFrame(v156, v_u_155, true)
+                    end
+                    if not v153:GetAttribute("Setup") then
+                        v153:SetAttribute("Setup", true)
+                        v_u_1.GUIFX.ButtonFX(v156)
+                        v156.Activated:Connect(function()
+                            -- upvalues: (ref) v_u_3, (ref) v_u_1, (copy) v_u_155, (ref) v_u_41
+                            if not v_u_3 then
+                                v_u_3 = true
+                                if v_u_1.Gamepasses.Owns("MVP2") or (v_u_1.Gamepasses.Owns("MVP") or (v_u_1.Gamepasses.Owns(v_u_155) or v_u_1.Gamepasses.Owns(v_u_1.Directory.Gamepasses.MVP.ID))) then
+                                    v_u_1.Message.New("You already own this.")
+                                elseif v_u_41((v_u_1.Save.Get())) then
+                                    v_u_1.Functions.PromptPurchase(v_u_155)
+                                else
+                                    v_u_1.Message.New("Your pet storage is full! Make space before buying MVP.")
+                                end
+                                v_u_3 = false
+                            end
+                        end)
+                    end
+                end
+            else
+                return
+            end
+        else
+            return
+        end
+    else
+        return
+    end
+end
+local function v_u_166(p157, p158, p159) -- name: SetupEggDropPetIcons
+    -- upvalues: (copy) v_u_1, (copy) v_u_36
+    if p157 then
+        p157 = p157:FindFirstChild("Pets")
+    end
+    if p158 then
+        p158 = v_u_1.Directory.Eggs[p158]
+    end
+    if p157 and p158 then
+        local v160 = p158.drops
+        if type(v160) == "table" then
+            local v161 = type(p159) == "table" and p159 and p159 or {}
+            for v162, v163 in ipairs(p158.drops) do
+                local v164
+                if type(v163) == "table" then
+                    v164 = v163[1] or nil
+                else
+                    v164 = nil
+                end
+                local v165 = tostring(v164)
+                v_u_36(p157:FindFirstChild((tostring(v162))), v165, v161[v165] or {})
+            end
+            return
+        end
+    end
+end
+local function v_u_172(p_u_167, p168) -- name: SetupEggFloat
+    -- upvalues: (copy) v_u_1
+    local v_u_169 = not p_u_167 or p_u_167:FindFirstChild(p168) or (p_u_167:FindFirstChild("Egg") or p_u_167:FindFirstChild("Present"))
+    if v_u_169 and not v_u_169:GetAttribute("FloatSetup") then
+        v_u_169:SetAttribute("FloatSetup", true)
+        v_u_169:SetAttribute("InitialPosition", v_u_169.Position)
+        local v_u_170 = v_u_169.Position
+        coroutine.wrap(function()
+            -- upvalues: (copy) v_u_169, (copy) p_u_167, (ref) v_u_1, (copy) v_u_170
+            while v_u_169.Parent do
+                if p_u_167.Visible then
+                    v_u_1.Functions.FastTween(v_u_169, {
+                        ["Position"] = v_u_170 - UDim2.new(0, 0, 0.05, 0)
+                    }, { 0.4, "Sine", "InOut" }).Completed:Wait()
+                    local v171 = {
+                        ["Position"] = v_u_170
+                    }
+                    v_u_1.Functions.FastTween(v_u_169, v171, { 0.4, "Sine", "InOut" }).Completed:Wait()
+                else
+                    v_u_169.Position = v_u_170
+                    v_u_1.Functions.Wait(0.5)
+                end
+            end
+        end)()
+    end
+end
+local function v_u_177(p173, p_u_174, p_u_175) -- name: SetupRobuxEggButton
+    -- upvalues: (copy) v_u_1, (ref) v_u_3
+    if p173 and not p173:GetAttribute("Setup") then
+        p173:SetAttribute("Setup", true)
+        v_u_1.GUIFX.ButtonFX(p173)
+        p173.Activated:Connect(function()
+            -- upvalues: (ref) v_u_3, (ref) v_u_1, (copy) p_u_175, (copy) p_u_174
+            if not v_u_3 then
+                v_u_3 = true
+                local v176 = v_u_1.Save.Get()
+                if v176 and #v176.Pets + (p_u_175 or 1) <= v176.MaxSlots then
+                    if v_u_1.Message.New("Just before you buy, this game is NOT OFFICIAL and we won\'t be able to refund your purchase after this game gets banned. Do you still want to buy this?", true) then
+                        v_u_1.Functions.PromptPurchase(p_u_174, true)
+                    end
+                else
+                    v_u_1.Message.New("Your inventory is full!")
+                end
+                v_u_3 = false
+            end
+        end)
+    end
+end
+local function v_u_185(p178, p_u_179, p_u_180) -- name: SetupDiamondEggButton
+    -- upvalues: (copy) v_u_1, (ref) v_u_3
+    if p178 and not p178:GetAttribute("Setup") then
+        p178:SetAttribute("Setup", true)
+        v_u_1.GUIFX.ButtonFX(p178)
+        p178.Activated:Connect(function()
+            -- upvalues: (ref) v_u_3, (ref) v_u_1, (copy) p_u_179, (copy) p_u_180
+            if not v_u_3 then
+                v_u_3 = true
+                local v181 = v_u_1.Save.Get()
+                if v181 and #v181.Pets + p_u_179 <= v181.MaxSlots then
+                    local v182 = 10000000 * p_u_179
+                    if v_u_1.Message.New("Are you sure you want to buy this for " .. v_u_1.Functions.Commas(v182) .. " Diamonds?", true) then
+                        local v183, v184 = v_u_1.Network.Invoke("Exclusive Shop: Buy Exclusive Egg", p_u_179, p_u_180)
+                        if v183 then
+                            v_u_1.Audio.Play("rbxassetid://6958723296", script, 1, 1)
+                            v_u_1.Message.New("Purchase successful! Thank you so much! :)")
+                        else
+                            v_u_1.Message.New(v184 or "Something went wrong. Please try again!")
+                        end
+                    end
+                else
+                    v_u_1.Message.New("Your inventory is full!")
+                end
+                v_u_3 = false
+            end
+        end)
+    end
+end
+function UpdateSockGift() -- name: UpdateSockGift
+    -- upvalues: (copy) v_u_1, (copy) v_u_2, (copy) v_u_166, (ref) v_u_3
+    local v_u_186 = v_u_1.Directory.Products["Sock Gifts"].ID
+    local v_u_187 = v_u_2.Container.SockGifts.Deal
+    v_u_166(v_u_187, "Sock Gift")
+    local v_u_188 = v_u_1.Save.Get()
+    v_u_1.GUIFX.ButtonFX(v_u_187.Buttons.Price)
+    v_u_1.GUIFX.ButtonFX(v_u_187.Buttons.PriceRobux)
+    v_u_187.Buttons.Price.Activated:Connect(function()
+        -- upvalues: (ref) v_u_3, (copy) v_u_188, (ref) v_u_1
+        if not v_u_3 then
+            v_u_3 = true
+            if #v_u_188.Pets + 3 >= v_u_188.MaxSlots then
+                v_u_1.Message.New("You have max pets slots! Delete one first.")
+            elseif v_u_1.Message.New("Would you like to buy 3x Gift for 45m Diamonds?", true) then
+                local v189, v190 = v_u_1.Network.Invoke("Exclusive Shop: Purchase Gifts", 3)
+                if v189 then
+                    v_u_3 = false
+                    v_u_1.Audio.Play("rbxassetid://6958723296", script, 1, 1)
+                    v_u_1.Message.New("Purchase successful! Thank you so much! :)")
+                    return
+                end
+                v_u_1.Message.New(v190 or "Something went wrong.")
+            end
+            v_u_3 = false
+        end
+    end)
+    v_u_187.Buttons.PriceRobux.Activated:Connect(function()
+        -- upvalues: (ref) v_u_3, (copy) v_u_188, (ref) v_u_1, (copy) v_u_186
+        if not v_u_3 then
+            v_u_3 = true
+            if #v_u_188.Pets + 3 >= v_u_188.MaxSlots then
+                v_u_1.Message.New("You have max pets slots! Delete one first.")
+            else
+                v_u_1.Functions.PromptPurchase(v_u_186, true)
+            end
+            v_u_3 = false
+        end
+    end)
+    coroutine.wrap(function()
+        -- upvalues: (copy) v_u_187, (ref) v_u_1
+        local v191 = v_u_187.Egg
+        local v192 = v191.Position
+        while true do
+            v_u_1.Functions.Tween(v191, {
+                ["Position"] = v192 - UDim2.new(0, 0, 0.05, 0)
+            }, { 0.4, "Sine", "InOut" }).Completed:Wait()
+            v_u_1.Functions.Tween(v191, {
+                ["Position"] = v192
+            }, { 0.4, "Sine", "InOut" }).Completed:Wait()
+        end
+    end)()
+end
+function UpdateExclusiveEggs()
+    -- upvalues: (copy) v_u_2, (copy) v_u_1, (copy) v_u_166, (copy) v_u_177, (copy) v_u_185, (copy) v_u_172
+    local v_u_193 = v_u_2.Container:FindFirstChild("ExclusiveEgg")
+    if v_u_193 then
+        local v194 = v_u_1.Directory.Products["Exclusive Egg"]
+        if v194 then
+            v194 = v194.ID
+        end
+        local v195 = v_u_1.Directory.Products["Exclusive Egg 3x"]
+        if v195 then
+            v195 = v195.ID
+        end
+        local v_u_196 = v_u_193:FindFirstChild("Deal1")
+        local v_u_197 = v_u_193:FindFirstChild("Deal2")
+        local v_u_198 = v_u_193:FindFirstChild("Pages")
+        local v_u_199 = tonumber(v_u_193:GetAttribute("ActiveDeal")) or 1
+        v_u_166(v_u_196, "Exclusive Egg")
+        v_u_166(v_u_197, "Exclusive Egg")
+        if v_u_196 and v194 then
+            local v200 = v_u_196.Buttons:FindFirstChild("Price")
+            local v201 = v_u_196.Buttons:FindFirstChild("PriceTriple")
+            if v200 then
+                UpdatePriceFrame(v200:FindFirstChild("Frame") or v200, v194, false)
+                v_u_177(v200, v194, 1)
+            end
+            if v201 and v195 then
+                UpdatePriceFrame(v201:FindFirstChild("Frame") or v201, v195, false)
+                v_u_177(v201, v195, 3)
+            end
+        end
+        if v_u_197 then
+            local v202 = v_u_197.Buttons:FindFirstChild("Price")
+            local v203 = v_u_197.Buttons:FindFirstChild("PriceTriple")
+            local v204 = v_u_1.Functions.NumberShorten(10000000)
+            local v205
+            if v202 then
+                local v206 = v202:FindFirstChild("Frame")
+                if v206 and v206:FindFirstChild("Robux") then
+                    v205 = v206.Robux
+                else
+                    v205 = v202:FindFirstChild("Robux")
+                end
+            else
+                v205 = nil
+            end
+            if v205 then
+                v205.Text = v204
+            end
+            local v207 = v_u_1.Functions.NumberShorten(30000000)
+            local v208
+            if v203 then
+                local v209 = v203:FindFirstChild("Frame")
+                if v209 and v209:FindFirstChild("Robux") then
+                    v208 = v209.Robux
+                else
+                    v208 = v203:FindFirstChild("Robux")
+                end
+            else
+                v208 = nil
+            end
+            if v208 then
+                v208.Text = v207
+            end
+            v_u_185(v202, 1, "Exclusive Egg")
+            v_u_185(v203, 3, "Exclusive Egg")
+        end
+        local function v_u_212(p210) -- name: showDeal
+            -- upvalues: (ref) v_u_199, (copy) v_u_193, (copy) v_u_196, (ref) v_u_172, (copy) v_u_197, (copy) v_u_198
+            v_u_199 = p210 == 2 and 2 or 1
+            v_u_193:SetAttribute("ActiveDeal", v_u_199)
+            if v_u_196 then
+                v_u_196.Visible = v_u_199 == 1
+                v_u_172(v_u_196, "Egg")
+            end
+            if v_u_197 then
+                v_u_197.Visible = v_u_199 == 2
+                v_u_172(v_u_197, "Egg")
+            end
+            if v_u_198 then
+                v_u_198.UpdateName.Text = v_u_199 == 1 and "Exclusive Egg (P2W)" or "Exclusive Egg (F2P)"
+                v_u_198.Text.Text = v_u_199 == 1 and "With Robux:" or "With Diamonds:"
+                local v211 = v_u_198:FindFirstChild("Change")
+                if v211 and v211:FindFirstChild("Robux") then
+                    v211.Robux.Text = v_u_199 == 1 and "F2P" or "P2W"
+                end
+            end
+        end
+        if v_u_198 and (v_u_198:FindFirstChild("Change") and not v_u_198.Change:GetAttribute("Setup")) then
+            v_u_198.Change:SetAttribute("Setup", true)
+            v_u_1.GUIFX.ButtonFX(v_u_198.Change)
+            v_u_198.Change.Activated:Connect(function()
+                -- upvalues: (copy) v_u_212, (ref) v_u_199
+                v_u_212(v_u_199 == 1 and 2 or 1)
+            end)
+        end
+        v_u_212(v_u_199)
+    end
+end
+function UpdateLimitedChristmasEgg()
+    -- upvalues: (copy) v_u_2, (copy) v_u_1, (copy) v_u_166, (copy) v_u_172, (copy) v_u_177
+    local v_u_213 = v_u_2.Container:FindFirstChild("LimitedChristmasEgg")
+    if v_u_213 then
+        local v214 = 1780506000 - os.time()
+        if v214 <= 0 then
+            v_u_213.Visible = false
+            return
+        else
+            v_u_213.Visible = true
+            local v_u_215 = v_u_213:FindFirstChild("Category")
+            if v_u_215 then
+                local v216 = math.floor(v214)
+                local v217 = math.max(0, v216)
+                local v218 = v217 / 3600
+                local v219 = math.floor(v218)
+                local v220 = v217 % 3600 / 60
+                local v221 = math.floor(v220)
+                local v222 = v217 % 60
+                v_u_215.Text = "Will be gone in " .. string.format("%02d:%02d:%02d", v219, v221, v222)
+            end
+            local v223 = v_u_1.Directory.Products["Insane Christmas Egg"]
+            if v223 then
+                v223 = v223.ID
+            end
+            local v224 = v_u_213:FindFirstChild("Deal1")
+            if v224 and v223 then
+                v_u_166(v224, "Limited Christmas Egg", {
+                    ["265"] = {
+                        ["r"] = true
+                    },
+                    ["263"] = {
+                        ["dm"] = true
+                    }
+                })
+                v_u_172(v224, "Present")
+                local v225 = v224.Buttons:FindFirstChild("Price")
+                if v225 then
+                    UpdatePriceFrame(v225, v223, false)
+                    v_u_177(v225, v223, 1)
+                end
+                if not v_u_213:GetAttribute("CountdownSetup") then
+                    v_u_213:SetAttribute("CountdownSetup", true)
+                    coroutine.wrap(function()
+                        -- upvalues: (copy) v_u_213, (copy) v_u_215, (ref) v_u_1
+                        while v_u_213.Parent do
+                            local v226 = 1780506000 - os.time()
+                            if v226 <= 0 then
+                                v_u_213.Visible = false
+                                return
+                            end
+                            if v_u_215 then
+                                local v227 = v_u_215
+                                local v228 = math.floor(v226)
+                                local v229 = math.max(0, v228)
+                                local v230 = v229 / 3600
+                                local v231 = math.floor(v230)
+                                local v232 = v229 % 3600 / 60
+                                local v233 = math.floor(v232)
+                                local v234 = v229 % 60
+                                v227.Text = "Will be gone in " .. string.format("%02d:%02d:%02d", v231, v233, v234)
+                            end
+                            v_u_1.Functions.Wait(1)
+                        end
+                    end)()
+                end
+            end
+        end
+    else
+        return
+    end
+end
+if v_u_2.Container.BoosterPack.Visible then
+    local v235 = v_u_2.Container.BoosterPack.Deal.Buttons.Price
+    v_u_1.Assets.UI.Currency["Diamonds Gradient"]:Clone().Parent = v235.Robux
+    v_u_1.GUIFX.ButtonFX(v235)
+    v235.Activated:Connect(function()
+        -- upvalues: (ref) v_u_3, (copy) v_u_1
+        if not v_u_3 then
+            v_u_3 = true
+            if v_u_1.Message.New("Are you sure you would like to purchase this?", true) then
+                local v236, v237 = v_u_1.Network.Invoke("Purchase Boosts", "Booster Pack", true)
+                if v236 then
+                    v_u_3 = false
+                    v_u_1.Audio.Play("rbxassetid://6958723296", script, 1, 1)
+                    v_u_1.Message.New("Purchase successful! Thank you so much! :)")
+                    return
+                end
+                v_u_1.Message.New(v237 or "Something went wrong.")
+            end
+            v_u_3 = false
+        end
+    end)
+end
+function UpdatePriceFrame(p238, p239, p240) -- name: UpdatePriceFrame
+    -- upvalues: (copy) v_u_1
+    local v241, v242 = v_u_1.Functions.GetPrice(p239, not p240)
+    local v243 = p238:FindFirstChild("Robux")
+    if v242 and (v241 and v241 > 0) then
+        v243.Text = v_u_1.Functions.Commas(v241)
+        return v241
+    else
+        v243.Text = "???"
+        return v241
+    end
+end
+function UpdateDiamondsFrame(p244, p245)
+    -- upvalues: (copy) v_u_1
+    local v246 = v_u_1.Directory.Gamepasses[p245].Price
+    p244:FindFirstChild("Robux").Text = v_u_1.Functions.NumberShorten(v246)
+    return true
+end
+function Scrollbar() -- name: Scrollbar
+    -- upvalues: (copy) v_u_2
+    local v247 = v_u_2.Container:FindFirstChildOfClass("UIListLayout")
+    local v248 = v_u_2.Container:FindFirstChildOfClass("UIPadding")
+    local v249 = v247.AbsoluteContentSize.Y + v248.PaddingTop.Offset + v248.PaddingBottom.Offset
+    v_u_2.Container.CanvasSize = UDim2.new(0, 0, 0, v249)
+end
+function SizeFrame(p250) -- name: SizeFrame
+    -- upvalues: (copy) v_u_1
+    local v251 = v_u_1.Functions.ResolutionScale()
+    local v252 = 1
+    for _, v253 in ipairs(p250:GetChildren()) do
+        if v253.ClassName == "UIPadding" then
+            local v254 = v_u_1.GUIFX.CacheProperty(v253, "PaddingTop")
+            local v255 = v_u_1.GUIFX.CacheProperty(v253, "PaddingBottom")
+            v253.PaddingTop = UDim.new(v254.Scale, v254.Offset * v251)
+            v253.PaddingBottom = UDim.new(v255.Scale, v255.Offset * v251)
+            v252 = v252 + v253.PaddingTop.Offset + v253.PaddingBottom.Offset
+        else
+            if v253.ClassName ~= "UIListLayout" and v253.ClassName ~= "UIGridLayout" then
+                continue
+            end
+            v252 = v252 + v253.AbsoluteContentSize.Y
+            if v253.ClassName == "UIListLayout" then
+                local v256 = v_u_1.GUIFX.CacheProperty(v253, "Padding")
+                v253.Padding = UDim.new(v256.Scale, v256.Offset * v251)
+            elseif v253.ClassName == "UIGridLayout" then
+                local v257 = v_u_1.GUIFX.CacheProperty(v253, "CellPadding")
+                v253.CellPadding = UDim2.new(v257.X.Scale, v257.X.Offset * v251, v257.Y.Scale, v257.Y.Offset * v251)
+            end
+            if v253.ClassName ~= "UIGridLayout" or not v253:FindFirstChildOfClass("UIAspectRatioConstraint") then
+                continue
+            end
+            v253.CellSize = UDim2.new(v253.CellSize.X.Scale, v253.CellSize.X.Offset, 0, v253.AbsoluteCellSize.Y + 2)
+        end
+    end
+    p250.Size = UDim2.new(p250.Size.X.Scale, p250.Size.X.Offset, 0, v252)
+end
+function Scaling()
+    -- upvalues: (copy) v_u_2
+    if v_u_2.Gui.Enabled then
+        local v258 = game.Workspace.CurrentCamera.ViewportSize.Y <= 1000
+        v_u_2.Frame:FindFirstChildOfClass("UIAspectRatioConstraint").AspectRatio = v258 and 1.6 or 1.2
+        v_u_2.Tabs.Size = v258 and UDim2.new(0.365, 0, 0.1, 0) or UDim2.new(0.365, 0, 0.065, 0)
+        for _, v259 in ipairs(v_u_2.Container:GetChildren()) do
+            if not v259:IsA("GuiObject") or v259.Name == "ExclusiveEgg" and v259.Name == "ExclusiveEgg2" then
+                continue
+            end
+            for _, v260 in ipairs(v259:GetChildren()) do
+                if v260:FindFirstChildOfClass("UIListLayout") then
+                    SizeFrame(v260)
+                else
+                    if not v260:FindFirstChildOfClass("UIGridLayout") then
+                        continue
+                    end
+                    SizeFrame(v260)
+                end
+            end
+            SizeFrame(v259)
+        end
+        Scrollbar()
+    end
+end
+coroutine.wrap(function()
+    -- upvalues: (copy) v_u_1
+    while true do
+        v_u_1.Heartbeat()
+        Scaling()
+    end
+end)()
+function UseTab(p261) -- name: UseTab
+    -- upvalues: (copy) v_u_2, (copy) v_u_1
+    local v262 = p261.Name
+    local v263 = v262 == "Diamonds" and v_u_2.Container:FindFirstChild("DiamondsP2W") and "DiamondsP2W" or v262
+    local v264 = v_u_2.Container:FindFirstChild(v263)
+    if v264 then
+        v_u_1.Functions.FastTween(v_u_2.Container, {
+            ["CanvasPosition"] = Vector2.new(0, v_u_2.Container.CanvasPosition.Y + (v264.AbsolutePosition.Y - v_u_2.Container.AbsolutePosition.Y))
+        }, { 0.2, "Expo", "Out" })
+        v_u_1.Audio.Play("rbxassetid://7004248320", script, 1, 0.5)
+    end
+end
+function SetupTab(p_u_265) -- name: SetupTab
+    -- upvalues: (copy) v_u_1, (ref) v_u_3
+    v_u_1.GUIFX.ButtonFX(p_u_265)
+    v_u_1.GUIFX.Tooltip(p_u_265, p_u_265.Name)
+    p_u_265.Activated:Connect(function()
+        -- upvalues: (ref) v_u_3, (copy) p_u_265
+        if not v_u_3 then
+            v_u_3 = true
+            UseTab(p_u_265)
+            v_u_3 = false
+        end
+    end)
+end
+local v_u_266 = v_u_89
+local v_u_267 = v_u_3
+for _, v268 in ipairs(v_u_2.Tabs:GetChildren()) do
+    if v268.ClassName ~= "ImageButton" then
+        continue
+    end
+    SetupTab(v268)
+end
+local v269 = v_u_2.Container.Codes.Frame.Buttons.Redeem
+v_u_1.GUIFX.ButtonFX(v269)
+v269.Activated:Connect(function()
+    -- upvalues: (ref) v_u_267, (copy) v_u_1
+    if not v_u_267 then
+        v_u_267 = true
+        v_u_1.GUI.SocialCodes.Gui.Enabled = true
+        v_u_267 = false
+    end
+end)
+local v270 = v_u_2.Container.Merch.Deal.Buttons.Redeem
+v_u_1.GUIFX.ButtonFX(v270)
+v270.Activated:Connect(function()
+    -- upvalues: (ref) v_u_267, (copy) v_u_1
+    if not v_u_267 then
+        v_u_267 = true
+        v_u_1.GUI.MerchCodes.Gui.Enabled = true
+        v_u_267 = false
+    end
+end)
+v_u_1.GUIFX.ButtonFX(v_u_2.Close)
+v_u_2.Close.Activated:Connect(function()
+    -- upvalues: (ref) v_u_267, (copy) v_u_2
+    if not v_u_267 then
+        v_u_267 = true
+        v_u_2.Gui.Enabled = false
+        v_u_267 = false
+    end
+end)
+UpdateGamepasses()
+UpdateDiamonds()
+UpdateP2WDiamonds()
+UpdateBoosts()
+UpdatePets()
+Update15PetsEquipped()
+UpdateMVPDeal()
+UpdateExclusiveEggs()
+UpdateLimitedChristmasEgg()
+UpdateSockGift()
+v_u_1.Signal.Fired("Stat Changed"):Connect(function(p271)
+    -- upvalues: (ref) v_u_266
+    if p271 == "Gamepasses" then
+        UpdateGamepasses()
+        Update15PetsEquipped()
+        UpdateMVPDeal()
+        return
+    elseif p271 == "Boosts" or p271 == "BoostsInventory" then
+        UpdateBoosts()
+        return
+    elseif p271 == "MaxEquipped" then
+        Update15PetsEquipped()
+        return
+    elseif p271 == "Pets" or p271 == "MaxSlots" then
+        UpdateMVPDeal()
+    elseif p271 == "Coins" or (p271 == "Fantasy Coins" or (p271 == "Tech Coins" or (p271 == "AreasUnlocked" or p271 == "Debug"))) then
+        v_u_266()
+    end
+end)
+v_u_1.Signal.Fired("Exclusive Shop Tab"):Connect(function(p272)
+    -- upvalues: (copy) v_u_2, (ref) v_u_266
+    v_u_2.Gui.Enabled = true
+    v_u_266()
+    UseTab((v_u_2.Tabs:FindFirstChild(p272)))
+end)
