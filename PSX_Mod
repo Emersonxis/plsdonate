@@ -371,6 +371,8 @@ local SniperMode = "Multi" -- Multi / Single
 
 local MAX_BREAKABLES = 8
 local RANGE = 200
+local NearestFarmRange = 200
+local RandomFarmRange = 200
 local FarmSpeed = 0.15
 local AutoFarmBreakables = false
 local AutoFarmBreakablesRandom = false
@@ -401,12 +403,16 @@ local Balloon = {
 local Send_Webhook = false
 local WebhookURL = ""
 local UserID = ""
+local WebhookRarities = { "Huge" }
 
 local RemoveEggAnimation = true
 local RemoveBreakables = false
 local RemoveUselessStuff = false
 local RemoveMap = false
 local Rendering_Mode = false
+local ParticleStates = {}
+local MapTransparencyStates = {}
+local AntiAFKConnection = nil
 
 -- Priority / Sniper targets (dump + eventos)
 local priorityList = {
@@ -845,6 +851,17 @@ local function isHugePet(petIdOrName)
     return false
 end
 
+local function isWebhookPet(pet)
+    if not pet or not pet.id then return false end
+    local info = Pets_Directory[tostring(pet.id)] or Pets_Directory[pet.id]
+    local rarity = tostring(info and (info.rarity or info.Rarity) or pet.rarity or "")
+    for _, wanted in ipairs(WebhookRarities or {}) do
+        if tostring(wanted) == "Huge" and isHugePet(pet.id) then return true end
+        if rarity:lower() == tostring(wanted):lower() then return true end
+    end
+    return false
+end
+
 local function formatNumber(n)
     local absN = math.abs(n or 0)
     if absN >= 1e9 then
@@ -1257,6 +1274,19 @@ window = Rayfield:CreateWindow({
 -- é a forma documentada de deixar somente o botão recolhido visível.
 StartMinimized = true
 
+-- Ordem fixa da interface: principais primeiro; as demais ficam abaixo em
+-- ordem alfabética. Os blocos de conteúdo continuam separados no arquivo.
+autoFarmTab = window:CreateTab({ name = "Auto Farm", icon = "swords" })
+Hatching_Tab = window:CreateTab({ name = "Hatch", icon = "egg" })
+Pet_Tab = window:CreateTab({ name = "Pets", icon = "cat" })
+Enchant_Tab = window:CreateTab({ name = "Enchant", icon = "sparkles" })
+WorldHop_Tab = window:CreateTab({ name = "World Hop", icon = "map" })
+AutoDelete_Tab = window:CreateTab({ name = "Auto Delete", icon = "trash-2" })
+Col_Tab = window:CreateTab({ name = "Collection", icon = "book-open" })
+Exp_Tab = window:CreateTab({ name = "Experimental", icon = "flask-conical" })
+Gui_Tab = window:CreateTab({ name = "GUIs", icon = "layout-grid" })
+Misc_Tab = window:CreateTab({ name = "Misc", icon = "settings" })
+
 
 -- Gen2 dropdown: single = string | multi = {string}
 local function pickDropdown(v)
@@ -1361,8 +1391,7 @@ local function buyEggExact(eggName, requested)
     if result == false then return false, amount, err end
     return true, amount, err
 end
--- ====================== TAB: HATCHING ======================
-Hatching_Tab = window:CreateTab({ name = "Hatching", icon = "egg" })
+-- ====================== TAB: HATCH ======================
 
 Hatching_Tab:CreateDropdown({
     name = "Select Egg",
@@ -1446,6 +1475,17 @@ Hatching_Tab:CreateInput({
     end,
 })
 
+Hatching_Tab:CreateDropdown({
+    name = "Webhook: raridades notificadas",
+    options = { "Huge", "Exclusive", "Mythical", "Legendary", "Event", "Divine" },
+    value = { "Huge" },
+    multiSelect = true,
+    flag = "WebhookRarities",
+    callback = function(Options)
+        WebhookRarities = listDropdown(Options)
+    end,
+})
+
 Hatching_Tab:CreateToggle({
     name = "Send Huge Pet Notifications",
     value = false,
@@ -1462,7 +1502,7 @@ Hatching_Tab:CreateToggle({
 
                 for _, pet in pairs(Data.Pets) do
                     if not pet.id then continue end
-                    if isHugePet(pet.id) and not table.find(All_Pets_Inventory, pet.uid) then
+                    if isWebhookPet(pet) and not table.find(All_Pets_Inventory, pet.uid) then
                         table.insert(Huges_Hatched, pet.uid)
                         table.insert(All_Pets_Inventory, pet.uid)
 
@@ -1499,7 +1539,6 @@ Hatching_Tab:CreateToggle({
 })
 
 -- ====================== TAB: PETS ======================
-Pet_Tab = window:CreateTab({ name = "Pets", icon = "cat" })
 
 Pet_Tab:CreateSection({ name = "Craft Amounts (quantos pets por craft)" })
 Pet_Tab:CreateInput({
@@ -1892,7 +1931,6 @@ end)
 
 -- ====================== TAB: AUTO FARM ======================
 -- ====================== TAB: AUTO DELETE ======================
-AutoDelete_Tab = window:CreateTab({ name = "Auto Delete", icon = "trash-2" })
 AutoDelete_Tab:CreateSection({ name = "Excluir por raridade" })
 
 AutoDelete_Tab:CreateDropdown({
@@ -2143,7 +2181,7 @@ local function fireFarmAssignments(assigned)
     end
 end
 
-autoFarmTab = window:CreateTab({ name = "Auto Farm", icon = "swords" })
+-- Auto Farm tab created in the ordered tab block near the window setup.
 
 autoFarmTab:CreateSlider({
     name = "Max Breakables",
@@ -2157,6 +2195,17 @@ autoFarmTab:CreateSlider({
     end,
 })
 
+autoFarmTab:CreateSlider({
+    name = "Nearest: distância máxima",
+    Range = {25, 500},
+    Increment = 25,
+    Suffix = " studs",
+    value = NearestFarmRange,
+    flag = "NearestFarmRange",
+    callback = function(Value)
+        NearestFarmRange = math.max(25, tonumber(Value) or 200)
+    end,
+})
 autoFarmTab:CreateToggle({
     name = "Auto Farm Breakables (Nearest)",
     value = false,
@@ -2181,7 +2230,7 @@ autoFarmTab:CreateToggle({
 
                 local validTargets = {}
                 for id, coin in pairs(ServerCoins) do
-                    if coin.p and isInRange(coin.p) then
+                    if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= NearestFarmRange then
                         table.insert(validTargets, {
                             id = id,
                             p = coin.p,
@@ -2225,6 +2274,17 @@ autoFarmTab:CreateToggle({
     end,
 })
 
+autoFarmTab:CreateSlider({
+    name = "Random: distância máxima",
+    Range = {25, 500},
+    Increment = 25,
+    Suffix = " studs",
+    value = RandomFarmRange,
+    flag = "RandomFarmRange",
+    callback = function(Value)
+        RandomFarmRange = math.max(25, tonumber(Value) or 200)
+    end,
+})
 autoFarmTab:CreateToggle({
     name = "Auto Farm Breakables (Random)",
     value = false,
@@ -2249,7 +2309,7 @@ autoFarmTab:CreateToggle({
 
                 local validTargets = {}
                 for id, coin in pairs(ServerCoins) do
-                    if coin.p and isInRange(coin.p) then
+                    if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= RandomFarmRange then
                         table.insert(validTargets, { id = id, p = coin.p })
                     end
                 end
@@ -2447,16 +2507,18 @@ autoFarmTab:CreateToggle({
                     continue
                 end
 
-                local breakableID, chestPos = nil, nil
+                local breakableID, chestPos, nearestDistance = nil, nil, math.huge
                 local sel = tostring(Giant_Chest_Selected or ""):lower()
                 for id, coin in pairs(ServerCoins) do
                     if coin.p and coin.n then
                         local cn = tostring(coin.n)
                         local cl = cn:lower()
-                        if cn == Giant_Chest_Selected or cl == sel or cl:find(sel, 1, true) or sel:find(cl, 1, true) then
+                        local distance = (coin.p - HumanoidRootPart.Position).Magnitude
+                        if (cn == Giant_Chest_Selected or cl == sel or cl:find(sel, 1, true) or sel:find(cl, 1, true))
+                            and distance < nearestDistance then
                             breakableID = id
                             chestPos = coin.p
-                            break
+                            nearestDistance = distance
                         end
                     end
                 end
@@ -2489,71 +2551,12 @@ autoFarmTab:CreateToggle({
     end,
 })
 
-autoFarmTab:CreateSection({ name = "Auto Teleport" })
-local refreshBreakableDropdowns
-teleportDropdown = autoFarmTab:CreateDropdown({
-    name = "Breakables to Teleport to",
-    options = (#DynamicBreakables > 0 and DynamicBreakables or priorityList),
-    value = {},
-    multiSelect = true,
-    flag = "TeleportPriority",
-    callback = function(Options)
-        Teleportable_Breakables = listDropdown(Options)
-    end,
-})
-
 autoFarmTab:CreateButton({
-    name = "Refresh Breakables (Teleport/Sniper)",
+    name = "Refresh Breakables (Sniper/Giant)",
     callback = function()
         local list, sniperOpts, giantOpts = refreshBreakableDropdowns(false)
         pcall(function()
-            notify("Breakables", "Teleport " .. #list .. " | Sniper " .. #sniperOpts .. " | Giant " .. #giantOpts, 3)
-        end)
-    end,
-})
-
-autoFarmTab:CreateToggle({
-    name = "Auto Teleport to Priority",
-    value = false,
-    flag = "AutoTeleport",
-    callback = function(Value)
-        Auto_Teleport = Value
-        if not Auto_Teleport then return end
-
-        task.spawn(function()
-            while Auto_Teleport do
-                local teleported = false
-                for _, prioName in ipairs(priorityList) do
-                    if table.find(Teleportable_Breakables, prioName) then
-                        for id, breakable in pairs(ServerCoins) do
-                            local nameAttr = breakable.n
-                            local AreaAttr = breakable.a
-                            if breakable.p
-                                and nameAttr
-                                and table.find(Data and Data["AreasUnlocked"] or {}, AreaAttr)
-                                and nameAttr:lower():find(prioName:lower())
-                                and nameAttr ~= "Giant Diamond Chest"
-                                and nameAttr ~= "Giant Tech Chest" then
-
-                                if HumanoidRootPart then
-                                    HumanoidRootPart.CFrame = CFrame.new(breakable.p)
-                                    Safe_Part.CFrame = CFrame.new(breakable.p) - Vector3.new(0, 5, 0)
-                                end
-
-                                local start = tick()
-                                repeat
-                                    task.wait(0.2)
-                                until not ServerCoins[id] or not isInRange(breakable.p) or (tick() - start) > 12
-
-                                teleported = true
-                                break
-                            end
-                        end
-                        if teleported then break end
-                    end
-                end
-                task.wait(0.3)
-            end
+            notify("Breakables", "Sniper " .. #sniperOpts .. " | Giant " .. #giantOpts, 3)
         end)
     end,
 })
@@ -2796,7 +2799,7 @@ function WorldHopOld.Run()
     end)
 end
 
-autoFarmTab:CreateSlider({
+WorldHop_Tab:CreateSlider({
     name = "World Hop: espera entre mundos",
     Range = {1, 15},
     Increment = 1,
@@ -2807,7 +2810,7 @@ autoFarmTab:CreateSlider({
         WorldHopOld.Delay = math.max(1, tonumber(Value) or 5)
     end,
 })
-autoFarmTab:CreateSlider({
+WorldHop_Tab:CreateSlider({
     name = "World Hop: espera spawn dos breakables",
     Range = {1, 10},
     Increment = 1,
@@ -2818,7 +2821,7 @@ autoFarmTab:CreateSlider({
         WorldHopOld.SpawnDelay = math.max(1, tonumber(Value) or 3)
     end,
 })
-autoFarmTab:CreateInput({
+WorldHop_Tab:CreateInput({
     name = "World Hop: link do servidor VIP",
     value = WorldHopOld.VipLink,
     placeholder = "Link share do servidor privado",
@@ -2827,7 +2830,7 @@ autoFarmTab:CreateInput({
         WorldHopOld.VipLink = tostring(Text or "")
     end,
 })
-autoFarmTab:CreateSlider({
+WorldHop_Tab:CreateSlider({
     name = "World Hop: espera antes do rejoin",
     Range = {2, 30},
     Increment = 1,
@@ -2838,7 +2841,7 @@ autoFarmTab:CreateSlider({
         WorldHopOld.RejoinDelay = math.max(2, tonumber(Value) or 5)
     end,
 })
-autoFarmTab:CreateSlider({
+WorldHop_Tab:CreateSlider({
     name = "World Hop: loops antes do rejoin",
     Range = {1, 10},
     Increment = 1,
@@ -2849,7 +2852,7 @@ autoFarmTab:CreateSlider({
         WorldHopOld.LoopsBeforeRejoin = math.max(1, math.floor(tonumber(Value) or 2))
     end,
 })
-autoFarmTab:CreateToggle({
+WorldHop_Tab:CreateToggle({
     name = "World Hop: rejoin VIP após completar mundos",
     value = false,
     flag = "OldWorldHopRejoin",
@@ -2857,7 +2860,7 @@ autoFarmTab:CreateToggle({
         WorldHopOld.RejoinAfterLoop = Value
     end,
 })
-worldHopWorldDropdown = autoFarmTab:CreateDropdown({
+worldHopWorldDropdown = WorldHop_Tab:CreateDropdown({
     name = "World Hop: mundos permitidos",
     options = buildWorldHopOptions(),
     value = { "Spawn World" },
@@ -2867,7 +2870,7 @@ worldHopWorldDropdown = autoFarmTab:CreateDropdown({
         WorldHopOld.Worlds = listDropdown(Options)
     end,
 })
-autoFarmTab:CreateToggle({
+WorldHop_Tab:CreateToggle({
     name = "World Hop pelos alvos do Sniper (Old)",
     value = false,
     flag = "OldWorldHop",
@@ -3003,7 +3006,6 @@ task.defer(function()
 end)
 
 -- ====================== TAB: GUIs (PlayerGui) ======================
-Gui_Tab = window:CreateTab({ name = "GUIs", icon = "layout-grid" })
 Gui_Tab:CreateSection({ name = "Abrir GUIs do PlayerGui (nao desativa nada automaticamente)" })
 
 local function setPlayerGuiEnabled(name, state)
@@ -3116,7 +3118,6 @@ Gui_Tab:CreateInput({
 task.defer(rebuildGuiToggles)
 
 -- ====================== TAB: ENCHANT ======================
-Enchant_Tab = window:CreateTab({ name = "Enchant", icon = "sparkles" })
 Enchant_Tab:CreateSection({ name = "Auto Enchant - somente pets equipados" })
 
 local AutoEnchant = false
@@ -3237,7 +3238,6 @@ Enchant_Tab:CreateToggle({
 })
 
 -- ====================== TAB: COLLECTION / INDEX ======================
-Col_Tab = window:CreateTab({ name = "Collection", icon = "book-open" })
 Col_Tab:CreateSection({ name = "Pet Collection" })
 
 local CollectionVariant = "Dark Matter"
@@ -3937,7 +3937,6 @@ function Balloon.Run()
 end
 
 -- ====================== TAB: EXPERIMENTAL ======================
-Exp_Tab = window:CreateTab({ name = "Experimental", icon = "flask-conical" })
 Exp_Tab:CreateSection({ name = "Remotes / Util" })
 
 
@@ -4142,13 +4141,23 @@ Exp_Tab:CreateToggle({
         AntiAFK = Value
     end,
 })
-task.spawn(function()
+pcall(function()
     local vu = game:GetService("VirtualUser")
+    AntiAFKConnection = player.Idled:Connect(function()
+        if not AntiAFK then return end
+        pcall(function()
+            vu:CaptureController()
+            vu:ClickButton2(Vector2.new(0, 0))
+        end)
+    end)
+end)
+task.spawn(function()
     while task.wait(60) do
         if AntiAFK then
             pcall(function()
+                local vu = game:GetService("VirtualUser")
                 vu:CaptureController()
-                vu:ClickButton2(Vector2.new())
+                vu:ClickButton2(Vector2.new(0, 0))
             end)
         end
     end
@@ -4159,98 +4168,69 @@ Exp_Tab:CreateToggle({
     value = false,
     flag = "FPSBoost",
     callback = function(Value)
-        if not Value then return end
         pcall(function()
-            for _, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then
-                    v.Enabled = false
-                end
-            end
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+            applyParticleState(Value)
+            settings().Rendering.QualityLevel = Value and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic
         end)
     end,
 })
 
--- ====================== TAB: EVENT ======================
-Event_Tab = window:CreateTab({ name = "Event", icon = "party-popper" })
-Event_Tab:CreateSection({ name = "Balloon Farm por mundo" })
-Event_Tab:CreateInput({
-    name = "VIP Share Link / Code",
-    value = Balloon.VipLink,
-    placeholder = "https://www.roblox.com/share?code=...&type=Server",
-    flag = "BalloonVipLink",
-    callback = function(Text)
-        Balloon.VipLink = tostring(Text or "")
-    end,
-})
-Event_Tab:CreateDropdown({
-    name = "Mundos do Balloon Farm",
-    options = Balloon.WorldOptions,
-    value = {},
-    multiSelect = true,
-    flag = "BalloonWorlds",
-    callback = function(Options)
-        Balloon.SelectedWorlds = listDropdown(Options)
-    end,
-})
-Event_Tab:CreateSlider({
-    name = "Delay entre mundos",
-    Range = {1, 10},
-    Increment = 1,
-    Suffix = "s",
-    value = Balloon.WorldDelay,
-    flag = "BalloonWorldDelay",
-    callback = function(Value)
-        Balloon.WorldDelay = math.max(1, tonumber(Value) or 2)
-    end,
-})
-Event_Tab:CreateSlider({
-    name = "Delay do reset VIP",
-    Range = {2, 30},
-    Increment = 1,
-    Suffix = "s",
-    value = Balloon.RejoinDelay,
-    flag = "BalloonRejoinDelay",
-    callback = function(Value)
-        Balloon.RejoinDelay = math.max(2, tonumber(Value) or 5)
-    end,
-})
-Event_Tab:CreateToggle({
-    name = "Resetar VIP após completar mundos",
-    value = false,
-    flag = "BalloonResetVipAfterLoop",
-    callback = function(Value)
-        Balloon.ResetVipAfterLoop = Value
-    end,
-})
-Event_Tab:CreateToggle({
-    name = "Auto Farm Balloon",
-    value = false,
-    flag = "AutoBalloonFarm",
-    callback = function(Value)
-        Balloon.AutoFarm = Value
-        if Value then
-            Balloon.Run()
-        else
-            Balloon.Status = "idle"
+local function applyBreakablesVisualState(hidden)
+    pcall(function()
+        local things = Workspace:FindFirstChild("__THINGS")
+        local coins = things and things:FindFirstChild("Coins")
+        if not coins then return end
+        for _, obj in ipairs(coins:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.LocalTransparencyModifier = hidden and 1 or 0
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+                obj.Enabled = not hidden
+            end
         end
-    end,
-})
-Event_Tab:CreateButton({
-    name = "Rejoin VIP agora",
-    callback = function()
-        Balloon.RejoinVip()
-    end,
-})
-Event_Tab:CreateButton({
-    name = "Status dos Balloons",
-    callback = function()
-        notify("Balloon", Balloon.Status .. " | encontrados: " .. tostring(#Balloon.List()), 4)
-    end,
-})
+    end)
+end
+
+local function applyParticleState(disabled)
+    pcall(function()
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+                if ParticleStates[obj] == nil then ParticleStates[obj] = obj.Enabled end
+                obj.Enabled = disabled and false or ParticleStates[obj]
+            end
+        end
+    end)
+end
+
+local function applyMapState(hidden)
+    pcall(function()
+        local map = Workspace:FindFirstChild("__MAP")
+        if not map then return end
+        for _, obj in ipairs(map:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                if MapTransparencyStates[obj] == nil then
+                    MapTransparencyStates[obj] = obj.Transparency
+                end
+                -- Mantém CanCollide intacto: o mapa pode ficar invisível,
+                -- mas o player não cai no void ao sair do hoverboard.
+                obj.Transparency = hidden and 1 or MapTransparencyStates[obj]
+            elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                if MapTransparencyStates[obj] == nil then
+                    MapTransparencyStates[obj] = obj.Transparency
+                end
+                obj.Transparency = hidden and 1 or MapTransparencyStates[obj]
+            end
+        end
+    end)
+end
+
+task.spawn(function()
+    while task.wait(1) do
+        if RemoveBreakables then applyBreakablesVisualState(true) end
+        if RemoveMap then applyMapState(true) end
+    end
+end)
 
 -- ====================== TAB: MISC ======================
-Misc_Tab = window:CreateTab({ name = "Misc", icon = "settings" })
 
 Misc_Tab:CreateSection({ name = "Collect & Claims" })
 Misc_Tab:CreateToggle({
@@ -4293,12 +4273,9 @@ Misc_Tab:CreateToggle({
     flag = "RemoveBreakablesVisual",
     callback = function(Value)
         RemoveBreakables = Value
-        -- Soft remove: just clear client visuals if possible
-        pcall(function()
-            if workspace:FindFirstChild("__THINGS") and workspace.__THINGS:FindFirstChild("Coins") then
-                -- Do not clear server coins, only reduce local load if needed
-            end
-        end)
+        -- Esconde apenas as instâncias visuais locais. ServerCoins continua
+        -- intacto, então todos os modos de farm continuam funcionando.
+        applyBreakablesVisualState(Value)
     end,
 })
 
@@ -4308,21 +4285,7 @@ Misc_Tab:CreateToggle({
     flag = "RemoveMap",
     callback = function(Value)
         RemoveMap = Value
-        pcall(function()
-            local map = Workspace:FindFirstChild("__MAP")
-            if map then
-                for _, v in pairs(map:GetDescendants()) do
-                    if v:IsA("BasePart") or v:IsA("MeshPart") or v:IsA("Decal") or v:IsA("Texture") then
-                        if Value then
-                            v.Transparency = 1
-                            if v:IsA("BasePart") then
-                                v.CanCollide = false
-                            end
-                        end
-                    end
-                end
-            end
-        end)
+        applyMapState(Value)
     end,
 })
 
@@ -4335,6 +4298,7 @@ Misc_Tab:CreateToggle({
         pcall(function()
             settings().Rendering.QualityLevel = Value and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic
         end)
+        applyParticleState(Value)
     end,
 })
 
