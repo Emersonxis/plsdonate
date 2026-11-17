@@ -1,0 +1,209 @@
+-- Script Path: game:GetService("Players").Emerson_GTA.PlayerScripts.Scripts.Game["Exclusive Eggs"].Random
+-- Took 0s to decompile.
+-- Executor: Delta (1.0.747.1486)
+
+assert(true)
+u1 = {
+    ["new"] = function(p1) -- name: new
+        local v2 = nil
+        if p1 == nil then
+            v2 = Random.new()
+        elseif typeof(p1) == "number" then
+            v2 = Random.new(p1)
+        elseif typeof(p1) == "Random" then
+            v2 = p1
+        else
+            error("Unknown alternative seed type: " .. typeof(p1))
+        end
+        local v3 = {
+            ["new"] = u1.new
+        }
+        local v_u_4 = v2
+        function v3.handle() -- name: handle
+            -- upvalues: (ref) v_u_4
+            return v_u_4
+        end
+        function v3.clone() -- name: clone
+            -- upvalues: (ref) v_u_4
+            return u1.new(v_u_4:Clone())
+        end
+        function v3.seed(p5) -- name: seed
+            -- upvalues: (ref) v_u_4
+            v_u_4 = Random.new(p5)
+        end
+        function v3.number(p6, p7) -- name: number
+            -- upvalues: (ref) v_u_4
+            return p6 and v_u_4:NextNumber(p6, p7) or v_u_4:NextNumber()
+        end
+        function v3.boolean(p8) -- name: boolean
+            -- upvalues: (ref) v_u_4
+            return v_u_4:NextNumber() < (p8 or 0.5)
+        end
+        function v3.integer(p9, p10) -- name: integer
+            -- upvalues: (ref) v_u_4
+            return v_u_4:NextInteger(p9, p10)
+        end
+        function v3.normal(p11, p12) -- name: normal
+            -- upvalues: (ref) v_u_4
+            local v13 = v_u_4
+            local v14 = math.max(5e-324, v13:NextNumber())
+            local v15 = math.log(v14) * -2
+            local v16 = math.sqrt(v15) * (p12 or 1)
+            local v17 = v_u_4:NextNumber() * 6.283185307179586
+            local v18 = p11 or 0
+            return v16 * math.cos(v17) + v18, v16 * math.sin(v17) + v18
+        end
+        function v3.Vector3(p19) -- name: Vector3
+            -- upvalues: (ref) v_u_4
+            return v_u_4:NextUnitVector() * (p19 or 1)
+        end
+        function v3.Vector2(p20) -- name: Vector2
+            -- upvalues: (ref) v_u_4
+            local v21 = 6.283185307179586 * v_u_4:NextNumber()
+            return Vector2.new(math.cos(v21), (math.sin(v21))) * (p20 or 1)
+        end
+        return v3
+    end
+}
+u1.R = u1.new()
+return u1
+
+-- // Function Dumper made by King.Kevin
+-- // Script Path: game:GetService("Players").Emerson_GTA.PlayerScripts.Scripts.Game["Exclusive Eggs"].Random
+
+--[[
+Function Dump: Vector2
+
+Function Upvalues: Vector2
+        1 [Random] = Random
+
+Function Constants: Vector2
+        1 [number] = 6.283185307179586
+        2 [string] = NextNumber
+        3 [string] = Vector2
+        4 [string] = new
+        6 [string] = math
+        7 [string] = cos
+        9 [string] = sin
+        11 [number] = 1
+
+====================================================================================================
+
+Function Dump: Vector3
+
+Function Upvalues: Vector3
+        1 [Random] = Random
+
+Function Constants: Vector3
+        1 [string] = NextUnitVector
+        2 [number] = 1
+
+====================================================================================================
+
+Function Dump: normal
+
+Function Upvalues: normal
+        1 [Random] = Random
+
+Function Constants: normal
+        1 [number] = -2
+        2 [number] = 5e-324
+        3 [string] = NextNumber
+        4 [string] = math
+        5 [string] = max
+        7 [string] = log
+        9 [string] = sqrt
+        11 [number] = 1
+        12 [number] = 6.283185307179586
+        13 [number] = 0
+        14 [string] = cos
+        16 [string] = sin
+
+====================================================================================================
+
+Function Dump: integer
+
+Function Upvalues: integer
+        1 [Random] = Random
+
+Function Constants: integer
+        1 [string] = NextInteger
+
+====================================================================================================
+
+Function Dump: boolean
+
+Function Upvalues: boolean
+        1 [Random] = Random
+
+Function Constants: boolean
+        1 [string] = NextNumber
+        2 [number] = 0.5
+
+====================================================================================================
+
+Function Dump: number
+
+Function Upvalues: number
+        1 [Random] = Random
+
+Function Constants: number
+        1 [string] = NextNumber
+
+====================================================================================================
+
+Function Dump: seed
+
+Function Upvalues: seed
+        1 [Random] = Random
+
+Function Constants: seed
+        1 [string] = Random
+        2 [string] = new
+
+====================================================================================================
+
+Function Dump: clone
+
+Function Upvalues: clone
+        1 [Random] = Random
+
+Function Constants: clone
+        1 [string] = u1
+        2 [string] = new
+        3 [string] = Clone
+
+====================================================================================================
+
+Function Dump: handle
+
+Function Upvalues: handle
+        1 [Random] = Random
+
+Function Constants: handle
+
+====================================================================================================
+
+Function Dump: new
+
+Function Upvalues: new
+
+Function Constants: new
+        1 [string] = typeof
+        3 [string] = number
+        4 [string] = Random
+        5 [string] = new
+        7 [string] = error
+        9 [string] = Unknown alternative seed type: 
+        11 [string] = u1
+        12 [string] = handle
+        13 [string] = clone
+        14 [string] = seed
+        15 [string] = boolean
+        16 [string] = integer
+        17 [string] = normal
+        18 [string] = Vector3
+        19 [string] = Vector2
+
+====================================================================================================
+]]

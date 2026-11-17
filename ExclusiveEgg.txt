@@ -1,0 +1,4691 @@
+-- Script Path: game:GetService("Players").Emerson_GTA.PlayerScripts.Scripts.Game["Exclusive Eggs"]
+-- Took 0.11s to decompile.
+-- Executor: Delta (1.0.747.1486)
+
+local v_u_1 = require(game:GetService("ReplicatedStorage"):WaitForChild("Library"))
+while not v_u_1.Loaded do
+    game:GetService("RunService").Heartbeat:Wait()
+end
+local _ = v_u_1.Shared.ExclusiveEggRadiusBuffer
+local _ = v_u_1.Shared.ExclusiveEggMaxHeightBuffer
+local v_u_2 = {
+    ["EGG_LAND"] = { "rbxassetid://122152719655926" },
+    ["EGG_OPEN"] = { "rbxassetid://113812046860375" },
+    ["EGG_OPEN_RARE"] = { "rbxassetid://115433322570302" },
+    ["EGG_OPEN_HUGE"] = { "rbxassetid://123705052596597" },
+    ["EGG_OPEN_TITANIC"] = { "rbxassetid://113605064799782" },
+    ["EGG_SPAWN"] = { "rbxassetid://8049260816", "rbxassetid://8049260930" },
+    ["EGG_THROW"] = { "rbxassetid://115222377712622", "rbxassetid://126167277280861" },
+    ["EGG_SHAKE"] = { "rbxassetid://100917503678518" },
+    ["EGG_GROW_HUGE"] = { "rbxassetid://81373431010533" },
+    ["EGG_GROW_TITANIC"] = { "rbxassetid://139868667096170" },
+    ["PET_REMOVE"] = { "rbxassetid://8863194418" },
+    ["INVENTORY_OPEN"] = { "rbxassetid://135129669197062" }
+}
+local v_u_3 = {
+    { 0, 1, 1 },
+    { 0.14, 0.58, 1.28 },
+    { 0.42, 1.16, 0.9 },
+    { 0.7, 0.96, 1.03 },
+    { 1, 1, 1 }
+}
+local v_u_4 = {
+    { 0, 1, 1 },
+    { 0.15, 0.78, 1.14 },
+    { 0.5, 1.07, 0.96 },
+    { 1, 1, 1 }
+}
+local v_u_5 = {
+    { 0, 1, 1 },
+    { 0.3, 0.9, 1.05 },
+    { 0.65, 1.04, 0.98 },
+    { 1, 1, 1 }
+}
+local v_u_6 = {
+    { 0, 1, 1 },
+    { 0.55, 0.68, 1.24 },
+    { 1, 1.22, 0.88 }
+}
+local function v_u_15(p7, p8) -- name: sampleKeys
+    for v9 = 1, #p7 - 1 do
+        local v10 = p7[v9]
+        local v11 = p7[v9 + 1]
+        if p8 > v11[1] then
+            continue
+        end
+        local v12 = (p8 - v10[1]) / (v11[1] - v10[1]) * 3.141592653589793
+        local v13 = 0.5 - math.cos(v12) / 2
+        return v10[2] + (v11[2] - v10[2]) * v13, v10[3] + (v11[3] - v10[3]) * v13
+    end
+    local v14 = p7[#p7]
+    return v14[2], v14[3]
+end
+function preloadAssets() -- name: preloadAssets
+    -- upvalues: (copy) v_u_2, (copy) v_u_1
+    local v_u_16 = {}
+    for _, v17 in pairs(v_u_2) do
+        for _, v18 in ipairs(v17) do
+            table.insert(v_u_16, v18)
+        end
+    end
+    v_u_1.Functions.wcall(function()
+        -- upvalues: (ref) v_u_1, (copy) v_u_16
+        v_u_1.ContentProvider:PreloadAsync(v_u_16)
+    end)
+end
+function autoControlPoint(p19, p20) -- name: autoControlPoint
+    local v21 = (p19 + p20) / 2
+    local v22 = v21.X
+    local v23 = p19.Y
+    local v24 = p20.Y
+    local v25 = math.max(v23, v24) + ((p19 - p20) * Vector3.new(1, 0, 1)).Magnitude
+    local v26 = v21.Z
+    return Vector3.new(v22, v25, v26)
+end
+function createPetGui(p27, p28) -- name: createPetGui
+    -- upvalues: (copy) v_u_1
+    local v29 = v_u_1.Directory.Pets[p28.id]
+    local v30 = v29.name
+    if p28.dm then
+        v30 = "Dark Matter " .. v30
+    elseif p28.r then
+        v30 = "Rainbow " .. v30
+    elseif p28.g then
+        v30 = "Golden " .. v30
+    end
+    if p28.sh then
+        v30 = "Shiny " .. v30
+    end
+    local v31 = v_u_1.Assets.Billboards.ExclusivePet:Clone()
+    v31.Name = "__BILLBOARD"
+    local v32 = (p27.center.Position - p27.bottom.Position).Y * 2 + 0.5
+    v31.StudsOffset = Vector3.new(0, v32, 0)
+    v31.PetName.Text = v30
+    v31.PetIcon.Image = p28.dm and v29.darkMatterThumbnail or (p28.g and v29.goldenThumbnail or v29.thumbnail)
+    v31.Rarity.Text = v29.rarity
+    v_u_1.Shared.ApplyRarityColor(v31.Rarity, v29.rarity)
+    if p28.r then
+        v_u_1.GUIFX.Rainbow(v31.PetName, "TextColor3", 2)
+        v_u_1.GUIFX.Rainbow(v31.PetIcon, "ImageColor3", 2)
+    end
+    v31.Parent = p27.part
+    return v31
+end
+local v_u_33 = {
+    ["Gravity"] = 95,
+    ["PopVelocity"] = 16,
+    ["Scatter"] = 1.5,
+    ["Restitution"] = 0.3,
+    ["MinBounceVelocity"] = 3,
+    ["MaxBounces"] = 2,
+    ["SpinTurns"] = 1,
+    ["ImpactParticleLifetime"] = 0.5,
+    ["TrailName"] = "SuperFirework-Trail",
+    ["LandSounds"] = nil,
+    ["LandSounds"] = {
+        6840608566,
+        6840608533,
+        6840608598,
+        6840608504
+    }
+}
+function fireworkFall(p34, p_u_35, p36, p37) -- name: fireworkFall
+    -- upvalues: (copy) v_u_33, (copy) v_u_1
+    local v_u_38 = p_u_35:GetPivot()
+    local v39
+    if p34 then
+        v39 = p34.bottom
+    else
+        v39 = p34
+    end
+    local v40 = v_u_38.Position.Y - (p34 and 0 or p_u_35.Size.Y / 2)
+    if typeof(v39) == "Instance" then
+        v40 = v39:IsA("Attachment") and v39.WorldPosition.Y or (v39:IsA("BasePart") and v39.Position.Y or v40)
+    end
+    local v41 = v_u_38.Position.Y - v40
+    local v42 = math.max(0, v41)
+    local v_u_43
+    if p37 then
+        local v44 = p37.X
+        local v45 = p37.Y + v42
+        local v46 = p37.Z
+        v_u_43 = Vector3.new(v44, v45, v46)
+    else
+        local v47 = math.random() * 2 * 3.141592653589793
+        local v48 = p36.X + math.cos(v47) * v_u_33.Scatter * math.random()
+        local v49 = p36.Y + v42
+        local v50 = p36.Z + math.sin(v47) * v_u_33.Scatter * math.random()
+        v_u_43 = Vector3.new(v48, v49, v50)
+    end
+    local v51 = v_u_38.Position.Y - v_u_43.Y
+    if v51 <= 0.1 then
+        return
+    end
+    local v_u_52 = v_u_33.Gravity
+    local v_u_53 = v_u_33.PopVelocity
+    local v54 = v_u_53 * v_u_53 + 2 * v_u_52 * v51
+    local v_u_55 = (v_u_53 + math.sqrt(v54)) / v_u_52
+    local v_u_56 = v_u_38.Rotation
+    local v57 = v_u_1.Assets.Particles.Achievements:FindFirstChild(v_u_33.TrailName)
+    if v57 then
+        v57 = v57:Clone()
+    end
+    if v57 then
+        v57.Enabled = true
+        v57.Parent = p_u_35
+    end
+    v_u_1.Functions.RenderStepped(function(_, p58)
+        -- upvalues: (copy) v_u_55, (copy) v_u_38, (copy) v_u_53, (copy) v_u_52, (ref) v_u_43, (ref) v_u_33, (ref) v_u_1, (copy) p_u_35, (copy) v_u_56
+        local v59 = p58 * v_u_55
+        local v60 = v_u_38.Position.Y + v_u_53 * v59 - 0.5 * v_u_52 * v59 * v59
+        local v61 = v_u_38.Position:Lerp(v_u_43, p58)
+        local v62 = 6.283185307179586 * v_u_33.SpinTurns * v_u_1.Functions.Easing(p58, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local v63 = p_u_35
+        local v64 = CFrame.new
+        local v65 = v61.X
+        local v66 = v_u_43.Y
+        v63:PivotTo(v64(v65, math.max(v60, v66), v61.Z) * v_u_56 * CFrame.Angles(0, v62, 0))
+    end, v_u_55, true):Wait()
+    p_u_35:PivotTo(CFrame.new(v_u_43) * v_u_56)
+    if v57 then
+        v57.Enabled = false
+        v_u_1.Functions.AddDebris(v57, v57.Lifetime.Max)
+    end
+    local v67 = v_u_33.LandSounds
+    v_u_1.Audio.Play(v67[math.random(1, #v67)], v_u_43, math.random(95, 105) / 100, 0.8, 200)
+    local v68, v69 = v_u_1.Functions.CreateParticleHost(p36)
+    local v70 = v_u_1.Functions.Emit
+    local function v72(p71)
+        -- upvalues: (ref) v_u_33
+        p71.Lifetime = NumberRange.new(p71.Lifetime.Min * v_u_33.ImpactParticleLifetime, p71.Lifetime.Max * v_u_33.ImpactParticleLifetime)
+    end
+    local v73 = script:WaitForChild("Impact")
+    local _, v74 = v70(v69, v72, table.unpack(v73:GetChildren()))
+    v_u_1.Functions.AddDebris(v68, v74)
+    local v75 = v_u_53 * v_u_53 + 2 * v_u_52 * v51
+    local v_u_76 = math.sqrt(v75)
+    for _ = 1, v_u_33.MaxBounces do
+        v_u_76 = v_u_76 * v_u_33.Restitution
+        if v_u_76 < v_u_33.MinBounceVelocity then
+            break
+        end
+        local v_u_77 = v_u_76 * 2 / v_u_52
+        v_u_1.Functions.RenderStepped(function(_, p78)
+            -- upvalues: (copy) v_u_77, (copy) p_u_35, (ref) v_u_43, (ref) v_u_76, (copy) v_u_52, (copy) v_u_56
+            local v79 = p78 * v_u_77
+            local v80 = p_u_35
+            local v81 = CFrame.new
+            local v82 = v_u_43
+            local v83 = v_u_76 * v79 - 0.5 * v_u_52 * v79 * v79
+            local v84 = math.max(0, v83)
+            v80:PivotTo(v81(v82 + Vector3.new(0, v84, 0)) * v_u_56)
+        end, v_u_77, true):Wait()
+        p_u_35:PivotTo(CFrame.new(v_u_43) * v_u_56)
+        local v85 = v_u_76 * 0.8
+        local v86 = v_u_53 * v_u_53 + 2 * v_u_52 * v51
+        local v87 = v85 / math.sqrt(v86)
+        local v88 = v_u_33.LandSounds
+        v_u_1.Audio.Play(v88[math.random(1, #v88)], v_u_43, math.random(95, 105) / 100, v87, 200)
+    end
+end
+local v_u_89 = v_u_1.Things:WaitForChild("ExclusiveEggs")
+local v_u_90 = {}
+local v_u_91 = {}
+local v_u_92 = false
+local v_u_93 = {}
+local function v_u_98(p94) -- name: releaseCurrencyHold
+    -- upvalues: (copy) v_u_1
+    if not p94.released then
+        p94.released = true
+        local v95 = v_u_1.Variables.CurrencyDisplayHold
+        if v95 then
+            local v96 = p94.currency
+            local v97 = (v95[p94.currency] or 0) - p94.amount
+            v95[v96] = math.max(0, v97)
+        end
+        v_u_1.Signal.Fire("Currency Display Refresh")
+    end
+end
+local function v_u_110(p99, p100) -- name: rememberFireworkReward
+    -- upvalues: (copy) v_u_1, (copy) v_u_98, (copy) v_u_93
+    if type(p100) == "table" then
+        p100.holds = {}
+        if p99 == v_u_1.LocalPlayer then
+            v_u_1.Variables.CurrencyDisplayHold = v_u_1.Variables.CurrencyDisplayHold or {}
+            for _, v101 in ipairs(p100.currency or {}) do
+                local v102 = v101.amount
+                local v103 = tonumber(v102) or 0
+                if v103 <= 0 then
+                    continue
+                end
+                local v104 = {
+                    ["currency"] = v101.currency,
+                    ["amount"] = v103
+                }
+                v_u_1.Variables.CurrencyDisplayHold[v101.currency] = (v_u_1.Variables.CurrencyDisplayHold[v101.currency] or 0) + v103
+                local v105 = p100.holds
+                table.insert(v105, v104)
+                task.delay(30, v_u_98, v104)
+            end
+            local v106 = {}
+            for _, v107 in ipairs(p100.eggs or {}) do
+                for _, v108 in ipairs(v107.pets or {}) do
+                    local v109 = v108.uid
+                    table.insert(v106, v109)
+                end
+            end
+            if #v106 > 0 then
+                v_u_1.Signal.Fire("Hide Pets", v106)
+                task.delay(30, v_u_1.Signal.Fire, "Show Pets", v106)
+            end
+            v_u_1.Signal.Fire("Currency Display Refresh")
+        end
+        if p100.pet then
+            v_u_93[p100.pet] = p100
+        end
+    end
+end
+local function v_u_115(p111) -- name: takeFireworkReward
+    -- upvalues: (copy) v_u_93
+    local v112 = tostring(p111)
+    local v113 = os.clock() + 3
+    while not v_u_93[v112] and os.clock() < v113 do
+        task.wait(0.1)
+    end
+    local v114 = v_u_93[v112]
+    v_u_93[v112] = nil
+    return v114
+end
+local function v_u_120(p116) -- name: fireworkGroundAt
+    -- upvalues: (copy) v_u_1
+    local v117 = v_u_1.WorldCmds.GetMap()
+    if not v117 then
+        return p116
+    end
+    local v118 = RaycastParams.new()
+    v118.FilterDescendantsInstances = { v117 }
+    v118.FilterType = Enum.RaycastFilterType.Include
+    v118.RespectCanCollide = false
+    local v119 = workspace:Raycast(p116 + Vector3.new(0, 20, 0), Vector3.new(0, -60, 0), v118)
+    if v119 then
+        p116 = v119.Position or p116
+    end
+    return p116
+end
+local function v_u_155(p_u_121, p122, p123, p_u_124, p125, p_u_126) -- name: playFireworkBillboard
+    -- upvalues: (copy) v_u_1
+    local v127 = v_u_1.Directory.Currency[p122.currency]
+    local v128 = v_u_1.Assets.Billboards:FindFirstChild("Reward")
+    if v127 and v128 then
+        local v_u_129 = v_u_1.Functions.CreateParticleHost(p_u_124)
+        local v_u_130 = v128:Clone()
+        v_u_130.amount.Text = "+" .. v_u_1.Functions.NumberShorten(p122.amount, false)
+        v_u_130.icon.Image = v127.Image
+        v_u_130.icon.shadow.Image = v127.Image
+        v127.Gradient:Clone().Parent = v_u_130.amount
+        v_u_130.AlwaysOnTop = true
+        local v_u_131 = v_u_130.Size
+        v_u_130.Size = UDim2.new(v_u_131.X.Scale * 0, v_u_131.X.Offset * 0, v_u_131.Y.Scale * 0, v_u_131.Y.Offset * 0)
+        v_u_130.Parent = v_u_129
+        local v132 = workspace.CurrentCamera.CFrame.RightVector * Vector3.new(1, 0, 1)
+        local v_u_133 = p_u_124 + (v132.Magnitude > 0.001 and v132.Unit or Vector3.new(1, 0, 0)) * p125 * 11 + Vector3.new(0, 5, 0)
+        v_u_1.Functions.RenderStepped(function(_, p134)
+            -- upvalues: (copy) v_u_129, (copy) p_u_124, (copy) v_u_133, (ref) v_u_1, (copy) v_u_130, (copy) v_u_131
+            v_u_129.CFrame = CFrame.new(p_u_124:Lerp(v_u_133, v_u_1.Functions.Easing(p134, Enum.EasingStyle.Back, Enum.EasingDirection.Out)))
+            local v135 = v_u_1.Functions.Easing(p134, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out)
+            v_u_130.Size = UDim2.new(v_u_131.X.Scale * v135, v_u_131.X.Offset * v135, v_u_131.Y.Scale * v135, v_u_131.Y.Offset * v135)
+        end, 0.45, true):Wait()
+        v_u_130.Size = UDim2.new(v_u_131.X.Scale * 1, v_u_131.X.Offset * 1, v_u_131.Y.Scale * 1, v_u_131.Y.Offset * 1)
+        v_u_1.Functions.RenderStepped(function(_, p136)
+            -- upvalues: (copy) v_u_129, (copy) v_u_133
+            local v137 = v_u_129
+            local v138 = CFrame.new
+            local v139 = v_u_133
+            local v140 = p136 * 3.141592653589793 * 2
+            local v141 = math.sin(v140) * 0.35
+            v137.CFrame = v138(v139 + Vector3.new(0, v141, 0))
+        end, 1, true):Wait()
+        local v_u_142 = v_u_129.Position
+        v_u_1.Functions.RenderStepped(function(_, p143)
+            -- upvalues: (copy) p_u_121, (copy) p_u_126, (ref) v_u_1, (copy) v_u_129, (copy) v_u_142, (copy) v_u_130, (copy) v_u_131
+            local v144 = p_u_121
+            local v145 = p_u_126
+            local v146 = v_u_1.Player.PrimaryPart(v144)
+            if v146 then
+                v145 = v146:GetPivot().Position or v145
+            end
+            local v147 = v_u_1.Functions.Easing(p143, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
+            v_u_129.CFrame = CFrame.new(v_u_1.Functions.Bezier(v_u_142, autoControlPoint(v_u_142, v145), v145)(v147))
+            local v148 = 1 - 0.6 * v147
+            v_u_130.Size = UDim2.new(v_u_131.X.Scale * v148, v_u_131.X.Offset * v148, v_u_131.Y.Scale * v148, v_u_131.Y.Offset * v148)
+        end, 0.65, true):Wait()
+        v_u_129:Destroy()
+        if p123 then
+            if p123.released then
+                return
+            end
+            p123.released = true
+            local v149 = v_u_1.Variables.CurrencyDisplayHold
+            if v149 then
+                local v150 = p123.currency
+                local v151 = (v149[p123.currency] or 0) - p123.amount
+                v149[v150] = math.max(0, v151)
+            end
+            v_u_1.Signal.Fire("Currency Display Refresh")
+        end
+    elseif p123 then
+        if p123.released then
+            return
+        end
+        p123.released = true
+        local v152 = v_u_1.Variables.CurrencyDisplayHold
+        if v152 then
+            local v153 = p123.currency
+            local v154 = (v152[p123.currency] or 0) - p123.amount
+            v152[v153] = math.max(0, v154)
+        end
+        v_u_1.Signal.Fire("Currency Display Refresh")
+    end
+end
+local function v_u_170(p156, p157, p158, p159) -- name: playFireworkEgg
+    -- upvalues: (copy) v_u_1, (copy) v_u_90, (copy) v_u_91, (ref) v_u_92
+    for v160, v161 in ipairs(p157.pets or {}) do
+        local v162 = v_u_1.Directory.Pets[v161.id]
+        local v_u_163 = {
+            ["player"] = nil,
+            ["origin"] = nil,
+            ["eggId"] = nil,
+            ["petData"] = nil,
+            ["position"] = nil,
+            ["chance"] = nil,
+            ["priority"] = nil,
+            ["partyIndex"] = 1,
+            ["partyCount"] = 1,
+            ["completed"] = false,
+            ["player"] = p156,
+            ["origin"] = p158,
+            ["eggId"] = p157.eggId,
+            ["petData"] = v161,
+            ["position"] = p159
+        }
+        local v164 = p157.chances
+        if v164 then
+            v164 = p157.chances[v160]
+        end
+        v_u_163.chance = tonumber(v164) or 1
+        v_u_163.priority = v162 and (v162.titanic and 3 or (v162.huge and 2 or 1)) or 1
+        v_u_90[v_u_163] = true
+        v_u_1.Functions.wcall(function()
+            -- upvalues: (copy) v_u_163
+            performAnimation(v_u_163)
+        end)
+        v_u_163.completed = true
+        v_u_90[v_u_163] = nil
+        if p156 ~= v_u_1.LocalPlayer then
+            continue
+        end
+        v_u_1.Signal.Fire("Show Pets", { v161.uid })
+        local v165 = v161.uid
+        if p156 ~= v_u_1.LocalPlayer then
+            continue
+        end
+        if not v165 then
+            continue
+        end
+        local v166 = v_u_91
+        table.insert(v166, v165)
+        if v_u_92 then
+            continue
+        end
+        v_u_92 = true
+        task.spawn(function()
+            -- upvalues: (ref) v_u_91, (ref) v_u_1, (ref) v_u_92
+            while true do
+                if #v_u_91 <= 0 then
+                    v_u_92 = false
+                    return
+                end
+                local v167 = table.remove(v_u_91, 1)
+                for _ = 1, 6 do
+                    local v168, v169 = v_u_1.Network.Invoke("Equip Pet", v167)
+                    if v168 then
+                        v_u_1.PetCmds.LocalEquipPet(v_u_1.LocalPlayer, v167, true)
+                        break
+                    end
+                    if v169 ~= "Please wait!" then
+                        break
+                    end
+                    task.wait(0.15)
+                end
+                task.wait(0.06)
+            end
+        end)
+    end
+end
+local function v_u_193(p_u_171, p_u_172, p_u_173, p174, p_u_175) -- name: playFireworkRewards
+    -- upvalues: (copy) v_u_1, (copy) v_u_155, (copy) v_u_120, (copy) v_u_170
+    for v_u_176, v_u_177 in ipairs(p_u_172.currency or {}) do
+        task.spawn(v_u_1.Functions.wcall, function()
+            -- upvalues: (ref) v_u_155, (copy) p_u_171, (copy) v_u_177, (copy) p_u_172, (copy) v_u_176, (copy) p_u_173, (copy) p_u_175
+            local v178 = v_u_155
+            local v179 = p_u_171
+            local v180 = v_u_177
+            local v181 = p_u_172.holds
+            if v181 then
+                v181 = p_u_172.holds[v_u_176]
+            end
+            v178(v179, v180, v181, p_u_173, v_u_176 == 1 and -1 or 1, p_u_175)
+        end)
+    end
+    local v182 = p_u_172.eggs or {}
+    local v183 = math.random() * 2 * 3.141592653589793
+    for v184, v_u_185 in ipairs(v182) do
+        local v186 = (v184 - 1) * 2 * 3.141592653589793
+        local v187 = #v182
+        local v188 = v183 + v186 / math.max(1, v187)
+        local v189 = v_u_120
+        local v190 = math.cos(v188)
+        local v191 = math.sin(v188)
+        local v_u_192 = v189(p174 + Vector3.new(v190, 0, v191) * 6)
+        task.spawn(v_u_1.Functions.wcall, function()
+            -- upvalues: (ref) v_u_170, (copy) p_u_171, (copy) v_u_185, (copy) p_u_173, (copy) v_u_192
+            v_u_170(p_u_171, v_u_185, p_u_173, v_u_192)
+        end)
+    end
+end
+local v_u_194 = {
+    Enum.NormalId.Back,
+    Enum.NormalId.Front,
+    Enum.NormalId.Left,
+    Enum.NormalId.Right,
+    Enum.NormalId.Top,
+    Enum.NormalId.Bottom
+}
+local v_u_195 = require(script.CameraSpace).new()
+function performAnimation(p_u_196) -- name: performAnimation
+    -- upvalues: (copy) v_u_1, (copy) v_u_15, (copy) v_u_115, (copy) v_u_193, (copy) v_u_89, (copy) v_u_2, (copy) v_u_3, (copy) v_u_4, (copy) v_u_5, (copy) v_u_90, (copy) v_u_194, (copy) v_u_6, (copy) v_u_195
+    local v_u_197 = p_u_196.player
+    local v_u_198 = p_u_196.origin
+    local v199 = p_u_196.eggId
+    local v_u_200 = p_u_196.petData
+    local v_u_201 = p_u_196.position
+    local v_u_202 = {
+        ["Timing"] = {
+            ["DelayPerEgg"] = 0.15,
+            ["UpscaleDuration"] = 0.75,
+            ["TrailLifetime"] = 0.35,
+            ["MoveDuration"] = 0.75,
+            ["BounceDuration"] = 0.55,
+            ["DramaticPauseDuration"] = 1,
+            ["ImpactParticleLifetime"] = 0.5,
+            ["ShakePreDuration"] = 1.75,
+            ["ShakePostDuration"] = 1,
+            ["PauseDuration"] = 5,
+            ["GrowScreenShakeDurationBuffer"] = 2,
+            ["GrowHugeDuration"] = 4,
+            ["GrowTitanicDuration"] = 8.5,
+            ["GrowTitanicAuraDelay"] = 5.5,
+            ["GrowTitanicAuraScreenShakeDuration"] = 1,
+            ["GrowTitanicAuraParticleLifetime"] = 1,
+            ["ExplodeParticleLifetime"] = 1.5,
+            ["ExplodeTitanicParticleDuration"] = 7,
+            ["ExplodeUpscaleDuration"] = 1,
+            ["SpawnPetDelay"] = 0.25,
+            ["PetLookAtPlayerDuration"] = 2.5,
+            ["PetLookAtPlayerDurationOther"] = 4,
+            ["PetFlyIntoPlayerDuration"] = 0.7,
+            ["PetCameraMoveDuration"] = 0.5,
+            ["PetCameraIdleDuration"] = 2.5,
+            ["PetCameraFadeDuration"] = 0.5
+        },
+        ["Other"] = {
+            ["BounceHeight"] = 2.25,
+            ["ShakePitchMagnitude"] = -30,
+            ["ShakePitchA"] = 1.5,
+            ["ShakePitchB"] = 7,
+            ["ShakeRollMagnitude"] = 30,
+            ["ShakeRollA"] = 1.5,
+            ["ShakeRollB"] = 7,
+            ["GrowHugeScale"] = 3,
+            ["GrowHugeScreenShakeMagnitude"] = 0.2,
+            ["GrowHugeShakeRate"] = 60,
+            ["GrowHugeShakeMagnitude"] = 5,
+            ["GrowTitanicScale"] = 7,
+            ["GrowTitanicScreenShakeMagnitude"] = 0.4,
+            ["GrowTitanicShakeRate"] = 60,
+            ["GrowTitanicShakeMagnitude"] = 10,
+            ["GrowTitanicAuraScreenShakeMagnitude"] = 2,
+            ["GrowTitanicAuraScreenShakeSmoothness"] = 0.1,
+            ["GrowScreenShakeSmoothness"] = 0.5,
+            ["GrowScreenShakeDistance"] = 400,
+            ["ExplodeUpscaleSize"] = 3,
+            ["OpenRareChance"] = 10,
+            ["ExplodeTitanicShakeMagnitude"] = 1,
+            ["ExplodeTitanicShakeSmoothness"] = 0.5,
+            ["LuckyClickTimeout"] = 1,
+            ["AnnouncementNotificationDuration"] = 5,
+            ["PetLookAtPlayerFloatRate"] = 0.5,
+            ["PetLookAtPlayerFloatHeight"] = 1,
+            ["PetCameraDistance"] = 7.2,
+            ["PetCameraTargetEMA"] = 0.1,
+            ["PetCameraTargetRate"] = 60,
+            ["PetCameraIdleNoUpdatesAfter"] = 0.75
+        }
+    }
+    local v203 = v_u_1.Directory.Pets[v_u_200.id]
+    local v_u_204 = v_u_1.Directory.Eggs[v199]
+    local v_u_205 = nil
+    local v_u_206 = v_u_1.Functions.Scaler()
+    local v_u_207 = v_u_1.Functions.Transparency()
+    local function v225(p_u_208, p_u_209, p_u_210, p211) -- name: playKeys
+        -- upvalues: (ref) v_u_1, (ref) v_u_15, (copy) v_u_206
+        v_u_1.Functions.RenderStepped(function(_, p212)
+            -- upvalues: (copy) p_u_208, (copy) p_u_209, (ref) v_u_15, (copy) p_u_210, (ref) v_u_206
+            local v213 = p_u_208
+            local v214 = p_u_209
+            local v215, v216 = v_u_15(p_u_210, p212)
+            local v217 = v_u_206
+            local v218 = v214 * v216
+            local v219 = v214 * v215
+            local v220 = v214 * v216
+            v217(v213, Vector3.new(v218, v219, v220), Vector3.new(0, -0.5, 0))
+        end, p211, true):Wait()
+        local v221 = v_u_206
+        local v222 = p_u_209 * 1
+        local v223 = p_u_209 * 1
+        local v224 = p_u_209 * 1
+        v221(p_u_208, Vector3.new(v222, v223, v224), Vector3.new(0, -0.5, 0))
+    end
+    local v226
+    if v_u_204.isFirework then
+        local v227 = v_u_1.Signal.Invoke
+        local v228 = {
+            ["player"] = v_u_197,
+            ["origin"] = v_u_198,
+            ["position"] = v_u_201,
+            ["eggId"] = v199,
+            ["petId"] = v_u_200.id,
+            ["partyIndex"] = p_u_196.partyIndex
+        }
+        local v229
+        v229, v226 = pcall(v227, "New Years Firework Animation", v228)
+        if not v229 or (typeof(v226) ~= "CFrame" or not v226) then
+            v226 = CFrame.new(v_u_201 + Vector3.new(0, 3, 0))
+        end
+        local v230 = v_u_115(v_u_200.uid)
+        if v230 then
+            task.spawn(v_u_193, v_u_197, v230, v226.Position, v_u_201, v_u_198)
+        end
+    else
+        local v_u_231 = Instance.new("Model")
+        v_u_231:SetAttribute("Target", v_u_201)
+        local v_u_232 = v_u_204.model:Clone()
+        v_u_232.Anchored = true
+        v_u_232.Parent = v_u_231
+        v_u_231.PrimaryPart = v_u_232
+        v_u_231:PivotTo(CFrame.new(v_u_198) * CFrame.fromOrientation(0, 6.283185307179586 * math.random(), 0))
+        local v233 = v_u_232.Size.Y / 2
+        local v234 = v_u_201 + Vector3.new(0, v233, 0)
+        for _, v235 in ipairs(v_u_231:GetDescendants()) do
+            if not v235:IsA("BasePart") then
+                continue
+            end
+            v235.CanCollide = false
+            v235.CanQuery = true
+            v235.CanTouch = true
+            v235.CastShadow = false
+        end
+        local v236 = Instance.new("Attachment")
+        v236.Name = "Bottom"
+        local v237 = -v_u_232.Size.Y / 2
+        v236.Position = Vector3.new(0, v237, 0)
+        v236.Parent = v_u_232
+        local v238 = Instance.new("Attachment")
+        v238.Name = "Top"
+        local v239 = v_u_232.Size.Y / 2
+        v238.Position = Vector3.new(0, v239, 0)
+        v238.Parent = v_u_232
+        local v240 = script.Trail:Clone()
+        v240.Attachment0 = v236
+        v240.Attachment1 = v238
+        v240.Lifetime = v_u_202.Timing.TrailLifetime
+        v240.Parent = v_u_232
+        local v241 = Instance.new("ClickDetector")
+        v241.MaxActivationDistance = (1 / 0)
+        v241.CursorIcon = "rbxassetid://12429634668"
+        v241.Parent = v_u_232
+        local v_u_242 = RaycastParams.new()
+        v_u_242.FilterDescendantsInstances = { v_u_231 }
+        v_u_242.FilterType = Enum.RaycastFilterType.Include
+        v_u_242.RespectCanCollide = false
+        v_u_242.IgnoreWater = true
+        local v_u_243 = nil
+        v241.MouseClick:Connect(function()
+            -- upvalues: (ref) v_u_243, (ref) v_u_1, (copy) v_u_232, (copy) v_u_242, (copy) v_u_200
+            v_u_243 = os.clock()
+            local v244 = v_u_1.UserInputService:GetMouseLocation()
+            local v245 = v_u_1.Player.Camera():ViewportPointToRay(v244.X, v244.Y, 0)
+            local v246 = v245.Origin
+            local v247 = v245.Direction.Unit * (v246 - v_u_232.Position).Magnitude
+            local v248 = v246 + v247
+            local v249 = workspace:Raycast(v246, v247, v_u_242)
+            if v249 then
+                v248 = v249.Position
+            end
+            local v250, v251 = v_u_1.Functions.CreateParticleHost(v248)
+            local _, v252 = v_u_1.Functions.Emit(v251, nil, script:WaitForChild("LuckyParticle"))
+            v_u_1.Functions.AddDebris(v250, v252)
+            v_u_1.Network.Fire("Exclusive Eggs: Lucky", v_u_200.uid)
+        end)
+        v_u_206(v_u_231, 0)
+        v_u_231.Parent = v_u_89
+        task.wait((p_u_196.partyIndex - 1) * v_u_202.Timing.DelayPerEgg)
+        v_u_1.Audio.Play(v_u_2.EGG_SPAWN, v_u_232, 0.7 + (p_u_196.partyIndex - 1) * 0.1, 0.75, 350)
+        v_u_1.Functions.RenderStepped(function(_, p253)
+            -- upvalues: (copy) v_u_206, (ref) v_u_231, (ref) v_u_1
+            v_u_206(v_u_231, (v_u_1.Functions.Easing(p253, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)))
+        end, v_u_202.Timing.UpscaleDuration, true)
+        v_u_206(v_u_231, 1)
+        v_u_1.Audio.Play(v_u_2.EGG_THROW, v_u_232, 1 + (p_u_196.partyIndex - 1) * 0.05, 0.5, 175)
+        local v_u_254 = v_u_1.Functions.Bezier(v_u_198, autoControlPoint(v_u_198, v234), v234)
+        v_u_1.Functions.RenderStepped(function(_, p255)
+            -- upvalues: (ref) v_u_231, (copy) v_u_254, (ref) v_u_1
+            v_u_231:PivotTo(CFrame.new(v_u_254((v_u_1.Functions.Easing(p255, Enum.EasingStyle.Sine, Enum.EasingDirection.In)))) * v_u_231:GetPivot().Rotation)
+        end, v_u_202.Timing.MoveDuration, true):Wait()
+        v_u_231:PivotTo(CFrame.new(v234) * v_u_231:GetPivot().Rotation)
+        v_u_1.Audio.Play(v_u_2.EGG_LAND, v_u_232, 1, 0.55, 250)
+        local v256, v257 = v_u_1.Functions.CreateParticleHost(v_u_201)
+        local v258 = v_u_1.Functions.Emit
+        local v259 = script:WaitForChild("Impact")
+        local _, v261 = v258(v257, function(p260)
+            -- upvalues: (copy) v_u_202
+            p260.Lifetime = NumberRange.new(p260.Lifetime.Min * v_u_202.Timing.ImpactParticleLifetime, p260.Lifetime.Max * v_u_202.Timing.ImpactParticleLifetime)
+        end, table.unpack(v259:GetChildren()))
+        v_u_1.Functions.AddDebris(v256, v261)
+        local v_u_262 = v_u_231:GetPivot()
+        v225(v_u_231, 1, v_u_3, 0.45)
+        for v263, v_u_264 in ipairs({ v_u_202.Other.BounceHeight, v_u_202.Other.BounceHeight * 0.4 }) do
+            local v265 = v263 == 1 and 0.42 or 0.28
+            v_u_1.Functions.RenderStepped(function(_, p266)
+                -- upvalues: (copy) v_u_206, (ref) v_u_231, (copy) v_u_262, (copy) v_u_264
+                v_u_206(v_u_231, 1, Vector3.new(0, -0.5, 0))
+                local v267 = v_u_231
+                local v268 = v_u_262
+                local v269 = v_u_264 * 4 * p266 * (1 - p266)
+                v267:PivotTo(v268 + Vector3.new(0, v269, 0))
+                local v270 = 3.141592653589793 * p266
+                local v271 = math.sin(v270)
+                local v272 = v_u_231
+                local v273 = v271 * 0.14 + 1
+                local v274 = 1 - v271 * 0.07
+                local v275 = v_u_206
+                local v276 = 1 * v274
+                local v277 = 1 * v273
+                local v278 = 1 * v274
+                v275(v272, Vector3.new(v276, v277, v278), Vector3.new(0, -0.5, 0))
+            end, v265, true):Wait()
+            v_u_206(v_u_231, 1, Vector3.new(0, -0.5, 0))
+            v_u_231:PivotTo(v_u_262)
+            v_u_1.Audio.Play(v_u_2.EGG_LAND, v_u_232, 1.1 + 0.1 * v263, 0.55 / (v263 + 1), 250)
+            v225(v_u_231, 1, v263 == 1 and v_u_4 or v_u_5, v263 == 1 and 0.35 or 0.3)
+        end
+        v_u_231:PivotTo(v_u_262)
+        task.wait(v_u_202.Timing.DramaticPauseDuration)
+        v240:Destroy()
+        local v_u_279 = v_u_231:GetPivot()
+        local v_u_280 = 0
+        local v_u_281 = v_u_202.Timing.ShakePreDuration + v_u_202.Timing.ShakePostDuration
+        local v_u_282 = nil
+        local v_u_283 = 0
+        v_u_1.Functions.RenderStepped(function(p284, p285)
+            -- upvalues: (ref) v_u_90, (copy) p_u_196, (copy) v_u_202, (ref) v_u_280, (copy) v_u_281, (ref) v_u_282, (ref) v_u_1, (ref) v_u_2, (copy) v_u_232, (copy) v_u_206, (ref) v_u_231, (copy) v_u_279, (ref) v_u_283
+            local v286 = {}
+            local v287 = 0
+            for v288, _ in pairs(v_u_90) do
+                if p_u_196 == v288 or (v288.completed or v288.priority >= p_u_196.priority) then
+                    continue
+                end
+                v286[v288.priority] = true
+            end
+            for _, _ in pairs(v286) do
+                v287 = v287 + v_u_202.Timing.PauseDuration
+            end
+            local v289 = v_u_280
+            v_u_280 = math.max(v289, v287)
+            if v_u_281 + v_u_280 <= p285 then
+                return true
+            end
+            if not v_u_282 then
+                v_u_282 = v_u_1.Audio.Play(v_u_2.EGG_SHAKE, v_u_232, { 0.9, 1.1 }, 0.035, 175)
+            end
+            local v290 = p285 / (v_u_202.Timing.ShakePreDuration + v_u_202.Timing.ShakePostDuration)
+            local v291 = math.clamp(v290, 0, 1.5)
+            local v292 = v_u_1.Functions.Easing
+            local v293 = p285 / v_u_202.Timing.ShakePreDuration
+            local v294 = v292(math.clamp(v293, 0, 1), Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+            v_u_206(v_u_231, 1, Vector3.new(0, -0.5, 0))
+            local v295 = v_u_231
+            local v296 = v_u_279
+            local v297 = CFrame.fromOrientation
+            local v298 = v_u_202.Other.ShakePitchMagnitude * 0.4
+            local v299 = 6.283185307179586 * (v290 * (v291 * v_u_202.Other.ShakePitchA)) * v_u_202.Other.ShakePitchB
+            local v300 = v298 * math.sin(v299) * v294
+            local v301 = math.rad(v300)
+            local v302 = v_u_202.Other.ShakeRollMagnitude * 0.4
+            local v303 = 6.283185307179586 * (v290 * (v291 * v_u_202.Other.ShakeRollA)) * v_u_202.Other.ShakeRollB
+            local v304 = v302 * math.sin(v303) * v294
+            v295:PivotTo(v296 * v297(v301, 0, (math.rad(v304))))
+            v_u_283 = v_u_283 + p284 * (math.clamp(v290, 0, 1) * 7 + 2)
+            local v305 = 6.283185307179586 * v_u_283
+            local v306 = math.sin(v305) * v294
+            local v307 = v_u_231
+            local v308 = 1 + 0.07 * v306
+            local v309 = 1 - 0.035 * v306
+            local v310 = v_u_206
+            local v311 = 1 * v309
+            local v312 = 1 * v308
+            local v313 = 1 * v309
+            v310(v307, Vector3.new(v311, v312, v313), Vector3.new(0, -0.5, 0))
+        end):Wait()
+        v_u_206(v_u_231, 1, Vector3.new(0, -0.5, 0))
+        v_u_231:PivotTo(v_u_279)
+        if v_u_282 then
+            v_u_282:Stop()
+            v_u_282:Destroy()
+        end
+        v241:Destroy()
+        local v_u_314 = 1
+        local v315 = 0
+        local v_u_316 = 0
+        local v_u_317 = 0
+        if v203.titanic then
+            v_u_314 = v_u_202.Other.GrowTitanicScale
+            v315 = v_u_202.Timing.GrowTitanicDuration
+            v_u_316 = v_u_202.Other.GrowTitanicScreenShakeMagnitude
+            v_u_317 = v_u_202.Other.GrowTitanicShakeRate
+            local _ = v_u_202.Other.GrowTitanicShakeMagnitude
+        elseif v203.huge then
+            v_u_314 = v_u_202.Other.GrowHugeScale
+            v315 = v_u_202.Timing.GrowHugeDuration
+            v_u_316 = v_u_202.Other.GrowHugeScreenShakeMagnitude
+            v_u_317 = v_u_202.Other.GrowHugeShakeRate
+            local _ = v_u_202.Other.GrowHugeShakeMagnitude
+        end
+        if v_u_314 > 1 then
+            local v318 = nil
+            if v203.titanic then
+                v318 = v_u_1.Audio.Play(v_u_2.EGG_GROW_TITANIC, v_u_232.CFrame, 1, 3.25, 1000)
+            elseif v203.huge then
+                v318 = v_u_1.Audio.Play(v_u_2.EGG_GROW_HUGE, v_u_232.CFrame, 1, 2.25, 700)
+            end
+            if v_u_316 > 0 then
+                local v319 = v_u_197 == v_u_1.LocalPlayer
+                if not v319 then
+                    local v320 = v_u_1.Player.Optional.PrimaryPart(v_u_1.LocalPlayer)
+                    v319 = v320 and (v320.Position - v_u_198).Magnitude < v_u_202.Other.GrowScreenShakeDistance and true or v319
+                end
+                if v319 then
+                    local v_u_321 = v315 + v_u_202.Timing.GrowScreenShakeDurationBuffer
+                    v_u_1.Shake.Create(v_u_321, v_u_316, v_u_202.Other.GrowScreenShakeSmoothness, true)
+                    if v203.titanic then
+                        task.delay(v_u_202.Timing.GrowTitanicAuraDelay, function()
+                            -- upvalues: (ref) v_u_1, (copy) v_u_202, (copy) v_u_321, (ref) v_u_316
+                            v_u_1.Shake.Create(v_u_202.Timing.GrowTitanicAuraScreenShakeDuration, v_u_202.Other.GrowTitanicAuraScreenShakeMagnitude, v_u_202.Other.GrowTitanicAuraScreenShakeSmoothness, false)
+                            task.delay(v_u_202.Timing.GrowTitanicAuraScreenShakeDuration, function()
+                                -- upvalues: (ref) v_u_1, (ref) v_u_321, (ref) v_u_202, (ref) v_u_316
+                                v_u_1.Shake.Create(v_u_321 - v_u_202.Timing.GrowTitanicAuraDelay - v_u_202.Timing.GrowTitanicAuraScreenShakeDuration, v_u_316, v_u_202.Other.GrowScreenShakeSmoothness, false)
+                            end)
+                        end)
+                    end
+                end
+            end
+            if v203.titanic then
+                task.delay(v_u_202.Timing.GrowTitanicAuraDelay, function()
+                    -- upvalues: (ref) v_u_1, (copy) v_u_232, (copy) v_u_202, (ref) v_u_314
+                    local v322, v323 = v_u_1.Functions.CreateParticleHost(v_u_232.Position)
+                    local v324 = v_u_1.Functions.Emit
+                    local function v326(p325)
+                        -- upvalues: (ref) v_u_202, (ref) v_u_1, (ref) v_u_314
+                        p325.Lifetime = NumberRange.new(p325.Lifetime.Min * v_u_202.Timing.GrowTitanicAuraParticleLifetime, p325.Lifetime.Max * v_u_202.Timing.GrowTitanicAuraParticleLifetime)
+                        v_u_1.Functions.ScaleParticle(p325, v_u_314 * 2.5)
+                    end
+                    local v327 = script:WaitForChild("TitanicAura")
+                    local _, v328 = v324(v323, v326, table.unpack(v327:GetChildren()))
+                    v_u_1.Functions.AddDebris(v322, v328)
+                end)
+            end
+            local v_u_329 = {}
+            if v203.titanic then
+                for _, v330 in ipairs(v_u_231:GetDescendants()) do
+                    for _, v331 in ipairs(v_u_194) do
+                        local v332 = Instance.new("Decal")
+                        v332.Texture = "rbxassetid://6381483576"
+                        v332.Name = "_SELECTIONFX"
+                        v332.Transparency = 1
+                        v332.Face = v331
+                        v332.Parent = v330
+                        table.insert(v_u_329, v332)
+                    end
+                end
+                v_u_1.Functions.RenderStepped(function(_, p333)
+                    -- upvalues: (ref) v_u_1, (copy) v_u_329
+                    local v334 = v_u_1.Functions.Easing(p333, Enum.EasingStyle.Circular, Enum.EasingDirection.In)
+                    for _, v335 in ipairs(v_u_329) do
+                        v335.Transparency = 1 - v334
+                    end
+                end, v315, true):Then(function()
+                    -- upvalues: (copy) v_u_329
+                    for _, v336 in ipairs(v_u_329) do
+                        v336:Destroy()
+                    end
+                end)
+            end
+            local v_u_337 = v_u_231:GetPivot()
+            v_u_1.Functions.RenderStepped(function(_, p338)
+                -- upvalues: (ref) v_u_1, (copy) v_u_206, (ref) v_u_231, (ref) v_u_314, (copy) v_u_337, (ref) v_u_317, (ref) v_u_316
+                local v339 = v_u_1.Functions.Easing(p338, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+                v_u_206(v_u_231, 1 * (1 - v339) + v_u_314 * v339, Vector3.new(0, -0.5, 0))
+                local v340 = v_u_231:GetPivot()
+                local v341 = v_u_231
+                local v342 = v340 - (v340.Position - v_u_337.Position) * Vector3.new(1, 0, 1)
+                local v343 = math.noise(v339 * v_u_317, -v_u_316, v_u_316)
+                local v344 = math.noise
+                local v345 = -v339 * v_u_317
+                local v346 = -v_u_316
+                local v347 = v_u_316
+                v341:PivotTo(v342 + Vector3.new(v343, 0, v344(v345, v346, v347)))
+            end, v315, true):Wait()
+            v_u_206(v_u_231, v_u_314)
+            local v348 = v_u_231:GetPivot()
+            v_u_231:PivotTo(v348 - (v348.Position - v_u_337.Position) * Vector3.new(1, 0, 1))
+            for _, v349 in ipairs(v_u_329) do
+                v349:Destroy()
+            end
+            if v318 then
+                v318:Stop()
+                v318:Destroy()
+            end
+        end
+        v225(v_u_231, v_u_314, v_u_6, 0.22)
+        if v203.titanic then
+            v_u_1.Audio.Play(v_u_2.EGG_OPEN_TITANIC, v_u_232.CFrame, 1, 6, 1000)
+        elseif v203.huge then
+            v_u_1.Audio.Play(v_u_2.EGG_OPEN_HUGE, v_u_232.CFrame, 1, 3, 700)
+        elseif p_u_196.chance <= v_u_202.Other.OpenRareChance / 100 then
+            v_u_1.Audio.Play(v_u_2.EGG_OPEN_RARE, v_u_232.CFrame, 1, 1.1, 500)
+        else
+            v_u_1.Audio.Play(v_u_2.EGG_OPEN, v_u_232.CFrame, 1, 1, 400)
+        end
+        local v350, v351 = v_u_1.Functions.CreateParticleHost(v_u_232.Position)
+        local v352 = v_u_1.Functions.Emit
+        local function v355(p353)
+            -- upvalues: (copy) v_u_202, (ref) v_u_1, (ref) v_u_314
+            p353.Lifetime = NumberRange.new(p353.Lifetime.Min * v_u_202.Timing.ExplodeParticleLifetime, p353.Lifetime.Max * v_u_202.Timing.ExplodeParticleLifetime)
+            v_u_1.Functions.ScaleParticle(p353, v_u_314)
+            local v354 = (p353:GetAttribute("EmitCount") or p353.Rate) * v_u_314
+            p353:SetAttribute("EmitCount", (math.ceil(v354)))
+        end
+        local v356 = script:WaitForChild("Explode")
+        local _, v357 = v352(v351, v355, table.unpack(v356:GetChildren()))
+        v_u_1.Functions.AddDebris(v350, v357)
+        if v203.titanic then
+            local v358, v359 = v_u_1.Functions.CreateParticleHost(v_u_232.Position)
+            local v360 = v_u_1.Functions.Emit
+            local v361 = script:WaitForChild("TitanicExplode")
+            local _, v363 = v360(v359, function(p362)
+                -- upvalues: (copy) v_u_202
+                p362.Lifetime = NumberRange.new(p362.Lifetime.Min * v_u_202.Timing.ExplodeParticleLifetime, p362.Lifetime.Max * v_u_202.Timing.ExplodeParticleLifetime)
+            end, table.unpack(v361:GetChildren()))
+            v_u_1.Functions.AddDebris(v358, v363)
+            local v_u_364, _ = v_u_1.Functions.CreateParticleHost(v_u_201)
+            local v_u_365 = script:WaitForChild("TitanicExplodeAOE"):GetChildren()
+            for v366, v367 in ipairs(v_u_365) do
+                local v368 = v367:Clone()
+                v_u_365[v366] = v368
+                v368.Parent = v_u_364
+            end
+            task.delay(v_u_202.Timing.ExplodeTitanicParticleDuration, function()
+                -- upvalues: (copy) v_u_365, (ref) v_u_1, (copy) v_u_364
+                local v369 = 0
+                for _, v370 in ipairs(v_u_365) do
+                    v370.Enabled = false
+                    local v371 = v370.Lifetime.Max
+                    v369 = math.max(v369, v371)
+                end
+                v_u_1.Functions.AddDebris(v_u_364, v369)
+            end)
+            v_u_1.Shake.Create(v_u_202.Timing.ExplodeTitanicParticleDuration, v_u_202.Other.ExplodeTitanicShakeMagnitude, v_u_202.Other.ExplodeTitanicShakeSmoothness, true)
+        end
+        v226 = v_u_231:GetPivot()
+        v_u_205 = v_u_231
+        for _, v372 in ipairs(v_u_231:GetDescendants()) do
+            if not v372:IsA("MeshPart") then
+                continue
+            end
+            v372.TextureID = ""
+            v372.Color = Color3.new(1, 1, 1)
+            v372.Material = Enum.Material.SmoothPlastic
+        end
+        v_u_1.Functions.RenderStepped(function(_, p373)
+            -- upvalues: (ref) v_u_1, (copy) v_u_206, (ref) v_u_205, (ref) v_u_314, (copy) v_u_202, (copy) v_u_207
+            local v374 = v_u_1.Functions.Easing(p373, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+            v_u_206(v_u_205, v_u_314 * (1 - v374) + v_u_314 * v_u_202.Other.ExplodeUpscaleSize * v374, Vector3.new(0, -0.5, 0))
+            v_u_207(v_u_205, 1, v374)
+        end, v_u_202.Timing.ExplodeUpscaleDuration, true)
+        v_u_206(v_u_205, v_u_314 * v_u_202.Other.ExplodeUpscaleSize, Vector3.new(0, -0.5, 0))
+        v_u_207(v_u_205, 1, 1)
+    end
+    local v_u_375 = v_u_1.PetCmds.Spawn(v_u_200, v_u_197, true)
+    local v376 = createPetGui(v_u_375, v_u_200)
+    local v_u_377 = v_u_375.part
+    v_u_375.scaler = v_u_206
+    v_u_377.Material = Enum.Material.Plastic
+    v_u_377.CastShadow = false
+    local v378 = v_u_1.Player.PrimaryPart(v_u_197)
+    local v379
+    if v378 then
+        v379 = v378:GetPivot().Position
+    else
+        v379 = v_u_198
+    end
+    v_u_377:PivotTo((function(p380, p381)
+        local v382 = p381.X
+        local v383 = p380.Y
+        local v384 = p381.Z
+        local v385 = Vector3.new(v382, v383, v384)
+        if (p380.Position - v385).Magnitude < 0.001 then
+            return p380
+        else
+            return CFrame.lookAt(p380.Position, v385)
+        end
+    end)(v226, v379))
+    local v_u_386
+    if v_u_197 == v_u_1.LocalPlayer then
+        v_u_386 = v_u_195.add()
+    else
+        v_u_386 = nil
+    end
+    task.wait(v_u_202.Timing.SpawnPetDelay)
+    local v387, v388, v389 = v_u_1.Shared.HatchMessage(v_u_200, v_u_197)
+    local v390 = v387
+    if v389 then
+        v_u_1.ChatMsg.New(v390, v388)
+    end
+    if v203.titanic or v203.huge then
+        v_u_1.Signal.Fire("Notification", v390, {
+            ["color"] = nil,
+            ["force"] = true,
+            ["time"] = nil,
+            ["color"] = v388,
+            ["time"] = v_u_202.Other.AnnouncementNotificationDuration
+        })
+    end
+    local v_u_393 = v_u_1.Functions.RenderStepped(function(p391, p392)
+        -- upvalues: (copy) v_u_377, (copy) v_u_375, (ref) v_u_1, (copy) v_u_200
+        if not v_u_377.Parent then
+            return true
+        end
+        if v_u_375.moving then
+            v_u_375.movingTick = v_u_375.movingTick + p391
+        else
+            v_u_375.movingTick = 0
+        end
+        v_u_1.PetCmds.Effects(v_u_375, v_u_200, p392)
+    end)
+    v_u_377.Destroying:Connect(function()
+        -- upvalues: (copy) v_u_393
+        v_u_393:Disconnect()
+    end)
+    v_u_377.Parent = v_u_1.Debris
+    if not v_u_204.isFirework then
+        v_u_206(v_u_377, 0)
+        v_u_1.Functions.RenderStepped(function(_, p394)
+            -- upvalues: (copy) v_u_377, (copy) v_u_206, (ref) v_u_1
+            if not v_u_377.Parent then
+                return true
+            end
+            v_u_206(v_u_377, v_u_1.Functions.Easing(p394, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+        end, 0.4, true):Then(function()
+            -- upvalues: (copy) v_u_377, (copy) v_u_206
+            if v_u_377.Parent then
+                v_u_206(v_u_377, 1)
+            end
+        end)
+    end
+    if v_u_204.isFirework then
+        v_u_1.Functions.wcall(function()
+            -- upvalues: (copy) v_u_375, (copy) v_u_377, (copy) v_u_201
+            fireworkFall(v_u_375, v_u_377, v_u_201)
+        end)
+    end
+    local v395 = v_u_202.Timing.PetLookAtPlayerDuration
+    if v_u_197 ~= v_u_1.LocalPlayer then
+        v395 = v_u_202.Timing.PetLookAtPlayerDurationOther
+    end
+    local v_u_396 = v_u_377:GetPivot()
+    v_u_1.Functions.RenderStepped(function(_, p397)
+        -- upvalues: (copy) v_u_396, (copy) v_u_202, (copy) v_u_198, (ref) v_u_1, (copy) v_u_197, (copy) v_u_377
+        local v398 = v_u_396
+        local v399 = 6.283185307179586 * p397 * v_u_202.Other.PetLookAtPlayerFloatRate
+        local v400 = math.sin(v399) * v_u_202.Other.PetLookAtPlayerFloatHeight
+        local v401 = v398 + Vector3.new(0, v400, 0)
+        local v402 = v_u_198
+        local v403 = v_u_1.Player.PrimaryPart(v_u_197)
+        if v403 then
+            v402 = v403:GetPivot().Position
+        end
+        local v404 = v402.X
+        local v405 = v401.Y
+        local v406 = v402.Z
+        local v407 = Vector3.new(v404, v405, v406)
+        if (v401.Position - v407).Magnitude >= 0.001 then
+            v401 = CFrame.lookAt(v401.Position, v407)
+        end
+        v_u_377:PivotTo(v401)
+    end, v395, true):Wait()
+    if v_u_205 then
+        v_u_205:Destroy()
+    end
+    local function v410(p408, p409) -- name: v144
+        -- upvalues: (copy) v_u_200, (ref) v_u_1, (copy) v_u_204
+        if v_u_200.r then
+            v_u_1.Audio.Play("rbxassetid://7503155199", p408, 1, 1 * p409, 100)
+        elseif v_u_200.g and not v_u_204.isGolden then
+            v_u_1.Audio.Play("rbxassetid://7503155258", p408, 1, 0.85 * p409, 100)
+        end
+        if v_u_200.sh then
+            v_u_1.Audio.Play("rbxassetid://124658352067102", p408, 1, 1 * p409, 100)
+        end
+    end
+    if v_u_197 == v_u_1.LocalPlayer then
+        if v_u_197 == v_u_1.LocalPlayer then
+            local v411 = v_u_1.Variables
+            local _ = v_u_1.Variables.OpeningEgg <= 0
+            v411.OpeningEgg = v411.OpeningEgg + 1
+            v_u_1.Signal.Fire("Opening Egg", v199)
+        end
+        local v_u_412 = workspace.CurrentCamera
+        v_u_377.Parent = v_u_412
+        local function v_u_413() -- name: u15
+            -- upvalues: (ref) v_u_1, (ref) v_u_195, (ref) v_u_386
+            return v_u_1.Functions.Map2(v_u_195.compute(v_u_386), Vector2.new(0, 0), Vector2.new(1, 1), Vector2.new(0.05, 0), Vector2.new(0.95, 0.9))
+        end
+        local v414 = v203.titanic and 7.5 or (v203.huge and 4.5 or 1.5)
+        local v415 = (v414 + 0.5) / 2
+        v376.Size = UDim2.new(v376.Size.X.Scale / 2.5 * v415, v376.Size.X.Offset, v376.Size.Y.Scale * v415, v376.Size.Y.Offset)
+        local v416 = v_u_375.bottom.Position.Y - v414 / 2
+        v376.StudsOffset = Vector3.new(0, v416, 0)
+        v376.AlwaysOnTop = true
+        local v417 = v_u_202.Other.PetCameraDistance
+        local v_u_418
+        if v203.titanic then
+            v_u_418 = v417 + 9.15
+        elseif v203.huge then
+            v_u_418 = v417 + 2.7
+        else
+            v_u_418 = v417 + 1.3
+        end
+        v_u_375.moving = true
+        local v_u_419 = v_u_413()
+        local v_u_420 = v_u_377:GetPivot()
+        v_u_1.Functions.RenderStepped(function(p421, p422)
+            -- upvalues: (ref) v_u_1, (ref) v_u_419, (copy) v_u_413, (copy) v_u_202, (copy) v_u_412, (ref) v_u_418, (copy) v_u_377, (copy) v_u_420
+            local v423 = v_u_1.Functions.Easing(p422, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+            local v424 = v_u_419
+            local v425 = v_u_413()
+            local v426 = 1 - v_u_202.Other.PetCameraTargetEMA
+            local v427 = p421 * v_u_202.Timing.PetCameraMoveDuration * v_u_202.Other.PetCameraTargetRate
+            local v428 = 1 - math.pow(v426, v427)
+            v_u_419 = v424:Lerp(v425, (math.clamp(v428, 0, 1)))
+            local v429 = v_u_412.ViewportSize * v_u_419
+            local v430 = v_u_412:ViewportPointToRay(v429.X, v429.Y, v_u_418)
+            v_u_377:PivotTo((v_u_420:Lerp(CFrame.new(v430.Origin) * CFrame.lookAt(Vector3.new(), -v430.Direction, v_u_412.CFrame.UpVector), v423)))
+        end, v_u_202.Timing.PetCameraMoveDuration, true):Wait()
+        v_u_375.moving = false
+        v410(script, 1)
+        v_u_1.Functions.RenderStepped(function(p431, p432)
+            -- upvalues: (copy) v_u_202, (ref) v_u_419, (copy) v_u_413, (copy) v_u_412, (ref) v_u_418, (copy) v_u_377
+            if p432 <= v_u_202.Other.PetCameraIdleNoUpdatesAfter then
+                local v433 = v_u_419
+                local v434 = v_u_413()
+                local v435 = 1 - v_u_202.Other.PetCameraTargetEMA
+                local v436 = p431 * v_u_202.Timing.PetCameraIdleDuration * v_u_202.Other.PetCameraTargetRate
+                local v437 = 1 - math.pow(v435, v436)
+                v_u_419 = v433:Lerp(v434, (math.clamp(v437, 0, 1)))
+            end
+            local v438 = v_u_412.ViewportSize * v_u_419
+            local v439 = v_u_412:ViewportPointToRay(v438.X, v438.Y, v_u_418)
+            v_u_377:PivotTo(CFrame.new(v439.Origin) * CFrame.lookAt(Vector3.new(), -v439.Direction, v_u_412.CFrame.UpVector))
+        end, v_u_202.Timing.PetCameraIdleDuration, true):Wait()
+        v_u_1.Functions.RenderStepped(function(_, p440)
+            -- upvalues: (copy) v_u_412, (ref) v_u_1, (ref) v_u_419, (ref) v_u_418, (copy) v_u_377, (copy) v_u_207, (copy) v_u_206
+            local v441 = v_u_412.ViewportSize * v_u_1.Functions.Bezier2(v_u_419, Vector2.new(0.5, 0.1), Vector2.new(0.5, 0.9))((v_u_1.Functions.Easing(p440, Enum.EasingStyle.Cubic, Enum.EasingDirection.In)))
+            local v442 = v_u_412:ViewportPointToRay(v441.X, v441.Y, v_u_418)
+            v_u_377:PivotTo(CFrame.new(v442.Origin) * CFrame.lookAt(Vector3.new(), -v442.Direction, v_u_412.CFrame.UpVector))
+            local v443 = v_u_1.Functions.Easing(p440, Enum.EasingStyle.Exponential, Enum.EasingDirection.In)
+            v_u_207(v_u_377, 1, v443)
+            v_u_206(v_u_377, 1 - v443)
+        end, v_u_202.Timing.PetCameraFadeDuration, true):Wait()
+        v_u_207(v_u_377, 1, 1)
+        v_u_206(v_u_377, 0)
+        if v_u_197 == v_u_1.LocalPlayer then
+            local v444 = v_u_1.Variables
+            v444.OpeningEgg = v444.OpeningEgg - 1
+            v_u_1.Signal.Fire("Done Opening Egg", v199)
+            local _ = v_u_1.Variables.OpeningEgg <= 0
+        end
+    else
+        v_u_375.moving = true
+        local v_u_445 = v_u_377:GetPivot()
+        v_u_1.Functions.RenderStepped(function(_, p446)
+            -- upvalues: (copy) v_u_198, (ref) v_u_1, (copy) v_u_197, (copy) v_u_445, (copy) v_u_377, (copy) v_u_207, (copy) v_u_206
+            local v447 = v_u_198
+            local v448 = v_u_1.Player.PrimaryPart(v_u_197)
+            if v448 then
+                v447 = v448:GetPivot().Position
+            end
+            local v449 = CFrame.new(v_u_1.Functions.Bezier(v_u_445.Position, autoControlPoint(v_u_445.Position, v447), v447)(p446)) * v_u_445.Rotation
+            local v450 = v447.X
+            local v451 = v449.Y
+            local v452 = v447.Z
+            local v453 = Vector3.new(v450, v451, v452)
+            if (v449.Position - v453).Magnitude >= 0.001 then
+                v449 = CFrame.lookAt(v449.Position, v453)
+            end
+            v_u_377:PivotTo(v449)
+            local v454 = v_u_1.Functions.Easing(p446, Enum.EasingStyle.Exponential, Enum.EasingDirection.In)
+            v_u_207(v_u_377, 1, v454)
+            v_u_206(v_u_377, 1 - v454)
+        end, v_u_202.Timing.PetFlyIntoPlayerDuration, true):Wait()
+        v_u_207(v_u_377, 1, 1)
+        v_u_206(v_u_377, 0)
+        v_u_375.moving = false
+        v410(v_u_377.Position, 0.5)
+    end
+    local v455 = require(script.Random).R
+    v_u_1.Audio.Play(v_u_2.PET_REMOVE, v_u_377.Position, v455.number(0.95, 1.05), 0.4, 100)
+    v_u_393:Disconnect()
+    v_u_377:Destroy()
+    if v_u_386 then
+        v_u_195.remove(v_u_386)
+    end
+end
+function performOpen(p_u_456, p457, p458, p459, p460, p461) -- name: performOpen
+    -- upvalues: (copy) v_u_1, (copy) v_u_90, (copy) v_u_91, (ref) v_u_92
+    if v_u_1.FFlags.GetBoolean("FXExclusiveHatchAnimationEnabled") then
+        if p_u_456 == v_u_1.LocalPlayer then
+            local v462 = {}
+            for _, v463 in ipairs(p459) do
+                local v464 = v463.uid
+                table.insert(v462, v464)
+            end
+            v_u_1.Signal.Fire("Hide Pets", v462)
+        end
+        local v465 = #p459
+        local v466 = {}
+        for v467 = 1, #p459 do
+            local v468 = p459[v467]
+            local v469 = v_u_1.Directory.Pets[v468.id]
+            local v470 = v469.titanic and 3 or (v469.huge and 2 or 1)
+            local v471 = {
+                ["player"] = nil,
+                ["origin"] = nil,
+                ["eggId"] = nil,
+                ["petData"] = nil,
+                ["position"] = nil,
+                ["chance"] = nil,
+                ["priority"] = nil,
+                ["partyIndex"] = nil,
+                ["partyCount"] = nil,
+                ["completed"] = false,
+                ["player"] = p_u_456,
+                ["origin"] = p457,
+                ["eggId"] = p458,
+                ["petData"] = v468
+            }
+            local v472
+            if type(p460) == "table" then
+                v472 = p460[v467] or p457
+            else
+                v472 = p457
+            end
+            v471.position = v472
+            local v473
+            if type(p461) == "table" then
+                local v474 = p461[v467]
+                v473 = tonumber(v474) or 0
+            else
+                v473 = 0
+            end
+            v471.chance = v473
+            v471.priority = v470
+            v471.partyIndex = v467
+            v471.partyCount = v465
+            table.insert(v466, v471)
+            v_u_90[v471] = true
+        end
+        preloadAssets()
+        local v475 = #v466
+        local v_u_476
+        if p_u_456 == v_u_1.LocalPlayer then
+            v_u_476 = v475 > 0
+        else
+            v_u_476 = false
+        end
+        local v_u_477 = v475
+        if v_u_476 then
+            v_u_1.Variables.ExclusiveEggsOpening = (v_u_1.Variables.ExclusiveEggsOpening or 0) + 1
+            v_u_1.Signal.Fire("Exclusive Eggs Opening Changed")
+        end
+        for _, v_u_478 in ipairs(v466) do
+            local v_u_479 = v475
+            task.spawn(function()
+                -- upvalues: (ref) v_u_1, (copy) v_u_478, (ref) v_u_90, (copy) p_u_456, (ref) v_u_479, (ref) v_u_91, (ref) v_u_92, (ref) v_u_477, (copy) v_u_476
+                v_u_1.Functions.wcall(function()
+                    -- upvalues: (ref) v_u_478
+                    performAnimation(v_u_478)
+                end)
+                v_u_478.completed = true
+                v_u_90[v_u_478] = nil
+                if p_u_456 == v_u_1.LocalPlayer then
+                    v_u_1.Signal.Fire("Show Pets", { v_u_478.petData.uid })
+                end
+                v_u_479 = v_u_479 - 1
+                local v480 = p_u_456
+                local v481 = v_u_478.petData.uid
+                if v480 == v_u_1.LocalPlayer and v481 then
+                    local v482 = v_u_91
+                    table.insert(v482, v481)
+                    if not v_u_92 then
+                        v_u_92 = true
+                        task.spawn(function()
+                            -- upvalues: (ref) v_u_91, (ref) v_u_1, (ref) v_u_92
+                            while true do
+                                if #v_u_91 <= 0 then
+                                    v_u_92 = false
+                                    return
+                                end
+                                local v483 = table.remove(v_u_91, 1)
+                                for _ = 1, 6 do
+                                    local v484, v485 = v_u_1.Network.Invoke("Equip Pet", v483)
+                                    if v484 then
+                                        v_u_1.PetCmds.LocalEquipPet(v_u_1.LocalPlayer, v483, true)
+                                        break
+                                    end
+                                    if v485 ~= "Please wait!" then
+                                        break
+                                    end
+                                    task.wait(0.15)
+                                end
+                                task.wait(0.06)
+                            end
+                        end)
+                    end
+                end
+                v_u_477 = v_u_477 - 1
+                if v_u_476 and v_u_477 <= 0 then
+                    local v486 = v_u_1.Variables
+                    local v487 = (v_u_1.Variables.ExclusiveEggsOpening or 0) - 1
+                    v486.ExclusiveEggsOpening = math.max(0, v487)
+                    v_u_1.Signal.Fire("Exclusive Eggs Opening Changed")
+                end
+            end)
+        end
+    end
+end
+local v_u_488 = v_u_1.Shared.ExclusiveEggHeightOffset
+local v_u_489 = v_u_1.Shared.ExclusiveEggMaxHeight
+local v_u_490 = v_u_1.Shared.ExclusiveEggSpacingRadius
+local v_u_491 = v_u_1.Shared.ExclusiveEggRadiusRange
+local v_u_492 = v_u_1.Shared.ExclusiveEggRadiusStep
+function computePositions(p493, p494) -- name: computePositions
+    -- upvalues: (copy) v_u_1, (copy) v_u_90, (copy) v_u_488, (copy) v_u_489, (copy) v_u_490, (copy) v_u_491, (copy) v_u_492
+    local v495 = p493 or 1
+    local v496 = v_u_1.LocalPlayer.Character
+    if not v496 then
+        return nil
+    end
+    local v497 = v496.PrimaryPart
+    if not v497 then
+        return nil
+    end
+    local v498 = v496:FindFirstChildOfClass("Humanoid")
+    if not v498 then
+        return nil
+    end
+    local v_u_499 = v496:GetPivot()
+    local v_u_500 = v_u_499.Position
+    local v501 = v_u_499.UpVector
+    local v502 = v498.HipHeight + v497.Size.Y / 2
+    local v_u_503 = v_u_500 - v501 * Vector3.new(0, v502, 0)
+    if not v_u_1.WorldCmds.HasLoaded() then
+        return nil
+    end
+    local v_u_504 = v_u_1.WorldCmds.GetMap()
+    local v_u_505 = {}
+    for v506, _ in pairs(v_u_90) do
+        if v506.completed then
+            continue
+        end
+        local v507 = v506.position
+        table.insert(v_u_505, v507)
+    end
+    if p494 then
+        for _, v508 in ipairs(p494) do
+            table.insert(v_u_505, v508)
+        end
+    end
+    local v_u_509 = RaycastParams.new()
+    v_u_509.FilterDescendantsInstances = { v_u_504 }
+    v_u_509.FilterType = Enum.RaycastFilterType.Include
+    v_u_509.IgnoreWater = false
+    v_u_509.RespectCanCollide = false
+    local v_u_510 = 360 / (v495 * 6)
+    local function v_u_519(p511, p512) -- name: u27
+        -- upvalues: (ref) v_u_490, (copy) v_u_500, (copy) v_u_503, (copy) v_u_509
+        local v513 = workspace.CurrentCamera
+        local v514 = v_u_490
+        local v515 = p511 + Vector3.new(0, v514, 0)
+        for _, v516 in ipairs({
+            { v513.Focus.Position, v515 },
+            { v_u_500, v515 },
+            { v_u_503 + Vector3.new(0, 0.25, 0), v515 },
+            { v513.Focus.Position, p511 },
+            { v_u_500, p511 },
+            { v_u_503 + Vector3.new(0, 0.25, 0), p511 }
+        }) do
+            local v517 = v516[1]
+            local v518 = workspace:Raycast(v517, v516[2] - v517, v_u_509)
+            if not v518 or v518.Instance == p512 then
+                continue
+            end
+            return false
+        end
+        return true
+    end
+    local function v543() -- name: v215
+        -- upvalues: (copy) v_u_499, (ref) v_u_491, (ref) v_u_492, (copy) v_u_510, (ref) v_u_490, (copy) v_u_500, (ref) v_u_488, (ref) v_u_489, (copy) v_u_509, (copy) v_u_504, (copy) v_u_505, (copy) v_u_519
+        local _, v520, _ = v_u_499:ToOrientation()
+        local v521 = v520 + 1.5707963267948966
+        local v522 = v_u_491.Y
+        local v523 = v_u_491.X - v_u_492
+        local v524 = { -1, 1 }
+        while true do
+            local v525 = 0 - v_u_510
+            while true do
+                for _, v526 in ipairs(v524) do
+                    local v527 = v_u_490 + v523
+                    local v528 = v525 * v526
+                    local v529 = math.rad(v528) - v521
+                    local v530 = v_u_500
+                    local v531 = v527 * math.cos(v529)
+                    local v532 = v527 * math.sin(v529)
+                    local v533 = v530 + Vector3.new(v531, 0, v532)
+                    local v534 = workspace
+                    local v535 = v_u_488
+                    local v536 = v533 + Vector3.new(0, v535, 0)
+                    local v537 = -(v_u_489 + v_u_488)
+                    local v538 = v534:Raycast(v536, Vector3.new(0, v537, 0), v_u_509)
+                    if v538 then
+                        local v539 = v538.Instance
+                        if v539 then
+                            if not v539:IsDescendantOf(v_u_504) then
+                                v538 = nil
+                            end
+                        else
+                            v538 = nil
+                        end
+                    else
+                        v538 = nil
+                    end
+                    local v540 = nil
+                    if not v538 then
+                        continue
+                    end
+                    local v541 = v538.Position
+                    for _, v542 in ipairs(v_u_505) do
+                        if (v541 - v542).Magnitude <= 2 * v_u_490 then
+                            v540 = true
+                            break
+                        end
+                        v540 = false
+                    end
+                    if v540 or not v_u_519(v541, v538.Instance) then
+                        break
+                    end
+                    return v541
+                end
+                if v_u_510 >= 0 then
+                    if v525 >= 180 then
+                        break
+                    end
+                elseif v525 <= 180 then
+                    break
+                end
+                v525 = v525 + v_u_510
+            end
+            if v_u_492 >= 0 then
+                if v523 >= v522 then
+                    break
+                end
+            elseif v522 >= v523 then
+                break
+            end
+            v523 = v523 + v_u_492
+        end
+        return nil
+    end
+    local v544 = {}
+    local v545 = 0
+    while true do
+        local v546 = v543()
+        if not v546 then
+            break
+        end
+        table.insert(v544, v546)
+        table.insert(v_u_505, v546)
+        if v545 >= v495 then
+            return v544
+        end
+        v545 = v545 + 1
+    end
+    return nil
+end
+function requestToOpen(p547, p548) -- name: requestToOpen
+    -- upvalues: (copy) v_u_1, (copy) v_u_2
+    local v549 = p548 > 0
+    assert(v549)
+    local v550 = computePositions(p548)
+    if not v550 then
+        return false, "Not enough space, try a more open area!"
+    end
+    assert(v550)
+    v_u_1.Audio.Play(v_u_2.INVENTORY_OPEN, script, 1, 1)
+    local v551, v552 = v_u_1.Network.Invoke("Exclusive Eggs: Open", p547, p548, v550)
+    return v551, v552
+end
+v_u_1.Signal.Invoked("Exclusive Eggs: Open").OnInvoke = function(p553, p554)
+    return requestToOpen(p553, p554)
+end
+v_u_1.Network.Fired("Exclusive Eggs: Firework Rewards"):Connect(function(p555, p556)
+    -- upvalues: (copy) v_u_110
+    if type(p556) == "table" then
+        for _, v557 in ipairs(p556) do
+            v_u_110(p555, v557)
+        end
+    end
+end)
+v_u_1.Network.Fired("Exclusive Eggs: Animation"):Connect(function(p558, p559, p560, p561, p562, p563)
+    performOpen(p558, p559, p560, p561, p562, p563)
+end)
+v_u_1.Network.Invoked("Exclusive Eggs: Compute Positions").OnInvoke = function(p564, p565)
+    return computePositions(p564, p565)
+end
+
+-- // Function Dumper made by King.Kevin
+-- // Script Path: game:GetService("Players").Emerson_GTA.PlayerScripts.Scripts.Game["Exclusive Eggs"]
+
+--[[
+Function Dump: performOpen
+
+Function Upvalues: performOpen
+        1 [table]:
+        1 [table] table: 0x35cb8d9316d060f5
+        2 [table]:
+        2 [table] table: 0x50bb5a638af40883
+        3 [table]:
+        3 [table] table: 0xa34db0f9b070cb89
+        4 [boolean] = false
+
+Function Constants: performOpen
+        1 [string] = FFlags
+        2 [string] = GetBoolean
+        3 [string] = FXExclusiveHatchAnimationEnabled
+        4 [string] = LocalPlayer
+        5 [string] = ipairs
+        7 [string] = uid
+        8 [string] = table
+        9 [string] = insert
+        11 [string] = Signal
+        12 [string] = Fire
+        13 [string] = Hide Pets
+        14 [string] = Directory
+        15 [string] = Pets
+        16 [string] = id
+        17 [string] = titanic
+        18 [string] = huge
+        19 [string] = player
+        20 [string] = origin
+        21 [string] = eggId
+        22 [string] = petData
+        23 [string] = position
+        24 [string] = chance
+        25 [string] = priority
+        26 [string] = partyIndex
+        27 [string] = partyCount
+        28 [string] = completed
+        29 [boolean] = false
+        31 [string] = type
+        33 [string] = tonumber
+        35 [string] = preloadAssets
+        36 [string] = Variables
+        37 [number] = 1
+        38 [number] = 0
+        39 [string] = ExclusiveEggsOpening
+        40 [string] = Exclusive Eggs Opening Changed
+        41 [string] = task
+        42 [string] = spawn
+
+====================================================================================================
+
+Function Dump: playFireworkEgg
+
+Function Upvalues: playFireworkEgg
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+        3 [table] (Recursive table detected)
+        4 [boolean] = false
+
+Function Constants: playFireworkEgg
+        1 [string] = ipairs
+        3 [string] = pets
+        4 [string] = Directory
+        5 [string] = Pets
+        6 [string] = id
+        7 [string] = player
+        8 [string] = origin
+        9 [string] = eggId
+        10 [string] = petData
+        11 [string] = position
+        12 [string] = chance
+        13 [string] = priority
+        14 [string] = partyIndex
+        15 [number] = 1
+        16 [string] = partyCount
+        17 [string] = completed
+        18 [boolean] = false
+        20 [string] = chances
+        21 [string] = tonumber
+        23 [string] = titanic
+        24 [string] = huge
+        25 [string] = Functions
+        26 [string] = wcall
+        27 [string] = LocalPlayer
+        28 [string] = Signal
+        29 [string] = Fire
+        30 [string] = Show Pets
+        31 [string] = uid
+        32 [string] = table
+        33 [string] = insert
+        35 [string] = task
+        36 [string] = spawn
+
+====================================================================================================
+
+Function Dump: performAnimation
+
+Function Upvalues: performAnimation
+        1 [table] (Recursive table detected)
+        2 [function] = sampleKeys
+        3 [function] = takeFireworkReward
+        4 [function] = playFireworkRewards
+        5 [Instance] = ExclusiveEggs
+        6 [table]:
+        6 [table] table: 0x26bbf77e290ce460
+                1 [table]:
+                EGG_SPAWN [table] table: 0xca7137c72fb1fbff
+                        1 [string] = rbxassetid://8049260816
+                        2 [string] = rbxassetid://8049260930
+                2 [table]:
+                INVENTORY_OPEN [table] table: 0x933351ef89bd0950
+                        1 [string] = rbxassetid://135129669197062
+                3 [table]:
+                PET_REMOVE [table] table: 0xc87c8efd4228d81f
+                        1 [string] = rbxassetid://8863194418
+                4 [table]:
+                EGG_LAND [table] table: 0x5430bd3e200263a4
+                        1 [string] = rbxassetid://122152719655926
+                5 [table]:
+                EGG_OPEN_RARE [table] table: 0x9dfa3667ea580012
+                        1 [string] = rbxassetid://115433322570302
+                6 [table]:
+                EGG_GROW_TITANIC [table] table: 0x3c9fa362f19a37c6
+                        1 [string] = rbxassetid://139868667096170
+                7 [table]:
+                EGG_GROW_HUGE [table] table: 0x1be888387062e7f5
+                        1 [string] = rbxassetid://81373431010533
+                8 [table]:
+                EGG_OPEN_HUGE [table] table: 0x5af08c79f22c88bb
+                        1 [string] = rbxassetid://123705052596597
+                9 [table]:
+                EGG_THROW [table] table: 0x46950cff2323f3f5
+                        1 [string] = rbxassetid://115222377712622
+                        2 [string] = rbxassetid://126167277280861
+                10 [table]:
+                EGG_SHAKE [table] table: 0xf1b704d2732c5894
+                        1 [string] = rbxassetid://100917503678518
+                11 [table]:
+                EGG_OPEN_TITANIC [table] table: 0x43fa212ef444f65f
+                        1 [string] = rbxassetid://113605064799782
+                12 [table]:
+                EGG_OPEN [table] table: 0xe2797d5aa954304b
+                        1 [string] = rbxassetid://113812046860375
+        7 [table]:
+        7 [table] table: 0xc739a9dba0144625
+                1 [table]:
+                1 [table] table: 0x4f9cfd116f7e6f6e
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0xc59359342a0aba93
+                        1 [number] = 0.14
+                        2 [number] = 0.58
+                        3 [number] = 1.28
+                3 [table]:
+                3 [table] table: 0x2db21a754e8383a3
+                        1 [number] = 0.42
+                        2 [number] = 1.16
+                        3 [number] = 0.9
+                4 [table]:
+                4 [table] table: 0xe3cc71ca6a2792b9
+                        1 [number] = 0.7
+                        2 [number] = 0.96
+                        3 [number] = 1.03
+                5 [table]:
+                5 [table] table: 0x8ba1383e4d5c4944
+                        1 [number] = 1
+                        2 [number] = 1
+                        3 [number] = 1
+        8 [table]:
+        8 [table] table: 0x690e213a5b308b60
+                1 [table]:
+                1 [table] table: 0x7ef31e2083b42cae
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0xa6a2e62596f263c6
+                        1 [number] = 0.15
+                        2 [number] = 0.78
+                        3 [number] = 1.14
+                3 [table]:
+                3 [table] table: 0x5d853de70e76f764
+                        1 [number] = 0.5
+                        2 [number] = 1.07
+                        3 [number] = 0.96
+                4 [table]:
+                4 [table] table: 0x0b2a52c8ccea3cdd
+                        1 [number] = 1
+                        2 [number] = 1
+                        3 [number] = 1
+        9 [table]:
+        9 [table] table: 0x2ad9b0ccf56d4e03
+                1 [table]:
+                1 [table] table: 0x968adb4979c7935d
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0x5647ee1facb8889b
+                        1 [number] = 0.3
+                        2 [number] = 0.9
+                        3 [number] = 1.05
+                3 [table]:
+                3 [table] table: 0x66c213d9b6460b5c
+                        1 [number] = 0.65
+                        2 [number] = 1.04
+                        3 [number] = 0.98
+                4 [table]:
+                4 [table] table: 0x6435644863eeecad
+                        1 [number] = 1
+                        2 [number] = 1
+                        3 [number] = 1
+        10 [table] (Recursive table detected)
+        11 [table]:
+        11 [table] table: 0x24289f2bb29b14ee
+                1 [EnumItem] = Enum.NormalId.Back
+                2 [EnumItem] = Enum.NormalId.Front
+                3 [EnumItem] = Enum.NormalId.Left
+                4 [EnumItem] = Enum.NormalId.Right
+                5 [EnumItem] = Enum.NormalId.Top
+                6 [EnumItem] = Enum.NormalId.Bottom
+        12 [table]:
+        12 [table] table: 0x4f3d7387f321c7f4
+                1 [table]:
+                1 [table] table: 0xfb6639349bdb6d17
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0x26a77ec1f305a38e
+                        1 [number] = 0.55
+                        2 [number] = 0.68
+                        3 [number] = 1.24
+                3 [table]:
+                3 [table] table: 0x73723d7dfd27f6d7
+                        1 [number] = 1
+                        2 [number] = 1.22
+                        3 [number] = 0.88
+        13 [table]:
+        13 [table] table: 0xfefb0616cfb11593
+                1 [function] = compute
+                2 [function] = remove
+                3 [function] = add
+
+Function Constants: performAnimation
+        1 [string] = player
+        2 [string] = origin
+        3 [string] = eggId
+        4 [string] = petData
+        5 [string] = position
+        6 [string] = Timing
+        7 [string] = Other
+        9 [string] = DelayPerEgg
+        10 [number] = 0.15
+        11 [string] = UpscaleDuration
+        12 [number] = 0.75
+        13 [string] = TrailLifetime
+        14 [number] = 0.35
+        15 [string] = MoveDuration
+        16 [string] = BounceDuration
+        17 [number] = 0.55
+        18 [string] = DramaticPauseDuration
+        19 [number] = 1
+        20 [string] = ImpactParticleLifetime
+        21 [number] = 0.5
+        22 [string] = ShakePreDuration
+        23 [number] = 1.75
+        24 [string] = ShakePostDuration
+        25 [string] = PauseDuration
+        26 [number] = 5
+        27 [string] = GrowScreenShakeDurationBuffer
+        28 [number] = 2
+        29 [string] = GrowHugeDuration
+        30 [number] = 4
+        31 [string] = GrowTitanicDuration
+        32 [number] = 8.5
+        33 [string] = GrowTitanicAuraDelay
+        34 [number] = 5.5
+        35 [string] = GrowTitanicAuraScreenShakeDuration
+        36 [string] = GrowTitanicAuraParticleLifetime
+        37 [string] = ExplodeParticleLifetime
+        38 [number] = 1.5
+        39 [string] = ExplodeTitanicParticleDuration
+        40 [number] = 7
+        41 [string] = ExplodeUpscaleDuration
+        42 [string] = SpawnPetDelay
+        43 [number] = 0.25
+        44 [string] = PetLookAtPlayerDuration
+        45 [number] = 2.5
+        46 [string] = PetLookAtPlayerDurationOther
+        47 [string] = PetFlyIntoPlayerDuration
+        48 [number] = 0.7
+        49 [string] = PetCameraMoveDuration
+        50 [string] = PetCameraIdleDuration
+        51 [string] = PetCameraFadeDuration
+        53 [string] = BounceHeight
+        54 [number] = 2.25
+        55 [string] = ShakePitchMagnitude
+        56 [number] = -30
+        57 [string] = ShakePitchA
+        58 [string] = ShakePitchB
+        59 [string] = ShakeRollMagnitude
+        60 [number] = 30
+        61 [string] = ShakeRollA
+        62 [string] = ShakeRollB
+        63 [string] = GrowHugeScale
+        64 [number] = 3
+        65 [string] = GrowHugeScreenShakeMagnitude
+        66 [number] = 0.2
+        67 [string] = GrowHugeShakeRate
+        68 [number] = 60
+        69 [string] = GrowHugeShakeMagnitude
+        70 [string] = GrowTitanicScale
+        71 [string] = GrowTitanicScreenShakeMagnitude
+        72 [number] = 0.4
+        73 [string] = GrowTitanicShakeRate
+        74 [string] = GrowTitanicShakeMagnitude
+        75 [number] = 10
+        76 [string] = GrowTitanicAuraScreenShakeMagnitude
+        77 [string] = GrowTitanicAuraScreenShakeSmoothness
+        78 [number] = 0.1
+        79 [string] = GrowScreenShakeSmoothness
+        80 [string] = GrowScreenShakeDistance
+        81 [number] = 400
+        82 [string] = ExplodeUpscaleSize
+        83 [string] = OpenRareChance
+        84 [string] = ExplodeTitanicShakeMagnitude
+        85 [string] = ExplodeTitanicShakeSmoothness
+        86 [string] = LuckyClickTimeout
+        87 [string] = AnnouncementNotificationDuration
+        88 [string] = PetLookAtPlayerFloatRate
+        89 [string] = PetLookAtPlayerFloatHeight
+        90 [string] = PetCameraDistance
+        91 [number] = 7.2
+        92 [string] = PetCameraTargetEMA
+        93 [string] = PetCameraTargetRate
+        94 [string] = PetCameraIdleNoUpdatesAfter
+        96 [string] = Directory
+        97 [string] = Pets
+        98 [string] = id
+        99 [string] = Eggs
+        100 [string] = Functions
+        101 [string] = Scaler
+        102 [string] = Transparency
+        103 [string] = isFirework
+        104 [string] = Signal
+        105 [string] = Invoke
+        106 [string] = New Years Firework Animation
+        107 [string] = petId
+        108 [string] = partyIndex
+        110 [string] = pcall
+        112 [string] = typeof
+        114 [string] = CFrame
+        115 [string] = new
+        117 [Vector3] = 0, 3, 0
+        118 [string] = uid
+        119 [string] = task
+        120 [string] = spawn
+        122 [string] = Position
+        123 [string] = Instance
+        125 [string] = Model
+        126 [string] = Target
+        127 [string] = SetAttribute
+        128 [string] = model
+        129 [string] = Clone
+        130 [string] = Anchored
+        131 [string] = Parent
+        132 [string] = PrimaryPart
+        133 [string] = fromOrientation
+        135 [number] = 6.283185307179586
+        136 [string] = math
+        137 [string] = random
+        139 [string] = PivotTo
+        140 [string] = Size
+        141 [string] = Y
+        142 [string] = Vector3
+        144 [string] = ipairs
+        146 [string] = GetDescendants
+        147 [string] = BasePart
+        148 [string] = IsA
+        149 [string] = CanCollide
+        150 [string] = CanQuery
+        151 [string] = CanTouch
+        152 [string] = CastShadow
+        153 [string] = Attachment
+        154 [string] = Bottom
+        155 [string] = Name
+        156 [string] = Top
+        157 [string] = script
+        159 [string] = Trail
+        160 [string] = Attachment0
+        161 [string] = Attachment1
+        162 [string] = Lifetime
+        163 [string] = ClickDetector
+        164 [number] = inf
+        165 [string] = MaxActivationDistance
+        166 [string] = rbxassetid://12429634668
+        167 [string] = CursorIcon
+        168 [string] = RaycastParams
+        170 [string] = FilterDescendantsInstances
+        171 [string] = Enum
+        172 [string] = RaycastFilterType
+        173 [string] = Include
+        174 [EnumItem] = Enum.RaycastFilterType.Include
+        175 [string] = FilterType
+        176 [string] = RespectCanCollide
+        177 [string] = IgnoreWater
+        178 [string] = MouseClick
+        179 [string] = Connect
+        180 [string] = wait
+        182 [string] = Audio
+        183 [string] = Play
+        184 [string] = EGG_SPAWN
+        185 [string] = RenderStepped
+        186 [string] = EGG_THROW
+        187 [number] = 0.05
+        188 [string] = Bezier
+        189 [string] = autoControlPoint
+        190 [string] = Wait
+        191 [string] = GetPivot
+        192 [string] = Rotation
+        193 [string] = EGG_LAND
+        194 [string] = CreateParticleHost
+        195 [string] = Emit
+        196 [string] = Impact
+        197 [string] = WaitForChild
+        198 [string] = GetChildren
+        199 [string] = table
+        200 [string] = unpack
+        202 [string] = AddDebris
+        203 [number] = 0.45
+        204 [number] = 0.42
+        205 [number] = 0.28
+        206 [Vector3] = 0, -0.5, 0
+        207 [number] = 1.1
+        208 [number] = 0.3
+        209 [string] = Destroy
+        210 [string] = Stop
+        211 [string] = titanic
+        212 [string] = huge
+        213 [string] = EGG_GROW_TITANIC
+        214 [number] = 3.25
+        215 [string] = EGG_GROW_HUGE
+        216 [string] = LocalPlayer
+        217 [string] = Player
+        218 [string] = Optional
+        219 [string] = Magnitude
+        220 [string] = Shake
+        221 [string] = Create
+        222 [string] = delay
+        224 [string] = Decal
+        225 [string] = rbxassetid://6381483576
+        226 [string] = Texture
+        227 [string] = _SELECTIONFX
+        228 [string] = Face
+        229 [string] = insert
+        231 [string] = Then
+        232 [Vector3] = 1, 0, 1
+        233 [number] = 0.22
+        234 [string] = EGG_OPEN_TITANIC
+        235 [string] = EGG_OPEN_HUGE
+        236 [string] = chance
+        237 [number] = 100
+        238 [string] = EGG_OPEN_RARE
+        239 [string] = EGG_OPEN
+        240 [string] = Explode
+        241 [string] = TitanicExplode
+        242 [string] = TitanicExplodeAOE
+        243 [string] = MeshPart
+        244 [string] = 
+        245 [string] = TextureID
+        246 [string] = Color3
+        248 [string] = Color
+        249 [string] = Material
+        250 [string] = SmoothPlastic
+        251 [EnumItem] = Enum.Material.SmoothPlastic
+        252 [string] = PetCmds
+        253 [string] = Spawn
+        254 [string] = createPetGui
+        255 [string] = part
+        256 [string] = scaler
+        257 [string] = Plastic
+        258 [EnumItem] = Enum.Material.Plastic
+        260 [string] = add
+        261 [string] = Shared
+        262 [string] = HatchMessage
+        263 [string] = ChatMsg
+        264 [string] = New
+        265 [string] = Fire
+        266 [string] = Notification
+        267 [string] = color
+        268 [string] = force
+        269 [boolean] = true
+        270 [string] = time
+        272 [string] = Destroying
+        273 [string] = Debris
+        274 [string] = wcall
+        275 [string] = Variables
+        276 [string] = OpeningEgg
+        277 [string] = Opening Egg
+        278 [string] = workspace
+        279 [Instance] = Workspace
+        280 [string] = CurrentCamera
+        281 [number] = 7.5
+        282 [number] = 4.5
+        283 [string] = UDim2
+        285 [string] = X
+        286 [string] = Scale
+        287 [string] = Offset
+        288 [string] = bottom
+        289 [string] = StudsOffset
+        290 [string] = AlwaysOnTop
+        291 [number] = 9.15
+        292 [number] = 2.7
+        293 [number] = 1.3
+        294 [string] = moving
+        295 [string] = Done Opening Egg
+        296 [string] = require
+        298 [string] = Random
+        299 [string] = R
+        300 [string] = PET_REMOVE
+        301 [string] = number
+        302 [number] = 0.95
+        303 [number] = 1.05
+        304 [string] = Disconnect
+        305 [string] = remove
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+        1 [function] = rememberFireworkReward
+
+Function Constants: Unknown Name
+        1 [string] = type
+        3 [string] = table
+        4 [string] = ipairs
+
+====================================================================================================
+
+Function Dump: playFireworkBillboard
+
+Function Upvalues: playFireworkBillboard
+        1 [table] (Recursive table detected)
+
+Function Constants: playFireworkBillboard
+        1 [string] = Directory
+        2 [string] = Currency
+        3 [string] = currency
+        4 [string] = Assets
+        5 [string] = Billboards
+        6 [string] = Reward
+        7 [string] = FindFirstChild
+        8 [string] = released
+        9 [string] = Variables
+        10 [string] = CurrencyDisplayHold
+        11 [number] = 0
+        12 [string] = amount
+        13 [string] = math
+        14 [string] = max
+        16 [string] = Signal
+        17 [string] = Fire
+        18 [string] = Currency Display Refresh
+        19 [string] = Functions
+        20 [string] = CreateParticleHost
+        21 [string] = Clone
+        22 [string] = +
+        23 [string] = NumberShorten
+        24 [string] = Text
+        25 [string] = icon
+        26 [string] = Image
+        27 [string] = shadow
+        28 [string] = Gradient
+        29 [string] = Parent
+        30 [string] = AlwaysOnTop
+        31 [string] = Size
+        32 [string] = UDim2
+        33 [string] = new
+        35 [string] = X
+        36 [string] = Scale
+        37 [string] = Offset
+        38 [string] = Y
+        39 [string] = workspace
+        40 [Instance] = Workspace
+        41 [string] = CurrentCamera
+        42 [string] = CFrame
+        43 [string] = RightVector
+        44 [Vector3] = 1, 0, 1
+        45 [string] = Magnitude
+        46 [number] = 0.001
+        47 [string] = Unit
+        48 [Vector3] = 1, 0, 0
+        49 [number] = 11
+        50 [Vector3] = 0, 5, 0
+        51 [string] = RenderStepped
+        52 [number] = 0.45
+        53 [string] = Wait
+        54 [number] = 1
+        55 [string] = Position
+        56 [number] = 0.65
+        57 [string] = Destroy
+
+====================================================================================================
+
+Function Dump: fireworkGroundAt
+
+Function Upvalues: fireworkGroundAt
+        1 [table] (Recursive table detected)
+
+Function Constants: fireworkGroundAt
+        1 [string] = WorldCmds
+        2 [string] = GetMap
+        3 [string] = RaycastParams
+        4 [string] = new
+        6 [string] = FilterDescendantsInstances
+        7 [string] = Enum
+        8 [string] = RaycastFilterType
+        9 [string] = Include
+        10 [EnumItem] = Enum.RaycastFilterType.Include
+        11 [string] = FilterType
+        12 [string] = RespectCanCollide
+        13 [string] = workspace
+        14 [Instance] = Workspace
+        15 [Vector3] = 0, 20, 0
+        16 [Vector3] = 0, -60, 0
+        17 [string] = Raycast
+        18 [string] = Position
+
+====================================================================================================
+
+Function Dump: takeFireworkReward
+
+Function Upvalues: takeFireworkReward
+        1 [table]:
+        1 [table] table: 0x3d1617a8b09e70c9
+
+Function Constants: takeFireworkReward
+        1 [string] = tostring
+        3 [number] = 3
+        4 [string] = os
+        5 [string] = clock
+        7 [string] = task
+        8 [string] = wait
+        10 [number] = 0.1
+
+====================================================================================================
+
+Function Dump: releaseCurrencyHold
+
+Function Upvalues: releaseCurrencyHold
+        1 [table] (Recursive table detected)
+
+Function Constants: releaseCurrencyHold
+        1 [string] = released
+        2 [string] = Variables
+        3 [string] = CurrencyDisplayHold
+        4 [string] = currency
+        5 [number] = 0
+        6 [string] = amount
+        7 [string] = math
+        8 [string] = max
+        10 [string] = Signal
+        11 [string] = Fire
+        12 [string] = Currency Display Refresh
+
+====================================================================================================
+
+Function Dump: createPetGui
+
+Function Upvalues: createPetGui
+        1 [table] (Recursive table detected)
+
+Function Constants: createPetGui
+        1 [string] = Directory
+        2 [string] = Pets
+        3 [string] = id
+        4 [string] = name
+        5 [string] = dm
+        6 [string] = Dark Matter 
+        7 [string] = r
+        8 [string] = Rainbow 
+        9 [string] = g
+        10 [string] = Golden 
+        11 [string] = sh
+        12 [string] = Shiny 
+        13 [string] = Assets
+        14 [string] = Billboards
+        15 [string] = ExclusivePet
+        16 [string] = Clone
+        17 [string] = __BILLBOARD
+        18 [string] = Name
+        19 [number] = 0.5
+        20 [number] = 2
+        21 [string] = center
+        22 [string] = Position
+        23 [string] = bottom
+        24 [string] = Y
+        25 [string] = Vector3
+        26 [string] = new
+        28 [string] = StudsOffset
+        29 [string] = PetName
+        30 [string] = Text
+        31 [string] = PetIcon
+        32 [string] = darkMatterThumbnail
+        33 [string] = goldenThumbnail
+        34 [string] = thumbnail
+        35 [string] = Image
+        36 [string] = Rarity
+        37 [string] = rarity
+        38 [string] = Shared
+        39 [string] = ApplyRarityColor
+        40 [string] = GUIFX
+        41 [string] = Rainbow
+        42 [string] = TextColor3
+        43 [string] = ImageColor3
+        44 [string] = part
+        45 [string] = Parent
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = NumberRange
+        2 [string] = new
+        4 [string] = Lifetime
+        5 [string] = Min
+        6 [string] = ImpactParticleLifetime
+        7 [string] = Max
+
+====================================================================================================
+
+Function Dump: playFireworkRewards
+
+Function Upvalues: playFireworkRewards
+        1 [table] (Recursive table detected)
+        2 [function] = playFireworkBillboard
+        3 [function] = fireworkGroundAt
+        4 [function] = playFireworkEgg
+
+Function Constants: playFireworkRewards
+        1 [string] = ipairs
+        3 [string] = currency
+        4 [string] = task
+        5 [string] = spawn
+        7 [string] = Functions
+        8 [string] = wcall
+        9 [string] = eggs
+        10 [number] = 3.141592653589793
+        11 [number] = 2
+        12 [string] = math
+        13 [string] = random
+        15 [number] = 1
+        16 [string] = max
+        18 [number] = 6
+        19 [string] = cos
+        21 [string] = sin
+        23 [string] = Vector3
+        24 [string] = new
+
+====================================================================================================
+
+Function Dump: rememberFireworkReward
+
+Function Upvalues: rememberFireworkReward
+        1 [table] (Recursive table detected)
+        2 [function] = releaseCurrencyHold
+        3 [table] (Recursive table detected)
+
+Function Constants: rememberFireworkReward
+        1 [string] = type
+        3 [string] = table
+        4 [string] = holds
+        5 [string] = LocalPlayer
+        6 [string] = Variables
+        7 [string] = CurrencyDisplayHold
+        8 [string] = ipairs
+        10 [string] = currency
+        11 [number] = 0
+        12 [string] = amount
+        13 [string] = tonumber
+        16 [string] = insert
+        18 [string] = task
+        19 [string] = delay
+        21 [string] = eggs
+        22 [string] = pets
+        23 [string] = uid
+        24 [string] = Signal
+        25 [string] = Fire
+        26 [string] = Hide Pets
+        27 [string] = Show Pets
+        28 [string] = Currency Display Refresh
+        29 [string] = pet
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = computePositions
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = performOpen
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = requestToOpen
+
+====================================================================================================
+
+Function Dump: autoControlPoint
+
+Function Upvalues: autoControlPoint
+
+Function Constants: autoControlPoint
+        1 [number] = 2
+        2 [string] = X
+        3 [string] = Y
+        4 [string] = math
+        5 [string] = max
+        7 [Vector3] = 1, 0, 1
+        8 [string] = Magnitude
+        9 [string] = Z
+        10 [string] = Vector3
+        11 [string] = new
+
+====================================================================================================
+
+Function Dump: sampleKeys
+
+Function Upvalues: sampleKeys
+
+Function Constants: sampleKeys
+        1 [number] = 1
+        2 [number] = 0.5
+        3 [number] = 2
+        4 [number] = 3.141592653589793
+        5 [string] = math
+        6 [string] = cos
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = X
+        2 [string] = Y
+        3 [string] = Z
+        4 [string] = Vector3
+        5 [string] = new
+        7 [string] = Position
+        8 [string] = Magnitude
+        9 [number] = 0.001
+        10 [string] = CFrame
+        11 [string] = lookAt
+
+====================================================================================================
+
+Function Dump: computePositions
+
+Function Upvalues: computePositions
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+        3 [number] = 10
+        4 [number] = 15
+        5 [number] = 5
+        6 [Vector2] = 10, 50
+        7 [number] = 1
+
+Function Constants: computePositions
+        1 [number] = 1
+        2 [string] = LocalPlayer
+        3 [string] = Character
+        4 [string] = PrimaryPart
+        5 [string] = Humanoid
+        6 [string] = FindFirstChildOfClass
+        7 [string] = GetPivot
+        8 [string] = Position
+        9 [string] = UpVector
+        10 [string] = HipHeight
+        11 [number] = 2
+        12 [string] = Size
+        13 [string] = Y
+        14 [string] = Vector3
+        15 [string] = new
+        17 [string] = WorldCmds
+        18 [string] = HasLoaded
+        19 [string] = GetMap
+        20 [string] = pairs
+        22 [string] = completed
+        23 [string] = position
+        24 [string] = table
+        25 [string] = insert
+        27 [string] = ipairs
+        29 [string] = RaycastParams
+        31 [string] = FilterDescendantsInstances
+        32 [string] = Enum
+        33 [string] = RaycastFilterType
+        34 [string] = Include
+        35 [EnumItem] = Enum.RaycastFilterType.Include
+        36 [string] = FilterType
+        37 [string] = IgnoreWater
+        38 [string] = RespectCanCollide
+        39 [number] = 360
+        40 [number] = 6
+
+====================================================================================================
+
+Function Dump: requestToOpen
+
+Function Upvalues: requestToOpen
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+
+Function Constants: requestToOpen
+        1 [string] = assert
+        3 [string] = computePositions
+        4 [string] = Not enough space, try a more open area!
+        5 [string] = Audio
+        6 [string] = Play
+        7 [string] = INVENTORY_OPEN
+        8 [string] = script
+        10 [string] = Network
+        11 [string] = Invoke
+        12 [string] = Exclusive Eggs: Open
+
+====================================================================================================
+
+Function Dump: fireworkFall
+
+Function Upvalues: fireworkFall
+        1 [table]:
+        1 [table] table: 0x4825de776cdbb9a2
+                1 [number] = 95
+                2 [number] = 1
+                3 [string] = SuperFirework-Trail
+                4 [number] = 16
+                5 [table]:
+                LandSounds [table] table: 0x3a31efa8ff2f2f54
+                        1 [number] = 6840608566
+                        2 [number] = 6840608533
+                        3 [number] = 6840608598
+                        4 [number] = 6840608504
+                6 [number] = 0.3
+                7 [number] = 0.5
+                8 [number] = 1.5
+                9 [number] = 2
+                10 [number] = 3
+        2 [table] (Recursive table detected)
+
+Function Constants: fireworkFall
+        1 [string] = GetPivot
+        2 [string] = bottom
+        3 [string] = Position
+        4 [string] = Y
+        5 [number] = 2
+        6 [string] = Size
+        7 [string] = typeof
+        9 [string] = Instance
+        10 [string] = Attachment
+        11 [string] = IsA
+        12 [string] = WorldPosition
+        13 [string] = BasePart
+        14 [string] = math
+        15 [string] = max
+        17 [string] = X
+        18 [string] = Z
+        19 [string] = Vector3
+        20 [string] = new
+        22 [number] = 3.141592653589793
+        23 [string] = random
+        25 [string] = cos
+        27 [string] = Scatter
+        28 [string] = sin
+        30 [number] = 0.1
+        31 [string] = Gravity
+        32 [string] = PopVelocity
+        33 [string] = sqrt
+        35 [string] = Rotation
+        36 [string] = Assets
+        37 [string] = Particles
+        38 [string] = Achievements
+        39 [string] = TrailName
+        40 [string] = FindFirstChild
+        41 [string] = Clone
+        42 [string] = Enabled
+        43 [string] = Parent
+        44 [string] = Functions
+        45 [string] = RenderStepped
+        46 [string] = Wait
+        47 [string] = CFrame
+        49 [string] = PivotTo
+        50 [string] = AddDebris
+        51 [string] = Lifetime
+        52 [string] = Max
+        53 [string] = LandSounds
+        54 [string] = Audio
+        55 [string] = Play
+        56 [number] = 100
+        57 [number] = 0.8
+        58 [string] = CreateParticleHost
+        59 [string] = Emit
+        61 [string] = script
+        63 [string] = Impact
+        64 [string] = WaitForChild
+        65 [string] = GetChildren
+        66 [string] = table
+        67 [string] = unpack
+        69 [string] = MaxBounces
+        70 [string] = Restitution
+        71 [string] = MinBounceVelocity
+
+====================================================================================================
+
+Function Dump: preloadAssets
+
+Function Upvalues: preloadAssets
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+
+Function Constants: preloadAssets
+        1 [string] = pairs
+        3 [string] = ipairs
+        5 [string] = table
+        6 [string] = insert
+        8 [string] = Functions
+        9 [string] = wcall
+
+====================================================================================================
+]]
+
+-- // Function Dumper made by King.Kevin
+-- // Script Path: game:GetService("Players").Emerson_GTA.PlayerScripts.Scripts.Game["Exclusive Eggs"]
+
+--[[
+Function Dump: performOpen
+
+Function Upvalues: performOpen
+        1 [table]:
+        1 [table] table: 0x35cb8d9316d060f5
+        2 [table]:
+        2 [table] table: 0x50bb5a638af40883
+        3 [table]:
+        3 [table] table: 0xa34db0f9b070cb89
+        4 [boolean] = false
+
+Function Constants: performOpen
+        1 [string] = FFlags
+        2 [string] = GetBoolean
+        3 [string] = FXExclusiveHatchAnimationEnabled
+        4 [string] = LocalPlayer
+        5 [string] = ipairs
+        7 [string] = uid
+        8 [string] = table
+        9 [string] = insert
+        11 [string] = Signal
+        12 [string] = Fire
+        13 [string] = Hide Pets
+        14 [string] = Directory
+        15 [string] = Pets
+        16 [string] = id
+        17 [string] = titanic
+        18 [string] = huge
+        19 [string] = player
+        20 [string] = origin
+        21 [string] = eggId
+        22 [string] = petData
+        23 [string] = position
+        24 [string] = chance
+        25 [string] = priority
+        26 [string] = partyIndex
+        27 [string] = partyCount
+        28 [string] = completed
+        29 [boolean] = false
+        31 [string] = type
+        33 [string] = tonumber
+        35 [string] = preloadAssets
+        36 [string] = Variables
+        37 [number] = 1
+        38 [number] = 0
+        39 [string] = ExclusiveEggsOpening
+        40 [string] = Exclusive Eggs Opening Changed
+        41 [string] = task
+        42 [string] = spawn
+
+====================================================================================================
+
+Function Dump: playFireworkEgg
+
+Function Upvalues: playFireworkEgg
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+        3 [table] (Recursive table detected)
+        4 [boolean] = false
+
+Function Constants: playFireworkEgg
+        1 [string] = ipairs
+        3 [string] = pets
+        4 [string] = Directory
+        5 [string] = Pets
+        6 [string] = id
+        7 [string] = player
+        8 [string] = origin
+        9 [string] = eggId
+        10 [string] = petData
+        11 [string] = position
+        12 [string] = chance
+        13 [string] = priority
+        14 [string] = partyIndex
+        15 [number] = 1
+        16 [string] = partyCount
+        17 [string] = completed
+        18 [boolean] = false
+        20 [string] = chances
+        21 [string] = tonumber
+        23 [string] = titanic
+        24 [string] = huge
+        25 [string] = Functions
+        26 [string] = wcall
+        27 [string] = LocalPlayer
+        28 [string] = Signal
+        29 [string] = Fire
+        30 [string] = Show Pets
+        31 [string] = uid
+        32 [string] = table
+        33 [string] = insert
+        35 [string] = task
+        36 [string] = spawn
+
+====================================================================================================
+
+Function Dump: performAnimation
+
+Function Upvalues: performAnimation
+        1 [table] (Recursive table detected)
+        2 [function] = sampleKeys
+        3 [function] = takeFireworkReward
+        4 [function] = playFireworkRewards
+        5 [Instance] = ExclusiveEggs
+        6 [table]:
+        6 [table] table: 0x26bbf77e290ce460
+                1 [table]:
+                EGG_SPAWN [table] table: 0xca7137c72fb1fbff
+                        1 [string] = rbxassetid://8049260816
+                        2 [string] = rbxassetid://8049260930
+                2 [table]:
+                INVENTORY_OPEN [table] table: 0x933351ef89bd0950
+                        1 [string] = rbxassetid://135129669197062
+                3 [table]:
+                PET_REMOVE [table] table: 0xc87c8efd4228d81f
+                        1 [string] = rbxassetid://8863194418
+                4 [table]:
+                EGG_LAND [table] table: 0x5430bd3e200263a4
+                        1 [string] = rbxassetid://122152719655926
+                5 [table]:
+                EGG_OPEN_RARE [table] table: 0x9dfa3667ea580012
+                        1 [string] = rbxassetid://115433322570302
+                6 [table]:
+                EGG_GROW_TITANIC [table] table: 0x3c9fa362f19a37c6
+                        1 [string] = rbxassetid://139868667096170
+                7 [table]:
+                EGG_GROW_HUGE [table] table: 0x1be888387062e7f5
+                        1 [string] = rbxassetid://81373431010533
+                8 [table]:
+                EGG_OPEN_HUGE [table] table: 0x5af08c79f22c88bb
+                        1 [string] = rbxassetid://123705052596597
+                9 [table]:
+                EGG_THROW [table] table: 0x46950cff2323f3f5
+                        1 [string] = rbxassetid://115222377712622
+                        2 [string] = rbxassetid://126167277280861
+                10 [table]:
+                EGG_SHAKE [table] table: 0xf1b704d2732c5894
+                        1 [string] = rbxassetid://100917503678518
+                11 [table]:
+                EGG_OPEN_TITANIC [table] table: 0x43fa212ef444f65f
+                        1 [string] = rbxassetid://113605064799782
+                12 [table]:
+                EGG_OPEN [table] table: 0xe2797d5aa954304b
+                        1 [string] = rbxassetid://113812046860375
+        7 [table]:
+        7 [table] table: 0xc739a9dba0144625
+                1 [table]:
+                1 [table] table: 0x4f9cfd116f7e6f6e
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0xc59359342a0aba93
+                        1 [number] = 0.14
+                        2 [number] = 0.58
+                        3 [number] = 1.28
+                3 [table]:
+                3 [table] table: 0x2db21a754e8383a3
+                        1 [number] = 0.42
+                        2 [number] = 1.16
+                        3 [number] = 0.9
+                4 [table]:
+                4 [table] table: 0xe3cc71ca6a2792b9
+                        1 [number] = 0.7
+                        2 [number] = 0.96
+                        3 [number] = 1.03
+                5 [table]:
+                5 [table] table: 0x8ba1383e4d5c4944
+                        1 [number] = 1
+                        2 [number] = 1
+                        3 [number] = 1
+        8 [table]:
+        8 [table] table: 0x690e213a5b308b60
+                1 [table]:
+                1 [table] table: 0x7ef31e2083b42cae
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0xa6a2e62596f263c6
+                        1 [number] = 0.15
+                        2 [number] = 0.78
+                        3 [number] = 1.14
+                3 [table]:
+                3 [table] table: 0x5d853de70e76f764
+                        1 [number] = 0.5
+                        2 [number] = 1.07
+                        3 [number] = 0.96
+                4 [table]:
+                4 [table] table: 0x0b2a52c8ccea3cdd
+                        1 [number] = 1
+                        2 [number] = 1
+                        3 [number] = 1
+        9 [table]:
+        9 [table] table: 0x2ad9b0ccf56d4e03
+                1 [table]:
+                1 [table] table: 0x968adb4979c7935d
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0x5647ee1facb8889b
+                        1 [number] = 0.3
+                        2 [number] = 0.9
+                        3 [number] = 1.05
+                3 [table]:
+                3 [table] table: 0x66c213d9b6460b5c
+                        1 [number] = 0.65
+                        2 [number] = 1.04
+                        3 [number] = 0.98
+                4 [table]:
+                4 [table] table: 0x6435644863eeecad
+                        1 [number] = 1
+                        2 [number] = 1
+                        3 [number] = 1
+        10 [table] (Recursive table detected)
+        11 [table]:
+        11 [table] table: 0x24289f2bb29b14ee
+                1 [EnumItem] = Enum.NormalId.Back
+                2 [EnumItem] = Enum.NormalId.Front
+                3 [EnumItem] = Enum.NormalId.Left
+                4 [EnumItem] = Enum.NormalId.Right
+                5 [EnumItem] = Enum.NormalId.Top
+                6 [EnumItem] = Enum.NormalId.Bottom
+        12 [table]:
+        12 [table] table: 0x4f3d7387f321c7f4
+                1 [table]:
+                1 [table] table: 0xfb6639349bdb6d17
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0x26a77ec1f305a38e
+                        1 [number] = 0.55
+                        2 [number] = 0.68
+                        3 [number] = 1.24
+                3 [table]:
+                3 [table] table: 0x73723d7dfd27f6d7
+                        1 [number] = 1
+                        2 [number] = 1.22
+                        3 [number] = 0.88
+        13 [table]:
+        13 [table] table: 0xfefb0616cfb11593
+                1 [function] = compute
+                2 [function] = remove
+                3 [function] = add
+
+Function Constants: performAnimation
+        1 [string] = player
+        2 [string] = origin
+        3 [string] = eggId
+        4 [string] = petData
+        5 [string] = position
+        6 [string] = Timing
+        7 [string] = Other
+        9 [string] = DelayPerEgg
+        10 [number] = 0.15
+        11 [string] = UpscaleDuration
+        12 [number] = 0.75
+        13 [string] = TrailLifetime
+        14 [number] = 0.35
+        15 [string] = MoveDuration
+        16 [string] = BounceDuration
+        17 [number] = 0.55
+        18 [string] = DramaticPauseDuration
+        19 [number] = 1
+        20 [string] = ImpactParticleLifetime
+        21 [number] = 0.5
+        22 [string] = ShakePreDuration
+        23 [number] = 1.75
+        24 [string] = ShakePostDuration
+        25 [string] = PauseDuration
+        26 [number] = 5
+        27 [string] = GrowScreenShakeDurationBuffer
+        28 [number] = 2
+        29 [string] = GrowHugeDuration
+        30 [number] = 4
+        31 [string] = GrowTitanicDuration
+        32 [number] = 8.5
+        33 [string] = GrowTitanicAuraDelay
+        34 [number] = 5.5
+        35 [string] = GrowTitanicAuraScreenShakeDuration
+        36 [string] = GrowTitanicAuraParticleLifetime
+        37 [string] = ExplodeParticleLifetime
+        38 [number] = 1.5
+        39 [string] = ExplodeTitanicParticleDuration
+        40 [number] = 7
+        41 [string] = ExplodeUpscaleDuration
+        42 [string] = SpawnPetDelay
+        43 [number] = 0.25
+        44 [string] = PetLookAtPlayerDuration
+        45 [number] = 2.5
+        46 [string] = PetLookAtPlayerDurationOther
+        47 [string] = PetFlyIntoPlayerDuration
+        48 [number] = 0.7
+        49 [string] = PetCameraMoveDuration
+        50 [string] = PetCameraIdleDuration
+        51 [string] = PetCameraFadeDuration
+        53 [string] = BounceHeight
+        54 [number] = 2.25
+        55 [string] = ShakePitchMagnitude
+        56 [number] = -30
+        57 [string] = ShakePitchA
+        58 [string] = ShakePitchB
+        59 [string] = ShakeRollMagnitude
+        60 [number] = 30
+        61 [string] = ShakeRollA
+        62 [string] = ShakeRollB
+        63 [string] = GrowHugeScale
+        64 [number] = 3
+        65 [string] = GrowHugeScreenShakeMagnitude
+        66 [number] = 0.2
+        67 [string] = GrowHugeShakeRate
+        68 [number] = 60
+        69 [string] = GrowHugeShakeMagnitude
+        70 [string] = GrowTitanicScale
+        71 [string] = GrowTitanicScreenShakeMagnitude
+        72 [number] = 0.4
+        73 [string] = GrowTitanicShakeRate
+        74 [string] = GrowTitanicShakeMagnitude
+        75 [number] = 10
+        76 [string] = GrowTitanicAuraScreenShakeMagnitude
+        77 [string] = GrowTitanicAuraScreenShakeSmoothness
+        78 [number] = 0.1
+        79 [string] = GrowScreenShakeSmoothness
+        80 [string] = GrowScreenShakeDistance
+        81 [number] = 400
+        82 [string] = ExplodeUpscaleSize
+        83 [string] = OpenRareChance
+        84 [string] = ExplodeTitanicShakeMagnitude
+        85 [string] = ExplodeTitanicShakeSmoothness
+        86 [string] = LuckyClickTimeout
+        87 [string] = AnnouncementNotificationDuration
+        88 [string] = PetLookAtPlayerFloatRate
+        89 [string] = PetLookAtPlayerFloatHeight
+        90 [string] = PetCameraDistance
+        91 [number] = 7.2
+        92 [string] = PetCameraTargetEMA
+        93 [string] = PetCameraTargetRate
+        94 [string] = PetCameraIdleNoUpdatesAfter
+        96 [string] = Directory
+        97 [string] = Pets
+        98 [string] = id
+        99 [string] = Eggs
+        100 [string] = Functions
+        101 [string] = Scaler
+        102 [string] = Transparency
+        103 [string] = isFirework
+        104 [string] = Signal
+        105 [string] = Invoke
+        106 [string] = New Years Firework Animation
+        107 [string] = petId
+        108 [string] = partyIndex
+        110 [string] = pcall
+        112 [string] = typeof
+        114 [string] = CFrame
+        115 [string] = new
+        117 [Vector3] = 0, 3, 0
+        118 [string] = uid
+        119 [string] = task
+        120 [string] = spawn
+        122 [string] = Position
+        123 [string] = Instance
+        125 [string] = Model
+        126 [string] = Target
+        127 [string] = SetAttribute
+        128 [string] = model
+        129 [string] = Clone
+        130 [string] = Anchored
+        131 [string] = Parent
+        132 [string] = PrimaryPart
+        133 [string] = fromOrientation
+        135 [number] = 6.283185307179586
+        136 [string] = math
+        137 [string] = random
+        139 [string] = PivotTo
+        140 [string] = Size
+        141 [string] = Y
+        142 [string] = Vector3
+        144 [string] = ipairs
+        146 [string] = GetDescendants
+        147 [string] = BasePart
+        148 [string] = IsA
+        149 [string] = CanCollide
+        150 [string] = CanQuery
+        151 [string] = CanTouch
+        152 [string] = CastShadow
+        153 [string] = Attachment
+        154 [string] = Bottom
+        155 [string] = Name
+        156 [string] = Top
+        157 [string] = script
+        159 [string] = Trail
+        160 [string] = Attachment0
+        161 [string] = Attachment1
+        162 [string] = Lifetime
+        163 [string] = ClickDetector
+        164 [number] = inf
+        165 [string] = MaxActivationDistance
+        166 [string] = rbxassetid://12429634668
+        167 [string] = CursorIcon
+        168 [string] = RaycastParams
+        170 [string] = FilterDescendantsInstances
+        171 [string] = Enum
+        172 [string] = RaycastFilterType
+        173 [string] = Include
+        174 [EnumItem] = Enum.RaycastFilterType.Include
+        175 [string] = FilterType
+        176 [string] = RespectCanCollide
+        177 [string] = IgnoreWater
+        178 [string] = MouseClick
+        179 [string] = Connect
+        180 [string] = wait
+        182 [string] = Audio
+        183 [string] = Play
+        184 [string] = EGG_SPAWN
+        185 [string] = RenderStepped
+        186 [string] = EGG_THROW
+        187 [number] = 0.05
+        188 [string] = Bezier
+        189 [string] = autoControlPoint
+        190 [string] = Wait
+        191 [string] = GetPivot
+        192 [string] = Rotation
+        193 [string] = EGG_LAND
+        194 [string] = CreateParticleHost
+        195 [string] = Emit
+        196 [string] = Impact
+        197 [string] = WaitForChild
+        198 [string] = GetChildren
+        199 [string] = table
+        200 [string] = unpack
+        202 [string] = AddDebris
+        203 [number] = 0.45
+        204 [number] = 0.42
+        205 [number] = 0.28
+        206 [Vector3] = 0, -0.5, 0
+        207 [number] = 1.1
+        208 [number] = 0.3
+        209 [string] = Destroy
+        210 [string] = Stop
+        211 [string] = titanic
+        212 [string] = huge
+        213 [string] = EGG_GROW_TITANIC
+        214 [number] = 3.25
+        215 [string] = EGG_GROW_HUGE
+        216 [string] = LocalPlayer
+        217 [string] = Player
+        218 [string] = Optional
+        219 [string] = Magnitude
+        220 [string] = Shake
+        221 [string] = Create
+        222 [string] = delay
+        224 [string] = Decal
+        225 [string] = rbxassetid://6381483576
+        226 [string] = Texture
+        227 [string] = _SELECTIONFX
+        228 [string] = Face
+        229 [string] = insert
+        231 [string] = Then
+        232 [Vector3] = 1, 0, 1
+        233 [number] = 0.22
+        234 [string] = EGG_OPEN_TITANIC
+        235 [string] = EGG_OPEN_HUGE
+        236 [string] = chance
+        237 [number] = 100
+        238 [string] = EGG_OPEN_RARE
+        239 [string] = EGG_OPEN
+        240 [string] = Explode
+        241 [string] = TitanicExplode
+        242 [string] = TitanicExplodeAOE
+        243 [string] = MeshPart
+        244 [string] = 
+        245 [string] = TextureID
+        246 [string] = Color3
+        248 [string] = Color
+        249 [string] = Material
+        250 [string] = SmoothPlastic
+        251 [EnumItem] = Enum.Material.SmoothPlastic
+        252 [string] = PetCmds
+        253 [string] = Spawn
+        254 [string] = createPetGui
+        255 [string] = part
+        256 [string] = scaler
+        257 [string] = Plastic
+        258 [EnumItem] = Enum.Material.Plastic
+        260 [string] = add
+        261 [string] = Shared
+        262 [string] = HatchMessage
+        263 [string] = ChatMsg
+        264 [string] = New
+        265 [string] = Fire
+        266 [string] = Notification
+        267 [string] = color
+        268 [string] = force
+        269 [boolean] = true
+        270 [string] = time
+        272 [string] = Destroying
+        273 [string] = Debris
+        274 [string] = wcall
+        275 [string] = Variables
+        276 [string] = OpeningEgg
+        277 [string] = Opening Egg
+        278 [string] = workspace
+        279 [Instance] = Workspace
+        280 [string] = CurrentCamera
+        281 [number] = 7.5
+        282 [number] = 4.5
+        283 [string] = UDim2
+        285 [string] = X
+        286 [string] = Scale
+        287 [string] = Offset
+        288 [string] = bottom
+        289 [string] = StudsOffset
+        290 [string] = AlwaysOnTop
+        291 [number] = 9.15
+        292 [number] = 2.7
+        293 [number] = 1.3
+        294 [string] = moving
+        295 [string] = Done Opening Egg
+        296 [string] = require
+        298 [string] = Random
+        299 [string] = R
+        300 [string] = PET_REMOVE
+        301 [string] = number
+        302 [number] = 0.95
+        303 [number] = 1.05
+        304 [string] = Disconnect
+        305 [string] = remove
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+        1 [function] = rememberFireworkReward
+
+Function Constants: Unknown Name
+        1 [string] = type
+        3 [string] = table
+        4 [string] = ipairs
+
+====================================================================================================
+
+Function Dump: playFireworkBillboard
+
+Function Upvalues: playFireworkBillboard
+        1 [table] (Recursive table detected)
+
+Function Constants: playFireworkBillboard
+        1 [string] = Directory
+        2 [string] = Currency
+        3 [string] = currency
+        4 [string] = Assets
+        5 [string] = Billboards
+        6 [string] = Reward
+        7 [string] = FindFirstChild
+        8 [string] = released
+        9 [string] = Variables
+        10 [string] = CurrencyDisplayHold
+        11 [number] = 0
+        12 [string] = amount
+        13 [string] = math
+        14 [string] = max
+        16 [string] = Signal
+        17 [string] = Fire
+        18 [string] = Currency Display Refresh
+        19 [string] = Functions
+        20 [string] = CreateParticleHost
+        21 [string] = Clone
+        22 [string] = +
+        23 [string] = NumberShorten
+        24 [string] = Text
+        25 [string] = icon
+        26 [string] = Image
+        27 [string] = shadow
+        28 [string] = Gradient
+        29 [string] = Parent
+        30 [string] = AlwaysOnTop
+        31 [string] = Size
+        32 [string] = UDim2
+        33 [string] = new
+        35 [string] = X
+        36 [string] = Scale
+        37 [string] = Offset
+        38 [string] = Y
+        39 [string] = workspace
+        40 [Instance] = Workspace
+        41 [string] = CurrentCamera
+        42 [string] = CFrame
+        43 [string] = RightVector
+        44 [Vector3] = 1, 0, 1
+        45 [string] = Magnitude
+        46 [number] = 0.001
+        47 [string] = Unit
+        48 [Vector3] = 1, 0, 0
+        49 [number] = 11
+        50 [Vector3] = 0, 5, 0
+        51 [string] = RenderStepped
+        52 [number] = 0.45
+        53 [string] = Wait
+        54 [number] = 1
+        55 [string] = Position
+        56 [number] = 0.65
+        57 [string] = Destroy
+
+====================================================================================================
+
+Function Dump: fireworkGroundAt
+
+Function Upvalues: fireworkGroundAt
+        1 [table] (Recursive table detected)
+
+Function Constants: fireworkGroundAt
+        1 [string] = WorldCmds
+        2 [string] = GetMap
+        3 [string] = RaycastParams
+        4 [string] = new
+        6 [string] = FilterDescendantsInstances
+        7 [string] = Enum
+        8 [string] = RaycastFilterType
+        9 [string] = Include
+        10 [EnumItem] = Enum.RaycastFilterType.Include
+        11 [string] = FilterType
+        12 [string] = RespectCanCollide
+        13 [string] = workspace
+        14 [Instance] = Workspace
+        15 [Vector3] = 0, 20, 0
+        16 [Vector3] = 0, -60, 0
+        17 [string] = Raycast
+        18 [string] = Position
+
+====================================================================================================
+
+Function Dump: takeFireworkReward
+
+Function Upvalues: takeFireworkReward
+        1 [table]:
+        1 [table] table: 0x3d1617a8b09e70c9
+
+Function Constants: takeFireworkReward
+        1 [string] = tostring
+        3 [number] = 3
+        4 [string] = os
+        5 [string] = clock
+        7 [string] = task
+        8 [string] = wait
+        10 [number] = 0.1
+
+====================================================================================================
+
+Function Dump: releaseCurrencyHold
+
+Function Upvalues: releaseCurrencyHold
+        1 [table] (Recursive table detected)
+
+Function Constants: releaseCurrencyHold
+        1 [string] = released
+        2 [string] = Variables
+        3 [string] = CurrencyDisplayHold
+        4 [string] = currency
+        5 [number] = 0
+        6 [string] = amount
+        7 [string] = math
+        8 [string] = max
+        10 [string] = Signal
+        11 [string] = Fire
+        12 [string] = Currency Display Refresh
+
+====================================================================================================
+
+Function Dump: createPetGui
+
+Function Upvalues: createPetGui
+        1 [table] (Recursive table detected)
+
+Function Constants: createPetGui
+        1 [string] = Directory
+        2 [string] = Pets
+        3 [string] = id
+        4 [string] = name
+        5 [string] = dm
+        6 [string] = Dark Matter 
+        7 [string] = r
+        8 [string] = Rainbow 
+        9 [string] = g
+        10 [string] = Golden 
+        11 [string] = sh
+        12 [string] = Shiny 
+        13 [string] = Assets
+        14 [string] = Billboards
+        15 [string] = ExclusivePet
+        16 [string] = Clone
+        17 [string] = __BILLBOARD
+        18 [string] = Name
+        19 [number] = 0.5
+        20 [number] = 2
+        21 [string] = center
+        22 [string] = Position
+        23 [string] = bottom
+        24 [string] = Y
+        25 [string] = Vector3
+        26 [string] = new
+        28 [string] = StudsOffset
+        29 [string] = PetName
+        30 [string] = Text
+        31 [string] = PetIcon
+        32 [string] = darkMatterThumbnail
+        33 [string] = goldenThumbnail
+        34 [string] = thumbnail
+        35 [string] = Image
+        36 [string] = Rarity
+        37 [string] = rarity
+        38 [string] = Shared
+        39 [string] = ApplyRarityColor
+        40 [string] = GUIFX
+        41 [string] = Rainbow
+        42 [string] = TextColor3
+        43 [string] = ImageColor3
+        44 [string] = part
+        45 [string] = Parent
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = NumberRange
+        2 [string] = new
+        4 [string] = Lifetime
+        5 [string] = Min
+        6 [string] = ImpactParticleLifetime
+        7 [string] = Max
+
+====================================================================================================
+
+Function Dump: playFireworkRewards
+
+Function Upvalues: playFireworkRewards
+        1 [table] (Recursive table detected)
+        2 [function] = playFireworkBillboard
+        3 [function] = fireworkGroundAt
+        4 [function] = playFireworkEgg
+
+Function Constants: playFireworkRewards
+        1 [string] = ipairs
+        3 [string] = currency
+        4 [string] = task
+        5 [string] = spawn
+        7 [string] = Functions
+        8 [string] = wcall
+        9 [string] = eggs
+        10 [number] = 3.141592653589793
+        11 [number] = 2
+        12 [string] = math
+        13 [string] = random
+        15 [number] = 1
+        16 [string] = max
+        18 [number] = 6
+        19 [string] = cos
+        21 [string] = sin
+        23 [string] = Vector3
+        24 [string] = new
+
+====================================================================================================
+
+Function Dump: rememberFireworkReward
+
+Function Upvalues: rememberFireworkReward
+        1 [table] (Recursive table detected)
+        2 [function] = releaseCurrencyHold
+        3 [table] (Recursive table detected)
+
+Function Constants: rememberFireworkReward
+        1 [string] = type
+        3 [string] = table
+        4 [string] = holds
+        5 [string] = LocalPlayer
+        6 [string] = Variables
+        7 [string] = CurrencyDisplayHold
+        8 [string] = ipairs
+        10 [string] = currency
+        11 [number] = 0
+        12 [string] = amount
+        13 [string] = tonumber
+        16 [string] = insert
+        18 [string] = task
+        19 [string] = delay
+        21 [string] = eggs
+        22 [string] = pets
+        23 [string] = uid
+        24 [string] = Signal
+        25 [string] = Fire
+        26 [string] = Hide Pets
+        27 [string] = Show Pets
+        28 [string] = Currency Display Refresh
+        29 [string] = pet
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = computePositions
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = performOpen
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = requestToOpen
+
+====================================================================================================
+
+Function Dump: autoControlPoint
+
+Function Upvalues: autoControlPoint
+
+Function Constants: autoControlPoint
+        1 [number] = 2
+        2 [string] = X
+        3 [string] = Y
+        4 [string] = math
+        5 [string] = max
+        7 [Vector3] = 1, 0, 1
+        8 [string] = Magnitude
+        9 [string] = Z
+        10 [string] = Vector3
+        11 [string] = new
+
+====================================================================================================
+
+Function Dump: sampleKeys
+
+Function Upvalues: sampleKeys
+
+Function Constants: sampleKeys
+        1 [number] = 1
+        2 [number] = 0.5
+        3 [number] = 2
+        4 [number] = 3.141592653589793
+        5 [string] = math
+        6 [string] = cos
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = X
+        2 [string] = Y
+        3 [string] = Z
+        4 [string] = Vector3
+        5 [string] = new
+        7 [string] = Position
+        8 [string] = Magnitude
+        9 [number] = 0.001
+        10 [string] = CFrame
+        11 [string] = lookAt
+
+====================================================================================================
+
+Function Dump: computePositions
+
+Function Upvalues: computePositions
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+        3 [number] = 10
+        4 [number] = 15
+        5 [number] = 5
+        6 [Vector2] = 10, 50
+        7 [number] = 1
+
+Function Constants: computePositions
+        1 [number] = 1
+        2 [string] = LocalPlayer
+        3 [string] = Character
+        4 [string] = PrimaryPart
+        5 [string] = Humanoid
+        6 [string] = FindFirstChildOfClass
+        7 [string] = GetPivot
+        8 [string] = Position
+        9 [string] = UpVector
+        10 [string] = HipHeight
+        11 [number] = 2
+        12 [string] = Size
+        13 [string] = Y
+        14 [string] = Vector3
+        15 [string] = new
+        17 [string] = WorldCmds
+        18 [string] = HasLoaded
+        19 [string] = GetMap
+        20 [string] = pairs
+        22 [string] = completed
+        23 [string] = position
+        24 [string] = table
+        25 [string] = insert
+        27 [string] = ipairs
+        29 [string] = RaycastParams
+        31 [string] = FilterDescendantsInstances
+        32 [string] = Enum
+        33 [string] = RaycastFilterType
+        34 [string] = Include
+        35 [EnumItem] = Enum.RaycastFilterType.Include
+        36 [string] = FilterType
+        37 [string] = IgnoreWater
+        38 [string] = RespectCanCollide
+        39 [number] = 360
+        40 [number] = 6
+
+====================================================================================================
+
+Function Dump: requestToOpen
+
+Function Upvalues: requestToOpen
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+
+Function Constants: requestToOpen
+        1 [string] = assert
+        3 [string] = computePositions
+        4 [string] = Not enough space, try a more open area!
+        5 [string] = Audio
+        6 [string] = Play
+        7 [string] = INVENTORY_OPEN
+        8 [string] = script
+        10 [string] = Network
+        11 [string] = Invoke
+        12 [string] = Exclusive Eggs: Open
+
+====================================================================================================
+
+Function Dump: fireworkFall
+
+Function Upvalues: fireworkFall
+        1 [table]:
+        1 [table] table: 0x4825de776cdbb9a2
+                1 [number] = 95
+                2 [number] = 1
+                3 [string] = SuperFirework-Trail
+                4 [number] = 16
+                5 [table]:
+                LandSounds [table] table: 0x3a31efa8ff2f2f54
+                        1 [number] = 6840608566
+                        2 [number] = 6840608533
+                        3 [number] = 6840608598
+                        4 [number] = 6840608504
+                6 [number] = 0.3
+                7 [number] = 0.5
+                8 [number] = 1.5
+                9 [number] = 2
+                10 [number] = 3
+        2 [table] (Recursive table detected)
+
+Function Constants: fireworkFall
+        1 [string] = GetPivot
+        2 [string] = bottom
+        3 [string] = Position
+        4 [string] = Y
+        5 [number] = 2
+        6 [string] = Size
+        7 [string] = typeof
+        9 [string] = Instance
+        10 [string] = Attachment
+        11 [string] = IsA
+        12 [string] = WorldPosition
+        13 [string] = BasePart
+        14 [string] = math
+        15 [string] = max
+        17 [string] = X
+        18 [string] = Z
+        19 [string] = Vector3
+        20 [string] = new
+        22 [number] = 3.141592653589793
+        23 [string] = random
+        25 [string] = cos
+        27 [string] = Scatter
+        28 [string] = sin
+        30 [number] = 0.1
+        31 [string] = Gravity
+        32 [string] = PopVelocity
+        33 [string] = sqrt
+        35 [string] = Rotation
+        36 [string] = Assets
+        37 [string] = Particles
+        38 [string] = Achievements
+        39 [string] = TrailName
+        40 [string] = FindFirstChild
+        41 [string] = Clone
+        42 [string] = Enabled
+        43 [string] = Parent
+        44 [string] = Functions
+        45 [string] = RenderStepped
+        46 [string] = Wait
+        47 [string] = CFrame
+        49 [string] = PivotTo
+        50 [string] = AddDebris
+        51 [string] = Lifetime
+        52 [string] = Max
+        53 [string] = LandSounds
+        54 [string] = Audio
+        55 [string] = Play
+        56 [number] = 100
+        57 [number] = 0.8
+        58 [string] = CreateParticleHost
+        59 [string] = Emit
+        61 [string] = script
+        63 [string] = Impact
+        64 [string] = WaitForChild
+        65 [string] = GetChildren
+        66 [string] = table
+        67 [string] = unpack
+        69 [string] = MaxBounces
+        70 [string] = Restitution
+        71 [string] = MinBounceVelocity
+
+====================================================================================================
+
+Function Dump: preloadAssets
+
+Function Upvalues: preloadAssets
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+
+Function Constants: preloadAssets
+        1 [string] = pairs
+        3 [string] = ipairs
+        5 [string] = table
+        6 [string] = insert
+        8 [string] = Functions
+        9 [string] = wcall
+
+====================================================================================================
+]]
+
+-- // Function Dumper made by King.Kevin
+-- // Script Path: game:GetService("Players").Emerson_GTA.PlayerScripts.Scripts.Game["Exclusive Eggs"]
+
+--[[
+Function Dump: performOpen
+
+Function Upvalues: performOpen
+        1 [table]:
+        1 [table] table: 0x35cb8d9316d060f5
+        2 [table]:
+        2 [table] table: 0x50bb5a638af40883
+        3 [table]:
+        3 [table] table: 0xa34db0f9b070cb89
+        4 [boolean] = false
+
+Function Constants: performOpen
+        1 [string] = FFlags
+        2 [string] = GetBoolean
+        3 [string] = FXExclusiveHatchAnimationEnabled
+        4 [string] = LocalPlayer
+        5 [string] = ipairs
+        7 [string] = uid
+        8 [string] = table
+        9 [string] = insert
+        11 [string] = Signal
+        12 [string] = Fire
+        13 [string] = Hide Pets
+        14 [string] = Directory
+        15 [string] = Pets
+        16 [string] = id
+        17 [string] = titanic
+        18 [string] = huge
+        19 [string] = player
+        20 [string] = origin
+        21 [string] = eggId
+        22 [string] = petData
+        23 [string] = position
+        24 [string] = chance
+        25 [string] = priority
+        26 [string] = partyIndex
+        27 [string] = partyCount
+        28 [string] = completed
+        29 [boolean] = false
+        31 [string] = type
+        33 [string] = tonumber
+        35 [string] = preloadAssets
+        36 [string] = Variables
+        37 [number] = 1
+        38 [number] = 0
+        39 [string] = ExclusiveEggsOpening
+        40 [string] = Exclusive Eggs Opening Changed
+        41 [string] = task
+        42 [string] = spawn
+
+====================================================================================================
+
+Function Dump: playFireworkEgg
+
+Function Upvalues: playFireworkEgg
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+        3 [table] (Recursive table detected)
+        4 [boolean] = false
+
+Function Constants: playFireworkEgg
+        1 [string] = ipairs
+        3 [string] = pets
+        4 [string] = Directory
+        5 [string] = Pets
+        6 [string] = id
+        7 [string] = player
+        8 [string] = origin
+        9 [string] = eggId
+        10 [string] = petData
+        11 [string] = position
+        12 [string] = chance
+        13 [string] = priority
+        14 [string] = partyIndex
+        15 [number] = 1
+        16 [string] = partyCount
+        17 [string] = completed
+        18 [boolean] = false
+        20 [string] = chances
+        21 [string] = tonumber
+        23 [string] = titanic
+        24 [string] = huge
+        25 [string] = Functions
+        26 [string] = wcall
+        27 [string] = LocalPlayer
+        28 [string] = Signal
+        29 [string] = Fire
+        30 [string] = Show Pets
+        31 [string] = uid
+        32 [string] = table
+        33 [string] = insert
+        35 [string] = task
+        36 [string] = spawn
+
+====================================================================================================
+
+Function Dump: performAnimation
+
+Function Upvalues: performAnimation
+        1 [table] (Recursive table detected)
+        2 [function] = sampleKeys
+        3 [function] = takeFireworkReward
+        4 [function] = playFireworkRewards
+        5 [Instance] = ExclusiveEggs
+        6 [table]:
+        6 [table] table: 0x26bbf77e290ce460
+                1 [table]:
+                EGG_SPAWN [table] table: 0xca7137c72fb1fbff
+                        1 [string] = rbxassetid://8049260816
+                        2 [string] = rbxassetid://8049260930
+                2 [table]:
+                INVENTORY_OPEN [table] table: 0x933351ef89bd0950
+                        1 [string] = rbxassetid://135129669197062
+                3 [table]:
+                PET_REMOVE [table] table: 0xc87c8efd4228d81f
+                        1 [string] = rbxassetid://8863194418
+                4 [table]:
+                EGG_LAND [table] table: 0x5430bd3e200263a4
+                        1 [string] = rbxassetid://122152719655926
+                5 [table]:
+                EGG_OPEN_RARE [table] table: 0x9dfa3667ea580012
+                        1 [string] = rbxassetid://115433322570302
+                6 [table]:
+                EGG_GROW_TITANIC [table] table: 0x3c9fa362f19a37c6
+                        1 [string] = rbxassetid://139868667096170
+                7 [table]:
+                EGG_GROW_HUGE [table] table: 0x1be888387062e7f5
+                        1 [string] = rbxassetid://81373431010533
+                8 [table]:
+                EGG_OPEN_HUGE [table] table: 0x5af08c79f22c88bb
+                        1 [string] = rbxassetid://123705052596597
+                9 [table]:
+                EGG_THROW [table] table: 0x46950cff2323f3f5
+                        1 [string] = rbxassetid://115222377712622
+                        2 [string] = rbxassetid://126167277280861
+                10 [table]:
+                EGG_SHAKE [table] table: 0xf1b704d2732c5894
+                        1 [string] = rbxassetid://100917503678518
+                11 [table]:
+                EGG_OPEN_TITANIC [table] table: 0x43fa212ef444f65f
+                        1 [string] = rbxassetid://113605064799782
+                12 [table]:
+                EGG_OPEN [table] table: 0xe2797d5aa954304b
+                        1 [string] = rbxassetid://113812046860375
+        7 [table]:
+        7 [table] table: 0xc739a9dba0144625
+                1 [table]:
+                1 [table] table: 0x4f9cfd116f7e6f6e
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0xc59359342a0aba93
+                        1 [number] = 0.14
+                        2 [number] = 0.58
+                        3 [number] = 1.28
+                3 [table]:
+                3 [table] table: 0x2db21a754e8383a3
+                        1 [number] = 0.42
+                        2 [number] = 1.16
+                        3 [number] = 0.9
+                4 [table]:
+                4 [table] table: 0xe3cc71ca6a2792b9
+                        1 [number] = 0.7
+                        2 [number] = 0.96
+                        3 [number] = 1.03
+                5 [table]:
+                5 [table] table: 0x8ba1383e4d5c4944
+                        1 [number] = 1
+                        2 [number] = 1
+                        3 [number] = 1
+        8 [table]:
+        8 [table] table: 0x690e213a5b308b60
+                1 [table]:
+                1 [table] table: 0x7ef31e2083b42cae
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0xa6a2e62596f263c6
+                        1 [number] = 0.15
+                        2 [number] = 0.78
+                        3 [number] = 1.14
+                3 [table]:
+                3 [table] table: 0x5d853de70e76f764
+                        1 [number] = 0.5
+                        2 [number] = 1.07
+                        3 [number] = 0.96
+                4 [table]:
+                4 [table] table: 0x0b2a52c8ccea3cdd
+                        1 [number] = 1
+                        2 [number] = 1
+                        3 [number] = 1
+        9 [table]:
+        9 [table] table: 0x2ad9b0ccf56d4e03
+                1 [table]:
+                1 [table] table: 0x968adb4979c7935d
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0x5647ee1facb8889b
+                        1 [number] = 0.3
+                        2 [number] = 0.9
+                        3 [number] = 1.05
+                3 [table]:
+                3 [table] table: 0x66c213d9b6460b5c
+                        1 [number] = 0.65
+                        2 [number] = 1.04
+                        3 [number] = 0.98
+                4 [table]:
+                4 [table] table: 0x6435644863eeecad
+                        1 [number] = 1
+                        2 [number] = 1
+                        3 [number] = 1
+        10 [table] (Recursive table detected)
+        11 [table]:
+        11 [table] table: 0x24289f2bb29b14ee
+                1 [EnumItem] = Enum.NormalId.Back
+                2 [EnumItem] = Enum.NormalId.Front
+                3 [EnumItem] = Enum.NormalId.Left
+                4 [EnumItem] = Enum.NormalId.Right
+                5 [EnumItem] = Enum.NormalId.Top
+                6 [EnumItem] = Enum.NormalId.Bottom
+        12 [table]:
+        12 [table] table: 0x4f3d7387f321c7f4
+                1 [table]:
+                1 [table] table: 0xfb6639349bdb6d17
+                        1 [number] = 0
+                        2 [number] = 1
+                        3 [number] = 1
+                2 [table]:
+                2 [table] table: 0x26a77ec1f305a38e
+                        1 [number] = 0.55
+                        2 [number] = 0.68
+                        3 [number] = 1.24
+                3 [table]:
+                3 [table] table: 0x73723d7dfd27f6d7
+                        1 [number] = 1
+                        2 [number] = 1.22
+                        3 [number] = 0.88
+        13 [table]:
+        13 [table] table: 0xfefb0616cfb11593
+                1 [function] = compute
+                2 [function] = remove
+                3 [function] = add
+
+Function Constants: performAnimation
+        1 [string] = player
+        2 [string] = origin
+        3 [string] = eggId
+        4 [string] = petData
+        5 [string] = position
+        6 [string] = Timing
+        7 [string] = Other
+        9 [string] = DelayPerEgg
+        10 [number] = 0.15
+        11 [string] = UpscaleDuration
+        12 [number] = 0.75
+        13 [string] = TrailLifetime
+        14 [number] = 0.35
+        15 [string] = MoveDuration
+        16 [string] = BounceDuration
+        17 [number] = 0.55
+        18 [string] = DramaticPauseDuration
+        19 [number] = 1
+        20 [string] = ImpactParticleLifetime
+        21 [number] = 0.5
+        22 [string] = ShakePreDuration
+        23 [number] = 1.75
+        24 [string] = ShakePostDuration
+        25 [string] = PauseDuration
+        26 [number] = 5
+        27 [string] = GrowScreenShakeDurationBuffer
+        28 [number] = 2
+        29 [string] = GrowHugeDuration
+        30 [number] = 4
+        31 [string] = GrowTitanicDuration
+        32 [number] = 8.5
+        33 [string] = GrowTitanicAuraDelay
+        34 [number] = 5.5
+        35 [string] = GrowTitanicAuraScreenShakeDuration
+        36 [string] = GrowTitanicAuraParticleLifetime
+        37 [string] = ExplodeParticleLifetime
+        38 [number] = 1.5
+        39 [string] = ExplodeTitanicParticleDuration
+        40 [number] = 7
+        41 [string] = ExplodeUpscaleDuration
+        42 [string] = SpawnPetDelay
+        43 [number] = 0.25
+        44 [string] = PetLookAtPlayerDuration
+        45 [number] = 2.5
+        46 [string] = PetLookAtPlayerDurationOther
+        47 [string] = PetFlyIntoPlayerDuration
+        48 [number] = 0.7
+        49 [string] = PetCameraMoveDuration
+        50 [string] = PetCameraIdleDuration
+        51 [string] = PetCameraFadeDuration
+        53 [string] = BounceHeight
+        54 [number] = 2.25
+        55 [string] = ShakePitchMagnitude
+        56 [number] = -30
+        57 [string] = ShakePitchA
+        58 [string] = ShakePitchB
+        59 [string] = ShakeRollMagnitude
+        60 [number] = 30
+        61 [string] = ShakeRollA
+        62 [string] = ShakeRollB
+        63 [string] = GrowHugeScale
+        64 [number] = 3
+        65 [string] = GrowHugeScreenShakeMagnitude
+        66 [number] = 0.2
+        67 [string] = GrowHugeShakeRate
+        68 [number] = 60
+        69 [string] = GrowHugeShakeMagnitude
+        70 [string] = GrowTitanicScale
+        71 [string] = GrowTitanicScreenShakeMagnitude
+        72 [number] = 0.4
+        73 [string] = GrowTitanicShakeRate
+        74 [string] = GrowTitanicShakeMagnitude
+        75 [number] = 10
+        76 [string] = GrowTitanicAuraScreenShakeMagnitude
+        77 [string] = GrowTitanicAuraScreenShakeSmoothness
+        78 [number] = 0.1
+        79 [string] = GrowScreenShakeSmoothness
+        80 [string] = GrowScreenShakeDistance
+        81 [number] = 400
+        82 [string] = ExplodeUpscaleSize
+        83 [string] = OpenRareChance
+        84 [string] = ExplodeTitanicShakeMagnitude
+        85 [string] = ExplodeTitanicShakeSmoothness
+        86 [string] = LuckyClickTimeout
+        87 [string] = AnnouncementNotificationDuration
+        88 [string] = PetLookAtPlayerFloatRate
+        89 [string] = PetLookAtPlayerFloatHeight
+        90 [string] = PetCameraDistance
+        91 [number] = 7.2
+        92 [string] = PetCameraTargetEMA
+        93 [string] = PetCameraTargetRate
+        94 [string] = PetCameraIdleNoUpdatesAfter
+        96 [string] = Directory
+        97 [string] = Pets
+        98 [string] = id
+        99 [string] = Eggs
+        100 [string] = Functions
+        101 [string] = Scaler
+        102 [string] = Transparency
+        103 [string] = isFirework
+        104 [string] = Signal
+        105 [string] = Invoke
+        106 [string] = New Years Firework Animation
+        107 [string] = petId
+        108 [string] = partyIndex
+        110 [string] = pcall
+        112 [string] = typeof
+        114 [string] = CFrame
+        115 [string] = new
+        117 [Vector3] = 0, 3, 0
+        118 [string] = uid
+        119 [string] = task
+        120 [string] = spawn
+        122 [string] = Position
+        123 [string] = Instance
+        125 [string] = Model
+        126 [string] = Target
+        127 [string] = SetAttribute
+        128 [string] = model
+        129 [string] = Clone
+        130 [string] = Anchored
+        131 [string] = Parent
+        132 [string] = PrimaryPart
+        133 [string] = fromOrientation
+        135 [number] = 6.283185307179586
+        136 [string] = math
+        137 [string] = random
+        139 [string] = PivotTo
+        140 [string] = Size
+        141 [string] = Y
+        142 [string] = Vector3
+        144 [string] = ipairs
+        146 [string] = GetDescendants
+        147 [string] = BasePart
+        148 [string] = IsA
+        149 [string] = CanCollide
+        150 [string] = CanQuery
+        151 [string] = CanTouch
+        152 [string] = CastShadow
+        153 [string] = Attachment
+        154 [string] = Bottom
+        155 [string] = Name
+        156 [string] = Top
+        157 [string] = script
+        159 [string] = Trail
+        160 [string] = Attachment0
+        161 [string] = Attachment1
+        162 [string] = Lifetime
+        163 [string] = ClickDetector
+        164 [number] = inf
+        165 [string] = MaxActivationDistance
+        166 [string] = rbxassetid://12429634668
+        167 [string] = CursorIcon
+        168 [string] = RaycastParams
+        170 [string] = FilterDescendantsInstances
+        171 [string] = Enum
+        172 [string] = RaycastFilterType
+        173 [string] = Include
+        174 [EnumItem] = Enum.RaycastFilterType.Include
+        175 [string] = FilterType
+        176 [string] = RespectCanCollide
+        177 [string] = IgnoreWater
+        178 [string] = MouseClick
+        179 [string] = Connect
+        180 [string] = wait
+        182 [string] = Audio
+        183 [string] = Play
+        184 [string] = EGG_SPAWN
+        185 [string] = RenderStepped
+        186 [string] = EGG_THROW
+        187 [number] = 0.05
+        188 [string] = Bezier
+        189 [string] = autoControlPoint
+        190 [string] = Wait
+        191 [string] = GetPivot
+        192 [string] = Rotation
+        193 [string] = EGG_LAND
+        194 [string] = CreateParticleHost
+        195 [string] = Emit
+        196 [string] = Impact
+        197 [string] = WaitForChild
+        198 [string] = GetChildren
+        199 [string] = table
+        200 [string] = unpack
+        202 [string] = AddDebris
+        203 [number] = 0.45
+        204 [number] = 0.42
+        205 [number] = 0.28
+        206 [Vector3] = 0, -0.5, 0
+        207 [number] = 1.1
+        208 [number] = 0.3
+        209 [string] = Destroy
+        210 [string] = Stop
+        211 [string] = titanic
+        212 [string] = huge
+        213 [string] = EGG_GROW_TITANIC
+        214 [number] = 3.25
+        215 [string] = EGG_GROW_HUGE
+        216 [string] = LocalPlayer
+        217 [string] = Player
+        218 [string] = Optional
+        219 [string] = Magnitude
+        220 [string] = Shake
+        221 [string] = Create
+        222 [string] = delay
+        224 [string] = Decal
+        225 [string] = rbxassetid://6381483576
+        226 [string] = Texture
+        227 [string] = _SELECTIONFX
+        228 [string] = Face
+        229 [string] = insert
+        231 [string] = Then
+        232 [Vector3] = 1, 0, 1
+        233 [number] = 0.22
+        234 [string] = EGG_OPEN_TITANIC
+        235 [string] = EGG_OPEN_HUGE
+        236 [string] = chance
+        237 [number] = 100
+        238 [string] = EGG_OPEN_RARE
+        239 [string] = EGG_OPEN
+        240 [string] = Explode
+        241 [string] = TitanicExplode
+        242 [string] = TitanicExplodeAOE
+        243 [string] = MeshPart
+        244 [string] = 
+        245 [string] = TextureID
+        246 [string] = Color3
+        248 [string] = Color
+        249 [string] = Material
+        250 [string] = SmoothPlastic
+        251 [EnumItem] = Enum.Material.SmoothPlastic
+        252 [string] = PetCmds
+        253 [string] = Spawn
+        254 [string] = createPetGui
+        255 [string] = part
+        256 [string] = scaler
+        257 [string] = Plastic
+        258 [EnumItem] = Enum.Material.Plastic
+        260 [string] = add
+        261 [string] = Shared
+        262 [string] = HatchMessage
+        263 [string] = ChatMsg
+        264 [string] = New
+        265 [string] = Fire
+        266 [string] = Notification
+        267 [string] = color
+        268 [string] = force
+        269 [boolean] = true
+        270 [string] = time
+        272 [string] = Destroying
+        273 [string] = Debris
+        274 [string] = wcall
+        275 [string] = Variables
+        276 [string] = OpeningEgg
+        277 [string] = Opening Egg
+        278 [string] = workspace
+        279 [Instance] = Workspace
+        280 [string] = CurrentCamera
+        281 [number] = 7.5
+        282 [number] = 4.5
+        283 [string] = UDim2
+        285 [string] = X
+        286 [string] = Scale
+        287 [string] = Offset
+        288 [string] = bottom
+        289 [string] = StudsOffset
+        290 [string] = AlwaysOnTop
+        291 [number] = 9.15
+        292 [number] = 2.7
+        293 [number] = 1.3
+        294 [string] = moving
+        295 [string] = Done Opening Egg
+        296 [string] = require
+        298 [string] = Random
+        299 [string] = R
+        300 [string] = PET_REMOVE
+        301 [string] = number
+        302 [number] = 0.95
+        303 [number] = 1.05
+        304 [string] = Disconnect
+        305 [string] = remove
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+        1 [function] = rememberFireworkReward
+
+Function Constants: Unknown Name
+        1 [string] = type
+        3 [string] = table
+        4 [string] = ipairs
+
+====================================================================================================
+
+Function Dump: playFireworkBillboard
+
+Function Upvalues: playFireworkBillboard
+        1 [table] (Recursive table detected)
+
+Function Constants: playFireworkBillboard
+        1 [string] = Directory
+        2 [string] = Currency
+        3 [string] = currency
+        4 [string] = Assets
+        5 [string] = Billboards
+        6 [string] = Reward
+        7 [string] = FindFirstChild
+        8 [string] = released
+        9 [string] = Variables
+        10 [string] = CurrencyDisplayHold
+        11 [number] = 0
+        12 [string] = amount
+        13 [string] = math
+        14 [string] = max
+        16 [string] = Signal
+        17 [string] = Fire
+        18 [string] = Currency Display Refresh
+        19 [string] = Functions
+        20 [string] = CreateParticleHost
+        21 [string] = Clone
+        22 [string] = +
+        23 [string] = NumberShorten
+        24 [string] = Text
+        25 [string] = icon
+        26 [string] = Image
+        27 [string] = shadow
+        28 [string] = Gradient
+        29 [string] = Parent
+        30 [string] = AlwaysOnTop
+        31 [string] = Size
+        32 [string] = UDim2
+        33 [string] = new
+        35 [string] = X
+        36 [string] = Scale
+        37 [string] = Offset
+        38 [string] = Y
+        39 [string] = workspace
+        40 [Instance] = Workspace
+        41 [string] = CurrentCamera
+        42 [string] = CFrame
+        43 [string] = RightVector
+        44 [Vector3] = 1, 0, 1
+        45 [string] = Magnitude
+        46 [number] = 0.001
+        47 [string] = Unit
+        48 [Vector3] = 1, 0, 0
+        49 [number] = 11
+        50 [Vector3] = 0, 5, 0
+        51 [string] = RenderStepped
+        52 [number] = 0.45
+        53 [string] = Wait
+        54 [number] = 1
+        55 [string] = Position
+        56 [number] = 0.65
+        57 [string] = Destroy
+
+====================================================================================================
+
+Function Dump: fireworkGroundAt
+
+Function Upvalues: fireworkGroundAt
+        1 [table] (Recursive table detected)
+
+Function Constants: fireworkGroundAt
+        1 [string] = WorldCmds
+        2 [string] = GetMap
+        3 [string] = RaycastParams
+        4 [string] = new
+        6 [string] = FilterDescendantsInstances
+        7 [string] = Enum
+        8 [string] = RaycastFilterType
+        9 [string] = Include
+        10 [EnumItem] = Enum.RaycastFilterType.Include
+        11 [string] = FilterType
+        12 [string] = RespectCanCollide
+        13 [string] = workspace
+        14 [Instance] = Workspace
+        15 [Vector3] = 0, 20, 0
+        16 [Vector3] = 0, -60, 0
+        17 [string] = Raycast
+        18 [string] = Position
+
+====================================================================================================
+
+Function Dump: takeFireworkReward
+
+Function Upvalues: takeFireworkReward
+        1 [table]:
+        1 [table] table: 0x3d1617a8b09e70c9
+
+Function Constants: takeFireworkReward
+        1 [string] = tostring
+        3 [number] = 3
+        4 [string] = os
+        5 [string] = clock
+        7 [string] = task
+        8 [string] = wait
+        10 [number] = 0.1
+
+====================================================================================================
+
+Function Dump: releaseCurrencyHold
+
+Function Upvalues: releaseCurrencyHold
+        1 [table] (Recursive table detected)
+
+Function Constants: releaseCurrencyHold
+        1 [string] = released
+        2 [string] = Variables
+        3 [string] = CurrencyDisplayHold
+        4 [string] = currency
+        5 [number] = 0
+        6 [string] = amount
+        7 [string] = math
+        8 [string] = max
+        10 [string] = Signal
+        11 [string] = Fire
+        12 [string] = Currency Display Refresh
+
+====================================================================================================
+
+Function Dump: createPetGui
+
+Function Upvalues: createPetGui
+        1 [table] (Recursive table detected)
+
+Function Constants: createPetGui
+        1 [string] = Directory
+        2 [string] = Pets
+        3 [string] = id
+        4 [string] = name
+        5 [string] = dm
+        6 [string] = Dark Matter 
+        7 [string] = r
+        8 [string] = Rainbow 
+        9 [string] = g
+        10 [string] = Golden 
+        11 [string] = sh
+        12 [string] = Shiny 
+        13 [string] = Assets
+        14 [string] = Billboards
+        15 [string] = ExclusivePet
+        16 [string] = Clone
+        17 [string] = __BILLBOARD
+        18 [string] = Name
+        19 [number] = 0.5
+        20 [number] = 2
+        21 [string] = center
+        22 [string] = Position
+        23 [string] = bottom
+        24 [string] = Y
+        25 [string] = Vector3
+        26 [string] = new
+        28 [string] = StudsOffset
+        29 [string] = PetName
+        30 [string] = Text
+        31 [string] = PetIcon
+        32 [string] = darkMatterThumbnail
+        33 [string] = goldenThumbnail
+        34 [string] = thumbnail
+        35 [string] = Image
+        36 [string] = Rarity
+        37 [string] = rarity
+        38 [string] = Shared
+        39 [string] = ApplyRarityColor
+        40 [string] = GUIFX
+        41 [string] = Rainbow
+        42 [string] = TextColor3
+        43 [string] = ImageColor3
+        44 [string] = part
+        45 [string] = Parent
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = NumberRange
+        2 [string] = new
+        4 [string] = Lifetime
+        5 [string] = Min
+        6 [string] = ImpactParticleLifetime
+        7 [string] = Max
+
+====================================================================================================
+
+Function Dump: playFireworkRewards
+
+Function Upvalues: playFireworkRewards
+        1 [table] (Recursive table detected)
+        2 [function] = playFireworkBillboard
+        3 [function] = fireworkGroundAt
+        4 [function] = playFireworkEgg
+
+Function Constants: playFireworkRewards
+        1 [string] = ipairs
+        3 [string] = currency
+        4 [string] = task
+        5 [string] = spawn
+        7 [string] = Functions
+        8 [string] = wcall
+        9 [string] = eggs
+        10 [number] = 3.141592653589793
+        11 [number] = 2
+        12 [string] = math
+        13 [string] = random
+        15 [number] = 1
+        16 [string] = max
+        18 [number] = 6
+        19 [string] = cos
+        21 [string] = sin
+        23 [string] = Vector3
+        24 [string] = new
+
+====================================================================================================
+
+Function Dump: rememberFireworkReward
+
+Function Upvalues: rememberFireworkReward
+        1 [table] (Recursive table detected)
+        2 [function] = releaseCurrencyHold
+        3 [table] (Recursive table detected)
+
+Function Constants: rememberFireworkReward
+        1 [string] = type
+        3 [string] = table
+        4 [string] = holds
+        5 [string] = LocalPlayer
+        6 [string] = Variables
+        7 [string] = CurrencyDisplayHold
+        8 [string] = ipairs
+        10 [string] = currency
+        11 [number] = 0
+        12 [string] = amount
+        13 [string] = tonumber
+        16 [string] = insert
+        18 [string] = task
+        19 [string] = delay
+        21 [string] = eggs
+        22 [string] = pets
+        23 [string] = uid
+        24 [string] = Signal
+        25 [string] = Fire
+        26 [string] = Hide Pets
+        27 [string] = Show Pets
+        28 [string] = Currency Display Refresh
+        29 [string] = pet
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = computePositions
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = performOpen
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = requestToOpen
+
+====================================================================================================
+
+Function Dump: autoControlPoint
+
+Function Upvalues: autoControlPoint
+
+Function Constants: autoControlPoint
+        1 [number] = 2
+        2 [string] = X
+        3 [string] = Y
+        4 [string] = math
+        5 [string] = max
+        7 [Vector3] = 1, 0, 1
+        8 [string] = Magnitude
+        9 [string] = Z
+        10 [string] = Vector3
+        11 [string] = new
+
+====================================================================================================
+
+Function Dump: sampleKeys
+
+Function Upvalues: sampleKeys
+
+Function Constants: sampleKeys
+        1 [number] = 1
+        2 [number] = 0.5
+        3 [number] = 2
+        4 [number] = 3.141592653589793
+        5 [string] = math
+        6 [string] = cos
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+        1 [string] = X
+        2 [string] = Y
+        3 [string] = Z
+        4 [string] = Vector3
+        5 [string] = new
+        7 [string] = Position
+        8 [string] = Magnitude
+        9 [number] = 0.001
+        10 [string] = CFrame
+        11 [string] = lookAt
+
+====================================================================================================
+
+Function Dump: computePositions
+
+Function Upvalues: computePositions
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+        3 [number] = 10
+        4 [number] = 15
+        5 [number] = 5
+        6 [Vector2] = 10, 50
+        7 [number] = 1
+
+Function Constants: computePositions
+        1 [number] = 1
+        2 [string] = LocalPlayer
+        3 [string] = Character
+        4 [string] = PrimaryPart
+        5 [string] = Humanoid
+        6 [string] = FindFirstChildOfClass
+        7 [string] = GetPivot
+        8 [string] = Position
+        9 [string] = UpVector
+        10 [string] = HipHeight
+        11 [number] = 2
+        12 [string] = Size
+        13 [string] = Y
+        14 [string] = Vector3
+        15 [string] = new
+        17 [string] = WorldCmds
+        18 [string] = HasLoaded
+        19 [string] = GetMap
+        20 [string] = pairs
+        22 [string] = completed
+        23 [string] = position
+        24 [string] = table
+        25 [string] = insert
+        27 [string] = ipairs
+        29 [string] = RaycastParams
+        31 [string] = FilterDescendantsInstances
+        32 [string] = Enum
+        33 [string] = RaycastFilterType
+        34 [string] = Include
+        35 [EnumItem] = Enum.RaycastFilterType.Include
+        36 [string] = FilterType
+        37 [string] = IgnoreWater
+        38 [string] = RespectCanCollide
+        39 [number] = 360
+        40 [number] = 6
+
+====================================================================================================
+
+Function Dump: requestToOpen
+
+Function Upvalues: requestToOpen
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+
+Function Constants: requestToOpen
+        1 [string] = assert
+        3 [string] = computePositions
+        4 [string] = Not enough space, try a more open area!
+        5 [string] = Audio
+        6 [string] = Play
+        7 [string] = INVENTORY_OPEN
+        8 [string] = script
+        10 [string] = Network
+        11 [string] = Invoke
+        12 [string] = Exclusive Eggs: Open
+
+====================================================================================================
+
+Function Dump: fireworkFall
+
+Function Upvalues: fireworkFall
+        1 [table]:
+        1 [table] table: 0x4825de776cdbb9a2
+                1 [number] = 95
+                2 [number] = 1
+                3 [string] = SuperFirework-Trail
+                4 [number] = 16
+                5 [table]:
+                LandSounds [table] table: 0x3a31efa8ff2f2f54
+                        1 [number] = 6840608566
+                        2 [number] = 6840608533
+                        3 [number] = 6840608598
+                        4 [number] = 6840608504
+                6 [number] = 0.3
+                7 [number] = 0.5
+                8 [number] = 1.5
+                9 [number] = 2
+                10 [number] = 3
+        2 [table] (Recursive table detected)
+
+Function Constants: fireworkFall
+        1 [string] = GetPivot
+        2 [string] = bottom
+        3 [string] = Position
+        4 [string] = Y
+        5 [number] = 2
+        6 [string] = Size
+        7 [string] = typeof
+        9 [string] = Instance
+        10 [string] = Attachment
+        11 [string] = IsA
+        12 [string] = WorldPosition
+        13 [string] = BasePart
+        14 [string] = math
+        15 [string] = max
+        17 [string] = X
+        18 [string] = Z
+        19 [string] = Vector3
+        20 [string] = new
+        22 [number] = 3.141592653589793
+        23 [string] = random
+        25 [string] = cos
+        27 [string] = Scatter
+        28 [string] = sin
+        30 [number] = 0.1
+        31 [string] = Gravity
+        32 [string] = PopVelocity
+        33 [string] = sqrt
+        35 [string] = Rotation
+        36 [string] = Assets
+        37 [string] = Particles
+        38 [string] = Achievements
+        39 [string] = TrailName
+        40 [string] = FindFirstChild
+        41 [string] = Clone
+        42 [string] = Enabled
+        43 [string] = Parent
+        44 [string] = Functions
+        45 [string] = RenderStepped
+        46 [string] = Wait
+        47 [string] = CFrame
+        49 [string] = PivotTo
+        50 [string] = AddDebris
+        51 [string] = Lifetime
+        52 [string] = Max
+        53 [string] = LandSounds
+        54 [string] = Audio
+        55 [string] = Play
+        56 [number] = 100
+        57 [number] = 0.8
+        58 [string] = CreateParticleHost
+        59 [string] = Emit
+        61 [string] = script
+        63 [string] = Impact
+        64 [string] = WaitForChild
+        65 [string] = GetChildren
+        66 [string] = table
+        67 [string] = unpack
+        69 [string] = MaxBounces
+        70 [string] = Restitution
+        71 [string] = MinBounceVelocity
+
+====================================================================================================
+
+Function Dump: preloadAssets
+
+Function Upvalues: preloadAssets
+        1 [table] (Recursive table detected)
+        2 [table] (Recursive table detected)
+
+Function Constants: preloadAssets
+        1 [string] = pairs
+        3 [string] = ipairs
+        5 [string] = table
+        6 [string] = insert
+        8 [string] = Functions
+        9 [string] = wcall
+
+====================================================================================================
+]]
