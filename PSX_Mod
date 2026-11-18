@@ -4165,48 +4165,30 @@ Exp_Tab:CreateButton({
 
 -- Massive Diamonds (pack / stock com Coins)
 AutoBuyMassiveDiamonds = false
-MassiveDiamondStock = 75
-Exp_Tab:CreateInput({
-    name = "Massive Diamonds qty (stock)",
-    value = "75",
-    placeholder = "75",
-    flag = "MassiveQty",
-    callback = function(Text)
-        MassiveDiamondStock = tonumber(Text) or 75
-    end,
-})
 Exp_Tab:CreateToggle({
-    name = "Auto Buy Massive Diamonds (Coins)",
+    name = "Auto Buy Massive Diamonds (loop 0.5s)",
     value = false,
     flag = "AutoBuyMassiveDiamonds",
     callback = function(Value)
         AutoBuyMassiveDiamonds = Value
         if not AutoBuyMassiveDiamonds then return end
         task.spawn(function()
-            local bought = 0
-            while AutoBuyMassiveDiamonds and bought < MassiveDiamondStock do
-                local ok = false
+            while AutoBuyMassiveDiamonds do
                 -- tentativas comuns (Coins / loja)
-                ok = pcall(function()
+                pcall(function()
                     Network.Invoke("Purchase Currency", "Massive Diamonds")
-                end) or ok
-                ok = pcall(function()
+                end)
+                pcall(function()
                     Network.Invoke("Buy Currency Pack", "Massive Diamonds")
-                end) or ok
-                ok = pcall(function()
+                end)
+                pcall(function()
                     Network.Invoke("Exclusive Shop: Purchase Diamonds", "Massive Diamonds")
-                end) or ok
-                ok = pcall(function()
+                end)
+                pcall(function()
                     Network.Invoke("Buy Diamonds", "Massive Diamonds")
-                end) or ok
-                -- product id conhecido do dump do user: 3728031900 (Robux) - so como fallback
-                ok = pcall(function()
-                    Network.Invoke("Purchase Currency", "3728031900")
-                end) or ok
-                bought = bought + 1
-                task.wait(0.4)
+                end)
+                task.wait(0.5)
             end
-            AutoBuyMassiveDiamonds = false
         end)
     end,
 })
