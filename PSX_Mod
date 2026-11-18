@@ -4165,30 +4165,25 @@ Exp_Tab:CreateButton({
 
 -- Massive Diamonds (pack / stock com Coins)
 AutoBuyMassiveDiamonds = false
+AutoBuyMassiveLoopRunning = false
 Exp_Tab:CreateToggle({
     name = "Auto Buy Massive Diamonds (loop 0.5s)",
     value = false,
     flag = "AutoBuyMassiveDiamonds",
     callback = function(Value)
         AutoBuyMassiveDiamonds = Value
-        if not AutoBuyMassiveDiamonds then return end
+        if not AutoBuyMassiveDiamonds or AutoBuyMassiveLoopRunning then return end
+        AutoBuyMassiveLoopRunning = true
         task.spawn(function()
             while AutoBuyMassiveDiamonds do
-                -- tentativas comuns (Coins / loja)
+                -- Fluxo F2P confirmado no dump da loja. Os outros nomes
+                -- genericos podiam prender a coroutine e impedir o segundo ciclo.
                 pcall(function()
                     Network.Invoke("Purchase Currency", "Massive Diamonds")
                 end)
-                pcall(function()
-                    Network.Invoke("Buy Currency Pack", "Massive Diamonds")
-                end)
-                pcall(function()
-                    Network.Invoke("Exclusive Shop: Purchase Diamonds", "Massive Diamonds")
-                end)
-                pcall(function()
-                    Network.Invoke("Buy Diamonds", "Massive Diamonds")
-                end)
                 task.wait(0.5)
             end
+            AutoBuyMassiveLoopRunning = false
         end)
     end,
 })
