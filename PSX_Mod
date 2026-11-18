@@ -412,7 +412,7 @@ local RemoveMap = false
 local Rendering_Mode = false
 local ParticleStates = {}
 local MapTransparencyStates = {}
-local AntiAFKConnection = nil
+AntiAFKConnection = nil
 
 -- Priority / Sniper targets (dump + eventos)
 local priorityList = {
@@ -893,7 +893,7 @@ local function isPetShiny(pet)
     return pet.s == true or pet.shiny == true or pet.Shiny == true or pet.sh == true
 end
 
-local function getPetCraftVariant(pet)
+function getPetCraftVariant(pet)
     if not pet then return nil end
     local base
     -- A ordem é importante: Dark Matter também pode carregar flags antigas
@@ -2115,9 +2115,9 @@ AutoDelete_Tab:CreateToggle({
     end,
 })
 
-local AutoDeleteByCraft = false
-local SelectedDeleteCrafts = {}
-local DeleteCraftOptions = {
+AutoDeleteByCraft = false
+SelectedDeleteCrafts = {}
+DeleteCraftOptions = {
     "Normal", "Normal Shiny",
     "Golden", "Golden Shiny",
     "Rainbow", "Rainbow Shiny",
@@ -4022,7 +4022,7 @@ Exp_Tab:CreateSection({ name = "Remotes / Util" })
 -- Enchant (dump oficial)
 
 -- Daycare claim all
-local AutoDaycareClaim = false
+AutoDaycareClaim = false
 Exp_Tab:CreateToggle({
     name = "Auto Daycare Claim All",
     value = false,
@@ -4043,8 +4043,8 @@ Exp_Tab:CreateToggle({
 })
 
 -- Server boosts: detecta a lista real da build (nao depende de quantidade fixa).
-local AutoServerBoosts = false
-local function getServerBoostNames()
+AutoServerBoosts = false
+function getServerBoostNames()
     local names, seen = {}, {}
     local function add(v)
         if type(v) ~= "string" or v == "" or seen[v] then return end
@@ -4068,7 +4068,7 @@ local function getServerBoostNames()
     return names
 end
 
-local function activeBoostSet(active)
+function activeBoostSet(active)
     local set = {}
     if type(active) ~= "table" then return set end
     for k, v in pairs(active) do
@@ -4082,7 +4082,7 @@ local function activeBoostSet(active)
     return set
 end
 
-local function activateMissingServerBoosts()
+function activateMissingServerBoosts()
     local names = getServerBoostNames()
     local active = {}
     pcall(function()
@@ -4164,8 +4164,8 @@ Exp_Tab:CreateButton({
 })
 
 -- Massive Diamonds (pack / stock com Coins)
-local AutoBuyMassiveDiamonds = false
-local MassiveDiamondStock = 75
+AutoBuyMassiveDiamonds = false
+MassiveDiamondStock = 75
 Exp_Tab:CreateInput({
     name = "Massive Diamonds qty (stock)",
     value = "75",
@@ -4211,7 +4211,7 @@ Exp_Tab:CreateToggle({
     end,
 })
 
-local AntiAFK = true
+AntiAFK = true
 Exp_Tab:CreateToggle({
     name = "Anti AFK",
     value = true,
@@ -4254,7 +4254,7 @@ Exp_Tab:CreateToggle({
     end,
 })
 
-local function applyBreakablesVisualState(hidden)
+function applyBreakablesVisualState(hidden)
     pcall(function()
         local things = Workspace:FindFirstChild("__THINGS")
         local coins = things and things:FindFirstChild("Coins")
@@ -4269,7 +4269,7 @@ local function applyBreakablesVisualState(hidden)
     end)
 end
 
-local function applyParticleState(disabled)
+function applyParticleState(disabled)
     pcall(function()
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
@@ -4280,7 +4280,7 @@ local function applyParticleState(disabled)
     end)
 end
 
-local function applyMapState(hidden)
+function applyMapState(hidden)
     pcall(function()
         local map = Workspace:FindFirstChild("__MAP")
         if not map then return end
