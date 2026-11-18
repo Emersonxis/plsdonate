@@ -893,6 +893,26 @@ local function isPetShiny(pet)
     return pet.s == true or pet.shiny == true or pet.Shiny == true or pet.sh == true
 end
 
+local function getPetCraftVariant(pet)
+    if not pet then return nil end
+    local base
+    -- A ordem é importante: Dark Matter também pode carregar flags antigas
+    -- de variantes, então ele deve ser identificado antes de Rainbow/Golden.
+    if pet.dm == true or pet.darkMatter == true or pet.DarkMatter == true then
+        base = "Dark Matter"
+    elseif pet.r == true or pet.rainbow == true or pet.Rainbow == true then
+        base = "Rainbow"
+    elseif pet.g == true or pet.golden == true or pet.Golden == true then
+        base = "Golden"
+    else
+        base = "Normal"
+    end
+    if isPetShiny(pet) then
+        return base .. " Shiny"
+    end
+    return base
+end
+
 local function getEquippedPets()
     local list, seen = {}, {}
     local function add(uid)
@@ -2089,6 +2109,65 @@ AutoDelete_Tab:CreateToggle({
                 end
                 if #toDelete > 0 then
                     pcall(function() Network.Invoke("Delete Several Pets", toDelete) end)
+                end
+            end
+        end)
+    end,
+})
+
+local AutoDeleteByCraft = false
+local SelectedDeleteCrafts = {}
+local DeleteCraftOptions = {
+    "Normal", "Normal Shiny",
+    "Golden", "Golden Shiny",
+    "Rainbow", "Rainbow Shiny",
+    "Dark Matter", "Dark Matter Shiny",
+}
+
+AutoDelete_Tab:CreateSection({ name = "Excluir por Craft / Variante" })
+AutoDelete_Tab:CreateDropdown({
+    name = "Crafts para excluir (variante exata)",
+    options = DeleteCraftOptions,
+    value = {},
+    multiSelect = true,
+    flag = "AutoDeleteCrafts",
+    callback = function(Options)
+        SelectedDeleteCrafts = listDropdown(Options)
+    end,
+})
+
+AutoDelete_Tab:CreateToggle({
+    name = "Auto Delete por Craft",
+    value = false,
+    flag = "AutoDeleteByCraft",
+    callback = function(Value)
+        AutoDeleteByCraft = Value
+        if not AutoDeleteByCraft then return end
+        task.spawn(function()
+            while AutoDeleteByCraft do
+                task.wait(0.35)
+                refreshData()
+                local wanted = {}
+                for _, craftName in ipairs(SelectedDeleteCrafts or {}) do
+                    wanted[string.lower(tostring(craftName))] = true
+                end
+                if next(wanted) then
+                    local toDelete = {}
+                    for _, petData in pairs((Data and Data.Pets) or {}) do
+                        -- A comparação é exata. Ex.: Dark Matter não casa com
+                        -- Dark Matter Shiny, e Golden não casa com Golden Shiny.
+                        if petData and petData.uid
+                            and not isBlacklisted(petData.uid)
+                            and not isPetLocked(petData) then
+                            local craft = getPetCraftVariant(petData)
+                            if craft and wanted[string.lower(craft)] then
+                                table.insert(toDelete, petData.uid)
+                            end
+                        end
+                    end
+                    if #toDelete > 0 then
+                        pcall(function() Network.Invoke("Delete Several Pets", toDelete) end)
+                    end
                 end
             end
         end)
