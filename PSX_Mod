@@ -1998,6 +1998,11 @@ SelectedDeletePetNames = {}
 DeletePetNameSet = {}
 DeletePetNameOptions = {}
 ExclusivePetIdToName = {}
+AutoDeleteByEnchant = false
+SelectedEnchantDeletePet = ""
+SelectedEnchantDeleteTitle = ""
+EnchantDeletePetOptions = {}
+EnchantDeleteTitleOptions = {}
 
 local function collectExclusivePetNames(node, hint, depth)
     if type(node) ~= "table" or (depth or 0) > 7 then return end
@@ -2062,6 +2067,133 @@ AutoDelete_Tab:CreateDropdown({
         end,
     })
 end)
+
+-- Filtro independente: exclui somente o pet escolhido quando ele NAO possui
+-- exatamente o enchant selecionado. Nao compartilha estado com os outros
+-- dropdowns de Auto Delete ou da aba Enchant.
+function buildEnchantDeleteTitles()
+    local titles, seen = {}, {}
+    pcall(function()
+        for _, power in pairs(Library.Directory and Library.Directory.Powers or {}) do
+            if type(power) == "table" and type(power.tiers) == "table" then
+                for _, tier in ipairs(power.tiers) do
+                    local title = tier and (tier.title or tier.Title)
+                    if title and not seen[tostring(title)] then
+                        seen[tostring(title)] = true
+                        table.insert(titles, tostring(title))
+                    end
+                end
+            end
+        end
+    end)
+    if #titles == 0 then
+        titles = {"Cartoon Coins I", "Cartoon Coins II", "Cartoon Coins III", "Cartoon Coins IV", "Cartoon Coins V"}
+    end
+    table.sort(titles, function(a, b) return a:lower() < b:lower() end)
+    EnchantDeleteTitleOptions = titles
+    return titles
+end
+
+function autoDeleteEnchantTitleMatches(pet, desiredTitle)
+    if not pet or not desiredTitle or tostring(desiredTitle) == "" then return false end
+    local powers = pet.powers or pet.Powers or pet.enchants or pet.Enchants
+    if type(powers) ~= "table" then return false end
+    local wanted = tostring(desiredTitle):lower()
+    for _, power in pairs(powers) do
+        local title
+        pcall(function()
+            local powerId = power[1] or power.id or power.Id or power.power or power.Power
+            local tierId = power[2] or power.tier or power.Tier or power.level or power.Level
+            local directoryPowers = Library.Directory and Library.Directory.Powers
+            local definition = directoryPowers and (directoryPowers[powerId] or directoryPowers[tostring(powerId)])
+            if definition and definition.tiers then
+                local tier = definition.tiers[tonumber(tierId) or tierId]
+                title = tier and (tier.title or tier.Title)
+            end
+            title = title or power.title or power.Title or power.name or power.Name
+        end)
+        if title and tostring(title):lower() == wanted then return true end
+    end
+    return false
+end
+
+function autoDeleteEnchantPetNameMatches(pet)
+    if not pet or not SelectedEnchantDeletePet or SelectedEnchantDeletePet == "" then return false end
+    local selected = tostring(SelectedEnchantDeletePet):lower()
+    local candidates = {
+        petDisplayName(pet.id),
+        pet.name or pet.Name,
+        pet.displayName or pet.DisplayName,
+        ExclusivePetIdToName[tostring(pet.id)],
+    }
+    for _, candidate in ipairs(candidates) do
+        if candidate and tostring(candidate):lower() == selected then return true end
+    end
+    return false
+end
+
+AutoDelete_Tab:CreateSection({ name = "Experimental: excluir pet sem enchant exato" })
+AutoDelete_Tab:CreateDropdown({
+    name = "Pet alvo (somente este pet)",
+    options = buildDeletePetNameOptions(),
+    value = {},
+    multiSelect = false,
+    flag = "AutoDeleteEnchantPet",
+    callback = function(Option)
+        SelectedEnchantDeletePet = pickDropdown(Option) or ""
+    end,
+})
+AutoDelete_Tab:CreateDropdown({
+    name = "Enchant permitido (exato)",
+    options = buildEnchantDeleteTitles(),
+    value = {},
+    multiSelect = false,
+    flag = "AutoDeleteEnchantTitle",
+    callback = function(Option)
+        SelectedEnchantDeleteTitle = pickDropdown(Option) or ""
+    end,
+})
+AutoDelete_Tab:CreateInput({
+    name = "Enchant permitido manual (opcional)",
+    value = "",
+    placeholder = "Ex: Cartoon Coins V",
+    flag = "AutoDeleteEnchantManual",
+    callback = function(Text)
+        if Text and tostring(Text) ~= "" then
+            SelectedEnchantDeleteTitle = tostring(Text)
+        end
+    end,
+})
+AutoDelete_Tab:CreateToggle({
+    name = "Auto Delete: pet sem enchant exato",
+    value = false,
+    flag = "AutoDeleteByEnchant",
+    callback = function(Value)
+        AutoDeleteByEnchant = Value
+        if not AutoDeleteByEnchant then return end
+        task.spawn(function()
+            while AutoDeleteByEnchant do
+                task.wait(0.35)
+                refreshData()
+                if SelectedEnchantDeletePet ~= "" and SelectedEnchantDeleteTitle ~= "" then
+                    local toDelete = {}
+                    for _, petData in pairs((Data and Data.Pets) or {}) do
+                        if petData and petData.uid
+                            and autoDeleteEnchantPetNameMatches(petData)
+                            and not autoDeleteEnchantTitleMatches(petData, SelectedEnchantDeleteTitle)
+                            and not isBlacklisted(petData.uid)
+                            and not isPetLocked(petData) then
+                            table.insert(toDelete, petData.uid)
+                        end
+                    end
+                    if #toDelete > 0 then
+                        pcall(function() Network.Invoke("Delete Several Pets", toDelete) end)
+                    end
+                end
+            end
+        end)
+    end,
+})
 
 AutoDelete_Tab:CreateSection({ name = "Ativar exclusao" })
 AutoDelete_Tab:CreateToggle({
