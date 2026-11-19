@@ -414,6 +414,10 @@ local RemoveMap = false
 local Rendering_Mode = false
 local ParticleStates = {}
 local MapTransparencyStates = {}
+RemoveCoinExplosionFX = false
+CoinExplodeBackup = nil
+CoinExplodeParent = nil
+CoinParticleConnection = nil
 AntiAFKConnection = nil
 
 -- Priority / Sniper targets (dump + eventos)
@@ -4332,6 +4336,64 @@ Exp_Tab:CreateToggle({
         end)
     end,
 })
+
+Exp_Tab:CreateToggle({
+    name = "Remove Coin Explosion + Debris FX",
+    value = false,
+    flag = "RemoveCoinExplosionFX",
+    callback = function(Value)
+        task.defer(function()
+            applyCoinExplosionFXState(Value)
+        end)
+    end,
+})
+
+function applyCoinExplosionFXState(disabled)
+    RemoveCoinExplosionFX = disabled == true
+
+    pcall(function()
+        local particles = Library and Library.Assets and Library.Assets.Particles
+        local asset = particles and particles:FindFirstChild("Coin Explode")
+
+        if RemoveCoinExplosionFX then
+            if asset and not CoinExplodeBackup then
+                CoinExplodeBackup = asset:Clone()
+                CoinExplodeParent = asset.Parent
+                asset:Destroy()
+                local empty = Instance.new("Folder")
+                empty.Name = "Coin Explode"
+                empty.Parent = CoinExplodeParent
+            end
+        elseif CoinExplodeBackup and CoinExplodeParent then
+            local current = CoinExplodeParent:FindFirstChild("Coin Explode")
+            if current then current:Destroy() end
+            CoinExplodeBackup:Clone().Parent = CoinExplodeParent
+        end
+    end)
+
+    pcall(function()
+        if CoinParticleConnection then
+            CoinParticleConnection:Disconnect()
+            CoinParticleConnection = nil
+        end
+
+        if not RemoveCoinExplosionFX then return end
+
+        local function removeCoinParticle(obj)
+            if obj and obj.Name == "Coin Particle" then
+                pcall(function() obj:Destroy() end)
+            end
+        end
+
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            removeCoinParticle(obj)
+        end
+
+        CoinParticleConnection = Workspace.DescendantAdded:Connect(function(obj)
+            if RemoveCoinExplosionFX then removeCoinParticle(obj) end
+        end)
+    end)
+end
 
 function applyBreakablesVisualState(hidden)
     pcall(function()
