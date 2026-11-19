@@ -2001,8 +2001,15 @@ ExclusivePetIdToName = {}
 AutoDeleteByEnchant = false
 SelectedEnchantDeletePet = ""
 SelectedEnchantDeleteTitle = ""
+SelectedEnchantDeleteCraft = ""
 EnchantDeletePetOptions = {}
 EnchantDeleteTitleOptions = {}
+EnchantDeleteCraftOptions = {
+    "Normal", "Normal Shiny",
+    "Golden", "Golden Shiny",
+    "Rainbow", "Rainbow Shiny",
+    "Dark Matter", "Dark Matter Shiny",
+}
 
 local function collectExclusivePetNames(node, hint, depth)
     if type(node) ~= "table" or (depth or 0) > 7 then return end
@@ -2132,6 +2139,11 @@ function autoDeleteEnchantPetNameMatches(pet)
     return false
 end
 
+function autoDeleteEnchantCraftMatches(pet)
+    if not pet or not SelectedEnchantDeleteCraft or SelectedEnchantDeleteCraft == "" then return false end
+    return tostring(getPetCraftVariant(pet) or ""):lower() == tostring(SelectedEnchantDeleteCraft):lower()
+end
+
 AutoDelete_Tab:CreateSection({ name = "Experimental: excluir pet sem enchant exato" })
 AutoDelete_Tab:CreateDropdown({
     name = "Pet alvo (somente este pet)",
@@ -2151,6 +2163,16 @@ AutoDelete_Tab:CreateDropdown({
     flag = "AutoDeleteEnchantTitle",
     callback = function(Option)
         SelectedEnchantDeleteTitle = pickDropdown(Option) or ""
+    end,
+})
+AutoDelete_Tab:CreateDropdown({
+    name = "Variação de craft (exata)",
+    options = EnchantDeleteCraftOptions,
+    value = {},
+    multiSelect = false,
+    flag = "AutoDeleteEnchantCraft",
+    callback = function(Option)
+        SelectedEnchantDeleteCraft = pickDropdown(Option) or ""
     end,
 })
 AutoDelete_Tab:CreateInput({
@@ -2175,11 +2197,13 @@ AutoDelete_Tab:CreateToggle({
             while AutoDeleteByEnchant do
                 task.wait(0.35)
                 refreshData()
-                if SelectedEnchantDeletePet ~= "" and SelectedEnchantDeleteTitle ~= "" then
+                if SelectedEnchantDeletePet ~= "" and SelectedEnchantDeleteTitle ~= ""
+                    and SelectedEnchantDeleteCraft ~= "" then
                     local toDelete = {}
                     for _, petData in pairs((Data and Data.Pets) or {}) do
                         if petData and petData.uid
                             and autoDeleteEnchantPetNameMatches(petData)
+                            and autoDeleteEnchantCraftMatches(petData)
                             and not autoDeleteEnchantTitleMatches(petData, SelectedEnchantDeleteTitle)
                             and not isBlacklisted(petData.uid)
                             and not isPetLocked(petData) then
