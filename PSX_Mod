@@ -421,6 +421,10 @@ CoinDamageBackup = nil
 CoinDamageParent = nil
 CoinBonusBackup = nil
 CoinBonusParent = nil
+CoinSpecialParticlesBackup = nil
+CoinSpecialParticlesParent = nil
+CoinSpecialOtherBackup = nil
+CoinSpecialOtherParent = nil
 CoinParticleConnection = nil
 AntiAFKConnection = nil
 
@@ -4360,6 +4364,9 @@ function applyCoinExplosionFXState(disabled)
         local asset = particles and particles:FindFirstChild("Coin Explode")
         local damageAsset = particles and particles:FindFirstChild("Coin Damage")
         local bonusAsset = particles and particles:FindFirstChild("Coin Bonus")
+        local specialParticles = particles and particles:FindFirstChild("Coin Special Bonuses")
+        local other = Library and Library.Assets and Library.Assets.Other
+        local specialOther = other and other:FindFirstChild("Coin Special Bonuses")
 
         if RemoveCoinExplosionFX then
             if asset and not CoinExplodeBackup then
@@ -4386,6 +4393,22 @@ function applyCoinExplosionFXState(disabled)
                 emptyBonus.Name = "Coin Bonus"
                 emptyBonus.Parent = CoinBonusParent
             end
+            if specialParticles and not CoinSpecialParticlesBackup then
+                CoinSpecialParticlesBackup = specialParticles:Clone()
+                CoinSpecialParticlesParent = specialParticles.Parent
+                specialParticles:Destroy()
+                local emptySpecialParticles = Instance.new("Folder")
+                emptySpecialParticles.Name = "Coin Special Bonuses"
+                emptySpecialParticles.Parent = CoinSpecialParticlesParent
+            end
+            if specialOther and not CoinSpecialOtherBackup then
+                CoinSpecialOtherBackup = specialOther:Clone()
+                CoinSpecialOtherParent = specialOther.Parent
+                specialOther:Destroy()
+                local emptySpecialOther = Instance.new("Folder")
+                emptySpecialOther.Name = "Coin Special Bonuses"
+                emptySpecialOther.Parent = CoinSpecialOtherParent
+            end
         elseif CoinExplodeBackup and CoinExplodeParent then
             local current = CoinExplodeParent:FindFirstChild("Coin Explode")
             if current then current:Destroy() end
@@ -4399,6 +4422,16 @@ function applyCoinExplosionFXState(disabled)
                 local currentBonus = CoinBonusParent:FindFirstChild("Coin Bonus")
                 if currentBonus then currentBonus:Destroy() end
                 CoinBonusBackup:Clone().Parent = CoinBonusParent
+            end
+            if CoinSpecialParticlesBackup and CoinSpecialParticlesParent then
+                local currentSpecialParticles = CoinSpecialParticlesParent:FindFirstChild("Coin Special Bonuses")
+                if currentSpecialParticles then currentSpecialParticles:Destroy() end
+                CoinSpecialParticlesBackup:Clone().Parent = CoinSpecialParticlesParent
+            end
+            if CoinSpecialOtherBackup and CoinSpecialOtherParent then
+                local currentSpecialOther = CoinSpecialOtherParent:FindFirstChild("Coin Special Bonuses")
+                if currentSpecialOther then currentSpecialOther:Destroy() end
+                CoinSpecialOtherBackup:Clone().Parent = CoinSpecialOtherParent
             end
         end
     end)
@@ -4434,6 +4467,8 @@ function applyCoinExplosionFXState(disabled)
                 end)
             elseif objectName:find("SpecialBonusParticle", 1, true) then
                 pcall(function() obj.Enabled = false end)
+            elseif objectName:find("SpecialBonusText", 1, true) then
+                pcall(function() obj.Visible = false end)
             elseif objectName == "BonusReward" then
                 pcall(function()
                     if obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then obj.Enabled = false end
