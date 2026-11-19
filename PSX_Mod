@@ -417,6 +417,8 @@ local MapTransparencyStates = {}
 RemoveCoinExplosionFX = false
 CoinExplodeBackup = nil
 CoinExplodeParent = nil
+CoinDamageBackup = nil
+CoinDamageParent = nil
 CoinParticleConnection = nil
 AntiAFKConnection = nil
 
@@ -4354,6 +4356,7 @@ function applyCoinExplosionFXState(disabled)
     pcall(function()
         local particles = Library and Library.Assets and Library.Assets.Particles
         local asset = particles and particles:FindFirstChild("Coin Explode")
+        local damageAsset = particles and particles:FindFirstChild("Coin Damage")
 
         if RemoveCoinExplosionFX then
             if asset and not CoinExplodeBackup then
@@ -4364,10 +4367,23 @@ function applyCoinExplosionFXState(disabled)
                 empty.Name = "Coin Explode"
                 empty.Parent = CoinExplodeParent
             end
+            if damageAsset and not CoinDamageBackup then
+                CoinDamageBackup = damageAsset:Clone()
+                CoinDamageParent = damageAsset.Parent
+                damageAsset:Destroy()
+                local emptyDamage = Instance.new("Folder")
+                emptyDamage.Name = "Coin Damage"
+                emptyDamage.Parent = CoinDamageParent
+            end
         elseif CoinExplodeBackup and CoinExplodeParent then
             local current = CoinExplodeParent:FindFirstChild("Coin Explode")
             if current then current:Destroy() end
             CoinExplodeBackup:Clone().Parent = CoinExplodeParent
+            if CoinDamageBackup and CoinDamageParent then
+                local currentDamage = CoinDamageParent:FindFirstChild("Coin Damage")
+                if currentDamage then currentDamage:Destroy() end
+                CoinDamageBackup:Clone().Parent = CoinDamageParent
+            end
         end
     end)
 
@@ -4379,18 +4395,34 @@ function applyCoinExplosionFXState(disabled)
 
         if not RemoveCoinExplosionFX then return end
 
-        local function removeCoinParticle(obj)
+        local function hideCoinParticle(obj)
             if obj and obj.Name == "Coin Particle" then
-                pcall(function() obj:Destroy() end)
+                pcall(function()
+                    if obj:IsA("BasePart") then
+                        obj.LocalTransparencyModifier = 1
+                        obj.Transparency = 1
+                        obj.CanCollide = false
+                        obj.CanTouch = false
+                        obj.CanQuery = false
+                        obj.CastShadow = false
+                        obj.AssemblyLinearVelocity = Vector3.zero
+                        obj.AssemblyAngularVelocity = Vector3.zero
+                    end
+                    for _, child in ipairs(obj:GetDescendants()) do
+                        if child:IsA("ParticleEmitter") or child:IsA("Beam") or child:IsA("Trail") then
+                            child.Enabled = false
+                        end
+                    end
+                end)
             end
         end
 
         for _, obj in ipairs(Workspace:GetDescendants()) do
-            removeCoinParticle(obj)
+            hideCoinParticle(obj)
         end
 
         CoinParticleConnection = Workspace.DescendantAdded:Connect(function(obj)
-            if RemoveCoinExplosionFX then removeCoinParticle(obj) end
+            if RemoveCoinExplosionFX then hideCoinParticle(obj) end
         end)
     end)
 end
