@@ -337,7 +337,8 @@ local All_Giant_Chest = {
 }
 local AllGameAreas = {}
 local All_Pets_Inventory = {}
-local Huges_Hatched = {}
+Huges_Hatched = {}
+WebhookSeenPets = {}
 local ServerCoins = {}
 
 local Selected_Egg = nil
@@ -383,6 +384,7 @@ local Auto_Teleport = false
 local AreaToFarm = nil
 local AreaFarmMethod = "Nearest"
 local AreaPriorityTargets = {}
+GlobalPriorityTargets = {}
 local PetAssignMode = "Spread"
 local AreaStickyUntilBreak = true
 local AreaRoundRobinIndex = 0
@@ -834,30 +836,35 @@ task.spawn(function()
 end)
 
 -- ====================== HELPERS ======================
-local function isHugePet(petIdOrName)
+function petDisplayName(petIdOrName)
+    if not petIdOrName then return "" end
+    local info = Pets_Directory[tostring(petIdOrName)] or Pets_Directory[petIdOrName]
+    return tostring(info and (info.name or info.Name or info.displayName) or petIdOrName)
+end
+
+function isTitanicPet(petIdOrName)
+    local name = petDisplayName(petIdOrName):lower()
+    return name:find("titanic", 1, true) ~= nil
+end
+
+function isHugePet(petIdOrName)
     if not petIdOrName then return false end
-    local str = tostring(petIdOrName)
-    if string.find(str, "Huge") or string.find(str, "Domortuus Astra") or string.find(str, "Empyrean Agony") then
+    local str = petDisplayName(petIdOrName):lower()
+    if str:find("huge", 1, true) or str:find("domortuus astra", 1, true) or str:find("empyrean agony", 1, true) then
         return true
-    end
-    -- Also check by directory name if it's an id
-    local petInfo = Pets_Directory[tostring(petIdOrName)]
-    if petInfo and petInfo.name then
-        local n = petInfo.name
-        if string.find(n, "Huge") or string.find(n, "Domortuus Astra") or string.find(n, "Empyrean Agony") then
-            return true
-        end
     end
     return false
 end
 
-local function isWebhookPet(pet)
+function isWebhookPet(pet)
     if not pet or not pet.id then return false end
     local info = Pets_Directory[tostring(pet.id)] or Pets_Directory[pet.id]
     local rarity = tostring(info and (info.rarity or info.Rarity) or pet.rarity or "")
     for _, wanted in ipairs(WebhookRarities or {}) do
-        if tostring(wanted) == "Huge" and isHugePet(pet.id) then return true end
-        if rarity:lower() == tostring(wanted):lower() then return true end
+        local wantedName = tostring(wanted):lower()
+        if wantedName == "huge" and isHugePet(pet.id) then return true end
+        if wantedName == "titanic" and isTitanicPet(pet.id) then return true end
+        if wantedName ~= "huge" and wantedName ~= "titanic" and rarity:lower() == wantedName then return true end
     end
     return false
 end
@@ -1052,12 +1059,11 @@ table.sort(All_Eggs_Available, function(a, b)
     return tostring(a):lower() < tostring(b):lower()
 end)
 
--- Collect existing Huges
+-- Snapshot completo antes do webhook: somente UIDs que surgirem depois serao novos.
 refreshData()
 for _, pet in pairs(Data.Pets or {}) do
-    if pet.id and isHugePet(pet.id) then
-        table.insert(All_Pets_Inventory, pet.uid)
-    end
+    if pet.uid then WebhookSeenPets[tostring(pet.uid)] = true end
+    if pet.id and isHugePet(pet.id) then table.insert(All_Pets_Inventory, pet.uid) end
 end
 
 -- Areas (ordem real do jogo via worldOrder)
@@ -1497,7 +1503,7 @@ Hatching_Tab:CreateInput({
 
 Hatching_Tab:CreateDropdown({
     name = "Webhook: raridades notificadas",
-    options = { "Huge", "Exclusive", "Mythical", "Legendary", "Event", "Divine" },
+    options = { "Huge", "Titanic", "Exclusive", "Mythical", "Legendary", "Event", "Divine" },
     value = { "Huge" },
     multiSelect = true,
     flag = "WebhookRarities",
@@ -1522,11 +1528,17 @@ Hatching_Tab:CreateToggle({
 
                 for _, pet in pairs(Data.Pets) do
                     if not pet.id then continue end
-                    if isWebhookPet(pet) and not table.find(All_Pets_Inventory, pet.uid) then
+                    local uidKey = tostring(pet.uid or "")
+                    if isWebhookPet(pet) and uidKey ~= "" and not WebhookSeenPets[uidKey] then
                         table.insert(Huges_Hatched, pet.uid)
-                        table.insert(All_Pets_Inventory, pet.uid)
+                        WebhookSeenPets[uidKey] = true
+                        if isHugePet(pet.id) or isTitanicPet(pet.id) then
+                            table.insert(All_Pets_Inventory, pet.uid)
+                        end
 
-                        local baseName = (Pets_Directory[pet.id] and Pets_Directory[pet.id].name) or "Unknown Pet"
+                        local baseName = petDisplayName(pet.id)
+                        local petType = isTitanicPet(pet.id) and "Titanic"
+                            or (isHugePet(pet.id) and "Huge" or "Exclusive")
                         local variants = {}
                         if pet.g then table.insert(variants, "Golden") end
                         if pet.r then table.insert(variants, "Rainbow") end
@@ -1538,13 +1550,15 @@ Hatching_Tab:CreateToggle({
 
                         if WebhookURL ~= "" then
                             local embed = {
-                                title = "🎉 Huge Pet Hatched!",
+                                title = "🎉 " .. petType .. " detectado",
                                 description = petName,
                                 color = 8388736,
                                 fields = {
                                     { name = "Username", value = player.Name, inline = true },
-                                    { name = "Total Huges Hatched", value = tostring(#Huges_Hatched), inline = true },
-                                    { name = "Total Huges Owned", value = tostring(#All_Pets_Inventory), inline = true },
+                                    { name = "Tipo", value = petType, inline = true },
+                                    { name = "Pet ID", value = tostring(pet.id), inline = true },
+                                    { name = "Total notificados", value = tostring(#Huges_Hatched), inline = true },
+                                    { name = "Huge/Titanic no inventário", value = tostring(#All_Pets_Inventory), inline = true },
                                     { name = "Diamonds", value = formatNumber(Data.Diamonds or 0), inline = true },
                                 },
                                 footer = { text = "PSX Mod Hub" }
@@ -1618,7 +1632,8 @@ Pet_Tab:CreateToggle({
                 -- agrupa por id + shiny (nunca mistura shiny com normal)
                 local groups = {}
                 for _, pet in pairs(Data.Pets or {}) do
-                    if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id) then continue end
+                    if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id)
+                        or isPetMarkedForDeletion(pet) then continue end
                     if not pet.r and not pet.g and not pet.dm then
                         local key = tostring(pet.id) .. (isPetShiny(pet) and "|S" or "|N")
                         groups[key] = groups[key] or {}
@@ -1662,7 +1677,8 @@ Pet_Tab:CreateToggle({
                 local needed = RainbowPetsNeeded
                 local groups = {}
                 for _, pet in pairs(Data.Pets or {}) do
-                    if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id) then continue end
+                    if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id)
+                        or isPetMarkedForDeletion(pet) then continue end
                     if pet.g and not pet.r and not pet.dm then
                         local key = tostring(pet.id) .. (isPetShiny(pet) and "|S" or "|N")
                         groups[key] = groups[key] or {}
@@ -1706,7 +1722,8 @@ Pet_Tab:CreateToggle({
                 local needed = math.max(1, DarkMatterPetsNeeded)
                 local groups = {}
                 for _, pet in pairs(Data.Pets or {}) do
-                    if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id) then continue end
+                    if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id)
+                        or isPetMarkedForDeletion(pet) then continue end
                     if pet.r and not pet.g and not pet.dm then
                         local key = tostring(pet.id) .. (isPetShiny(pet) and "|S" or "|N")
                         groups[key] = groups[key] or {}
@@ -1964,11 +1981,11 @@ AutoDelete_Tab:CreateDropdown({
     end,
 })
 
-local AutoDeleteByName = false
-local SelectedDeletePetNames = {}
-local DeletePetNameSet = {}
-local DeletePetNameOptions = {}
-local ExclusivePetIdToName = {}
+AutoDeleteByName = false
+SelectedDeletePetNames = {}
+DeletePetNameSet = {}
+DeletePetNameOptions = {}
+ExclusivePetIdToName = {}
 
 local function collectExclusivePetNames(node, hint, depth)
     if type(node) ~= "table" or (depth or 0) > 7 then return end
@@ -2174,6 +2191,46 @@ AutoDelete_Tab:CreateToggle({
     end,
 })
 
+function isPetMarkedForDeletion(pet)
+    if not pet or not pet.uid then return false end
+    if isBlacklisted(pet.uid) or isPetLocked(pet) then return false end
+
+    local petName = petDisplayName(pet.id)
+    if AutoDeleteByName and #SelectedDeletePetNames > 0 then
+        for _, selectedName in ipairs(SelectedDeletePetNames) do
+            local wanted = tostring(selectedName):lower()
+            if petName:lower() == wanted
+                or tostring(ExclusivePetIdToName[tostring(pet.id)] or ""):lower() == wanted then
+                return true
+            end
+        end
+    end
+
+    if AutoDeleteByCraft and #SelectedDeleteCrafts > 0 then
+        local craft = getPetCraftVariant(pet)
+        if craft then
+            for _, selectedCraft in ipairs(SelectedDeleteCrafts) do
+                if tostring(selectedCraft):lower() == craft:lower() then return true end
+            end
+        end
+    end
+
+    local rarity = tostring(pet.rarity or "")
+    local info = Pets_Directory[tostring(pet.id)] or Pets_Directory[pet.id]
+    rarity = tostring(info and (info.rarity or info.Rarity) or rarity)
+    if AutoDelete and table.find(Auto_Delete_Rarity or {}, rarity) and not isHugePet(pet.id) then
+        return true
+    end
+
+    local save = Library and Library.Save and Library.Save.Get and Library.Save.Get()
+    local rules = save and save.AutoDelete
+    local mode = rules and rules[rarity]
+    if mode == 2 then return not (pet.g or pet.r or pet.dm) end
+    if mode == 3 then return not (pet.r or pet.dm) end
+    if mode == 4 then return true end
+    return false
+end
+
 local function farmCoinHealth(coin)
     if type(coin) ~= "table" then return 0 end
     return tonumber(coin.h or coin.hp or coin.health or coin.Health or coin.m or coin.maxHealth) or 0
@@ -2193,6 +2250,25 @@ local function matchesFarmPriority(name, selected)
         end
     end
     return false
+end
+
+function collectGlobalPriorityTargets(origin)
+    local targets = {}
+    if not GlobalPriorityTargets or #GlobalPriorityTargets == 0 then return targets end
+    for id, coin in pairs(ServerCoins or {}) do
+        if coin and coin.p and matchesFarmPriority(farmCoinName(coin), GlobalPriorityTargets) then
+            table.insert(targets, {
+                id = id,
+                p = coin.p,
+                name = farmCoinName(coin),
+                health = farmCoinHealth(coin),
+                distance = origin and (coin.p - origin).Magnitude or 0,
+            })
+        end
+    end
+    table.sort(targets, function(a, b) return a.distance < b.distance end)
+    while #targets > math.max(1, MAX_BREAKABLES or 1) do table.remove(targets) end
+    return targets
 end
 
 local function collectAreaFarmTargets(areaName, method, selected, origin)
@@ -2307,14 +2383,16 @@ autoFarmTab:CreateToggle({
                     continue
                 end
 
-                local validTargets = {}
-                for id, coin in pairs(ServerCoins) do
-                    if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= NearestFarmRange then
-                        table.insert(validTargets, {
-                            id = id,
-                            p = coin.p,
-                            distance = (coin.p - HumanoidRootPart.Position).Magnitude
-                        })
+                local validTargets = collectGlobalPriorityTargets(HumanoidRootPart.Position)
+                if #validTargets == 0 then
+                    for id, coin in pairs(ServerCoins) do
+                        if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= NearestFarmRange then
+                            table.insert(validTargets, {
+                                id = id,
+                                p = coin.p,
+                                distance = (coin.p - HumanoidRootPart.Position).Magnitude
+                            })
+                        end
                     end
                 end
 
@@ -2386,10 +2464,12 @@ autoFarmTab:CreateToggle({
                     continue
                 end
 
-                local validTargets = {}
-                for id, coin in pairs(ServerCoins) do
-                    if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= RandomFarmRange then
-                        table.insert(validTargets, { id = id, p = coin.p })
+                local validTargets = collectGlobalPriorityTargets(HumanoidRootPart.Position)
+                if #validTargets == 0 then
+                    for id, coin in pairs(ServerCoins) do
+                        if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= RandomFarmRange then
+                            table.insert(validTargets, { id = id, p = coin.p })
+                        end
                     end
                 end
 
@@ -2470,6 +2550,17 @@ autoFarmTab:CreateDropdown({
     end,
 })
 
+globalPriorityDropdown = autoFarmTab:CreateDropdown({
+    name = "Priority Global (ignora área)",
+    options = sniperDefaultList,
+    value = {},
+    multiSelect = true,
+    flag = "GlobalPriorityTargets",
+    callback = function(Options)
+        GlobalPriorityTargets = listDropdown(Options)
+    end,
+})
+
 autoFarmTab:CreateDropdown({
     name = "Pet Assign Mode",
     options = {"Spread (divide todos)", "1 pet por breakable"},
@@ -2517,10 +2608,12 @@ autoFarmTab:CreateToggle({
                 end
                 -- Caminho original da LibraryOld. Não usa o adaptador de
                 -- snapshot Framework nem Farm Coin atrasado.
-                local validTargets = {}
-                for id, coin in pairs(ServerCoins or {}) do
-                    if coin and coin.p and coin.a == AreaToFarm then
-                        table.insert(validTargets, { id = id, p = coin.p })
+                local validTargets = collectGlobalPriorityTargets(HumanoidRootPart.Position)
+                if #validTargets == 0 then
+                    for id, coin in pairs(ServerCoins or {}) do
+                        if coin and coin.p and coin.a == AreaToFarm then
+                            table.insert(validTargets, { id = id, p = coin.p })
+                        end
                     end
                 end
                 if #validTargets > 0 then
@@ -2587,17 +2680,22 @@ autoFarmTab:CreateToggle({
                 end
 
                 local breakableID, chestPos, nearestDistance = nil, nil, math.huge
-                local sel = tostring(Giant_Chest_Selected or ""):lower()
-                for id, coin in pairs(ServerCoins) do
-                    if coin.p and coin.n then
-                        local cn = tostring(coin.n)
-                        local cl = cn:lower()
-                        local distance = (coin.p - HumanoidRootPart.Position).Magnitude
-                        if (cn == Giant_Chest_Selected or cl == sel or cl:find(sel, 1, true) or sel:find(cl, 1, true))
-                            and distance < nearestDistance then
-                            breakableID = id
-                            chestPos = coin.p
-                            nearestDistance = distance
+                local priorityTargets = collectGlobalPriorityTargets(HumanoidRootPart.Position)
+                if #priorityTargets > 0 then
+                    breakableID = priorityTargets[1].id
+                    chestPos = priorityTargets[1].p
+                    nearestDistance = priorityTargets[1].distance
+                else
+                    local sel = tostring(Giant_Chest_Selected or ""):lower()
+                    for id, coin in pairs(ServerCoins) do
+                        if coin.p and coin.n then
+                            local cn = tostring(coin.n):lower()
+                            local distance = (coin.p - HumanoidRootPart.Position).Magnitude
+                            if cn == sel and distance < nearestDistance then
+                                breakableID = id
+                                chestPos = coin.p
+                                nearestDistance = distance
+                            end
                         end
                     end
                 end
@@ -2666,6 +2764,7 @@ refreshBreakableDropdowns = function(showNotify)
     pcall(function()
         if teleportDropdown and teleportDropdown.Refresh then teleportDropdown:Refresh(list) end
         if sniperTargetsDropdown and sniperTargetsDropdown.Refresh then sniperTargetsDropdown:Refresh(sniperOpts) end
+        if globalPriorityDropdown and globalPriorityDropdown.Refresh then globalPriorityDropdown:Refresh(sniperOpts) end
         if giantDropdown and giantDropdown.Refresh then giantDropdown:Refresh(giantOpts) end
     end)
     if showNotify then notify("Breakables", "Detectados: " .. #list, 3) end
@@ -2999,19 +3098,21 @@ autoFarmTab:CreateToggle({
                 end
 
                 local equippedPets = getEquippedPets()
-                if #equippedPets == 0 or #SniperTargets == 0 then
+                if #equippedPets == 0 or (#SniperTargets == 0 and #GlobalPriorityTargets == 0) then
                     task.wait(0.4)
                     continue
                 end
 
-                local matched = {}
-                for id, coin in pairs(ServerCoins) do
-                    if coin.p and coin.n then
-                        local n = string.lower(tostring(coin.n))
-                        for _, prio in ipairs(SniperTargets) do
-                            if n:find(string.lower(prio), 1, true) then
-                                table.insert(matched, { id = id, p = coin.p, n = coin.n })
-                                break
+                local matched = collectGlobalPriorityTargets(HumanoidRootPart.Position)
+                if #matched == 0 then
+                    for id, coin in pairs(ServerCoins) do
+                        if coin.p and coin.n then
+                            local n = string.lower(tostring(coin.n))
+                            for _, prio in ipairs(SniperTargets) do
+                                if n:find(string.lower(prio), 1, true) then
+                                    table.insert(matched, { id = id, p = coin.p, n = coin.n })
+                                    break
+                                end
                             end
                         end
                     end
@@ -3643,7 +3744,8 @@ local function indexCraftOnce()
 
     local groups = {} -- key = id|S/N -> { gold={}, rainbow={} }
     for _, pet in pairs(Data.Pets or {}) do
-        if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id) then continue end
+        if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id)
+            or isPetMarkedForDeletion(pet) then continue end
         local key = tostring(pet.id) .. (isPetShiny(pet) and "|S" or "|N")
         groups[key] = groups[key] or { id = pet.id, gold = {}, rainbow = {} }
         if pet.dm then
