@@ -2001,7 +2001,7 @@ ExclusivePetIdToName = {}
 AutoDeleteByEnchant = false
 SelectedEnchantDeletePet = ""
 SelectedEnchantDeleteTitle = ""
-SelectedEnchantDeleteCraft = ""
+SelectedEnchantDeleteCrafts = {}
 EnchantDeletePetOptions = {}
 EnchantDeleteTitleOptions = {}
 EnchantDeleteCraftOptions = {
@@ -2140,8 +2140,12 @@ function autoDeleteEnchantPetNameMatches(pet)
 end
 
 function autoDeleteEnchantCraftMatches(pet)
-    if not pet or not SelectedEnchantDeleteCraft or SelectedEnchantDeleteCraft == "" then return false end
-    return tostring(getPetCraftVariant(pet) or ""):lower() == tostring(SelectedEnchantDeleteCraft):lower()
+    if not pet or type(SelectedEnchantDeleteCrafts) ~= "table" or #SelectedEnchantDeleteCrafts == 0 then return false end
+    local craft = tostring(getPetCraftVariant(pet) or ""):lower()
+    for _, selectedCraft in ipairs(SelectedEnchantDeleteCrafts) do
+        if craft == tostring(selectedCraft):lower() then return true end
+    end
+    return false
 end
 
 AutoDelete_Tab:CreateSection({ name = "Experimental: excluir pet sem enchant exato" })
@@ -2166,13 +2170,13 @@ AutoDelete_Tab:CreateDropdown({
     end,
 })
 AutoDelete_Tab:CreateDropdown({
-    name = "Variação de craft (exata)",
+    name = "Variações de craft para excluir (multi)",
     options = EnchantDeleteCraftOptions,
     value = {},
-    multiSelect = false,
+    multiSelect = true,
     flag = "AutoDeleteEnchantCraft",
     callback = function(Option)
-        SelectedEnchantDeleteCraft = pickDropdown(Option) or ""
+        SelectedEnchantDeleteCrafts = listDropdown(Option)
     end,
 })
 AutoDelete_Tab:CreateInput({
@@ -2198,7 +2202,8 @@ AutoDelete_Tab:CreateToggle({
                 task.wait(0.35)
                 refreshData()
                 if SelectedEnchantDeletePet ~= "" and SelectedEnchantDeleteTitle ~= ""
-                    and SelectedEnchantDeleteCraft ~= "" then
+                    and type(SelectedEnchantDeleteCrafts) == "table"
+                    and #SelectedEnchantDeleteCrafts > 0 then
                     local toDelete = {}
                     for _, petData in pairs((Data and Data.Pets) or {}) do
                         if petData and petData.uid
