@@ -419,6 +419,8 @@ CoinExplodeBackup = nil
 CoinExplodeParent = nil
 CoinDamageBackup = nil
 CoinDamageParent = nil
+CoinBonusBackup = nil
+CoinBonusParent = nil
 CoinParticleConnection = nil
 AntiAFKConnection = nil
 
@@ -4357,6 +4359,7 @@ function applyCoinExplosionFXState(disabled)
         local particles = Library and Library.Assets and Library.Assets.Particles
         local asset = particles and particles:FindFirstChild("Coin Explode")
         local damageAsset = particles and particles:FindFirstChild("Coin Damage")
+        local bonusAsset = particles and particles:FindFirstChild("Coin Bonus")
 
         if RemoveCoinExplosionFX then
             if asset and not CoinExplodeBackup then
@@ -4375,6 +4378,14 @@ function applyCoinExplosionFXState(disabled)
                 emptyDamage.Name = "Coin Damage"
                 emptyDamage.Parent = CoinDamageParent
             end
+            if bonusAsset and not CoinBonusBackup then
+                CoinBonusBackup = bonusAsset:Clone()
+                CoinBonusParent = bonusAsset.Parent
+                bonusAsset:Destroy()
+                local emptyBonus = Instance.new("Folder")
+                emptyBonus.Name = "Coin Bonus"
+                emptyBonus.Parent = CoinBonusParent
+            end
         elseif CoinExplodeBackup and CoinExplodeParent then
             local current = CoinExplodeParent:FindFirstChild("Coin Explode")
             if current then current:Destroy() end
@@ -4383,6 +4394,11 @@ function applyCoinExplosionFXState(disabled)
                 local currentDamage = CoinDamageParent:FindFirstChild("Coin Damage")
                 if currentDamage then currentDamage:Destroy() end
                 CoinDamageBackup:Clone().Parent = CoinDamageParent
+            end
+            if CoinBonusBackup and CoinBonusParent then
+                local currentBonus = CoinBonusParent:FindFirstChild("Coin Bonus")
+                if currentBonus then currentBonus:Destroy() end
+                CoinBonusBackup:Clone().Parent = CoinBonusParent
             end
         end
     end)
@@ -4396,7 +4412,9 @@ function applyCoinExplosionFXState(disabled)
         if not RemoveCoinExplosionFX then return end
 
         local function hideCoinParticle(obj)
-            if obj and obj.Name == "Coin Particle" then
+            if not obj then return end
+            local objectName = tostring(obj.Name)
+            if objectName == "Coin Particle" or objectName == "Bonus Particle" then
                 pcall(function()
                     if obj:IsA("BasePart") then
                         obj.LocalTransparencyModifier = 1
@@ -4413,6 +4431,16 @@ function applyCoinExplosionFXState(disabled)
                             child.Enabled = false
                         end
                     end
+                end)
+            elseif objectName:find("SpecialBonusParticle", 1, true) then
+                pcall(function() obj.Enabled = false end)
+            elseif objectName == "BonusReward" then
+                pcall(function()
+                    if obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then obj.Enabled = false end
+                end)
+            elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                pcall(function()
+                    if tostring(obj.Text):upper():find("BONUS", 1, true) then obj.Visible = false end
                 end)
             end
         end
