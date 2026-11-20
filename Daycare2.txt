@@ -1,0 +1,68 @@
+local v_u_1 = {
+	["DURATION_SECONDS"] = 21600,
+	["ORIGINAL_DURATION_SECONDS"] = 21600,
+	["ONLINE_SPEEDUP"] = 3,
+	["PLAYTIME_STEP"] = 60,
+	["SLOTS_FREE"] = 10,
+	["SLOT_TIERS"] = nil,
+	["SLOT_TIERS"] = {
+		{
+			["Amount"] = 10,
+			["Product"] = "Daycare Tier 1"
+		}
+	}
+}
+local v2 = v_u_1.SLOTS_FREE
+for _, v3 in ipairs(v_u_1.SLOT_TIERS) do
+	v2 = v2 + v3.Amount
+end
+v_u_1.SLOTS_MAX = v2
+function v_u_1.GetOnlineTime(p4, p5) -- name: GetOnlineTime
+	-- upvalues: (copy) v_u_1
+	local v6 = p4.Playtime
+	local v7 = tonumber(v6) or 0
+	local v8 = p4.PlaytimeStamp
+	local v9 = tonumber(v8) or 0
+	if v9 <= 0 then
+		return v7
+	end
+	local v10 = p5 - v9
+	local v11 = v_u_1.PLAYTIME_STEP
+	return v7 + math.clamp(v10, 0, v11)
+end
+return v_u_1
+
+-- // Function Dumper made by King.Kevin
+-- // Script Path: ReplicatedStorage.Library.Modules.Daycare
+
+--[[
+Function Dump: GetOnlineTime
+
+Function Upvalues: GetOnlineTime
+		1 [table]:
+		1 [table] table: 0xa881c209c43a265e
+				1 [number] = 21600
+				2 [function] = GetOnlineTime
+				3 [number] = 3
+				4 [number] = 20
+				5 [number] = 10
+				6 [number] = 60
+				7 [number] = 21600
+				8 [table]:
+				SLOT_TIERS [table] table: 0x5cdad6011f77f73a
+						1 [table]:
+						1 [table] table: 0x63e1f065347089dc
+								1 [string] = Daycare Tier 1
+								2 [number] = 10
+
+Function Constants: GetOnlineTime
+		1 [number] = 0
+		2 [string] = Playtime
+		3 [string] = tonumber
+		5 [string] = PlaytimeStamp
+		6 [string] = PLAYTIME_STEP
+		7 [string] = math
+		8 [string] = clamp
+
+====================================================================================================
+]]

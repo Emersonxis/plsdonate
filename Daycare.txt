@@ -1,0 +1,3064 @@
+local v_u_1 = game:GetService("RunService")
+local v_u_2 = require(game:GetService("ReplicatedStorage"):WaitForChild("Library"))
+while not v_u_2.Loaded do
+	v_u_1.Heartbeat:Wait()
+end
+local v_u_3 = v_u_2.GUI.Daycare
+local v_u_4 = Random.new()
+local v_u_5 = false
+local v_u_6 = {}
+local v_u_7 = false
+local v_u_8 = false
+local v_u_9 = nil
+local v_u_10 = false
+local v_u_11 = 0
+local v_u_12 = Color3.new(1, 1, 1)
+local v_u_13 = {
+	["Diamonds"] = {
+		["Position"] = UDim2.new(0.47, 0, 0.5, 0),
+		["Size"] = UDim2.new(0.7, 0, 0.7, 0)
+	},
+	["Currency"] = {
+		["Position"] = UDim2.new(0.5, 0, 0.5, 0),
+		["Size"] = UDim2.new(0.8, 0, 0.8, 0)
+	},
+	["Super Lucky"] = {
+		["Position"] = UDim2.new(0.54, 0, 0.5, 0),
+		["Size"] = UDim2.new(1.05, 0, 1.05, 0)
+	},
+	["Triple Coins"] = {
+		["Position"] = UDim2.new(0.54, 0, 0.5, 0),
+		["Size"] = UDim2.new(1.05, 0, 1.05, 0)
+	},
+	["Triple Damage"] = {
+		["Position"] = UDim2.new(0.54, 0, 0.5, 0),
+		["Size"] = UDim2.new(1.05, 0, 1.05, 0)
+	},
+	["Ultra Lucky"] = {
+		["Position"] = UDim2.new(0.47, 0, 0.5, 0),
+		["Size"] = UDim2.new(0.9, 0, 0.9, 0)
+	}
+}
+local v_u_14 = {
+	["Triple Coins"] = "rbxassetid://7402604552",
+	["Triple Damage"] = "rbxassetid://7402604431",
+	["Super Lucky"] = "rbxassetid://7402604677",
+	["Ultra Lucky"] = "rbxassetid://7402706511"
+}
+function GetMaxSlots() -- name: GetMaxSlots
+	-- upvalues: (copy) v_u_2
+	local v15 = v_u_2.Save.Get()
+	return not v15 and 0 or v_u_2.Shared.DaycareComputeSlotsForTier(v15.DaycareTier)
+end
+function GetUsedSlots() -- name: GetUsedSlots
+	-- upvalues: (copy) v_u_2
+	local v16 = v_u_2.Save.Get()
+	if not v16 then
+		return 0
+	end
+	local v17 = v16.DaycareQueue
+	return #(type(v17) == "table" and v16.DaycareQueue or {})
+end
+function GetRemainingSlots() -- name: GetRemainingSlots
+	local v18 = GetMaxSlots() - GetUsedSlots()
+	return math.max(0, v18)
+end
+function UpdateSelectedAmount() -- name: UpdateSelectedAmount
+	-- upvalues: (copy) v_u_3, (ref) v_u_6
+	v_u_3.AmountStage2.Text = "Selected " .. #v_u_6 .. "/" .. GetRemainingSlots() .. " Pets"
+end
+function PetsSelect(p19) -- name: PetsSelect
+	-- upvalues: (copy) v_u_2, (ref) v_u_6, (copy) v_u_4
+	if p19 then
+		local v20 = v_u_2.Save.Get()
+		if v20 then
+			local v21 = v_u_2.Shared.DaycareComputeSlotsForTier(v20.DaycareTier)
+			local v22 = v20.DaycareQueue
+			local v23 = v21 - #(type(v22) == "table" and (v20.DaycareQueue or {}) or {})
+			local v24 = math.max(0, v23)
+			if v24 == 0 then
+				if v21 < v_u_2.Shared.DaycareComputeSlotsForTier((1 / 0)) then
+					if v_u_2.Message.New("You\'re out of daycare slots! Would you like to buy more?", true) then
+						local v25, v26 = v_u_2.Network.Invoke("Attempt Buy +10 Daycare Slots")
+						if v25 == true then
+							v_u_2.Functions.PromptPurchase(v26, true)
+						else
+							v_u_2.Message.New(v26 or "Something went wrong!")
+						end
+					end
+				else
+					v_u_2.Message.New("You\'re out of daycare slots!")
+				end
+				return
+			elseif v24 > #v_u_6 and not table.find(v_u_6, p19) then
+				v_u_2.Audio.Play("rbxassetid://7139317934", script, v_u_4:NextNumber(0.95, 1.05), 0.75)
+				local v27 = v_u_6
+				table.insert(v27, p19)
+				UpdateSelectedAmount()
+				UpdateEnroll()
+			end
+		else
+			return
+		end
+	else
+		return
+	end
+end
+function PetsDeselect(p28) -- name: PetsDeselect
+	-- upvalues: (copy) v_u_2, (copy) v_u_4, (ref) v_u_6
+	v_u_2.Audio.Play("rbxassetid://7139317909", script, v_u_4:NextNumber(0.95, 1.05), 0.75)
+	local v29 = table.find(v_u_6, p28)
+	if v29 then
+		table.remove(v_u_6, v29)
+	end
+	UpdateSelectedAmount()
+	UpdateEnroll()
+end
+function PetsUpdate() -- name: PetsUpdate
+	-- upvalues: (ref) v_u_6, (copy) v_u_3, (copy) v_u_2
+	local v30 = #v_u_6 > 0 and v_u_3.Holder1Stage2 or v_u_3.HolderStage1
+	for _, v31 in ipairs(v30:GetChildren()) do
+		if v31.ClassName ~= "TextButton" or not v31:GetAttribute("DirId") then
+			continue
+		end
+		local v32 = v_u_2.Functions.SearchArray(v_u_6, v31.Name)
+		v31.Equipped.Visible = v32
+		v31.BackgroundColor3 = v32 and Color3.fromRGB(69, 239, 69) or Color3.fromRGB(59, 177, 252)
+		if v31:GetAttribute("Locked") then
+			continue
+		end
+		v31.PetIcon.ImageTransparency = 0
+	end
+	ScaleScrolling()
+end
+function Update() -- name: Update
+	-- upvalues: (copy) v_u_2, (copy) v_u_3, (ref) v_u_7
+	local v33 = v_u_2.Save.Get()
+	if v33 then
+		local v34 = v_u_3.UpgradeSlots
+		local v35 = v33.DaycareTier
+		v34.Visible = (tonumber(v35) or 0) <= 0
+		v_u_3.Categories.ViewPets.Frame.PetReady.Visible = v_u_7
+	end
+end
+function UpdateClaim(p36, p37) -- name: UpdateClaim
+	-- upvalues: (copy) v_u_3, (copy) v_u_2, (copy) v_u_13, (copy) v_u_14, (ref) v_u_9
+	local v38 = v_u_3.LootView.Pets
+	for _, v39 in ipairs(v38:GetChildren()) do
+		if not v39:IsA("TextButton") then
+			continue
+		end
+		v39:Destroy()
+	end
+	for _, v40 in ipairs(p36) do
+		local v41 = v_u_2.Directory.Pets[v40.id]
+		if not v41 or (v41.huge or v41.titanic or (v41.isGift or v41.companionEnchantLevel ~= nil)) then
+			continue
+		end
+		local v42 = v_u_2.Assets.UI.Inventory.Pet:Clone()
+		v_u_2.PetUI.Create(v42, v40.id, {
+			["s"] = v40.s,
+			["g"] = v40.g,
+			["r"] = v40.r,
+			["dm"] = v40.dm,
+			["sh"] = v40.sh
+		})
+		v42:SetAttribute("DirId", v40.id)
+		v42.Size = UDim2.new(1, 0, 1, 0)
+		v42.Parent = v38
+	end
+	local v43 = v_u_3.LootHolder
+	for _, v44 in ipairs(v43:GetChildren()) do
+		if v44.ClassName ~= "Frame" or v44:GetAttribute("template") then
+			continue
+		end
+		v44:Destroy()
+	end
+	local v45 = v43:FindFirstChild("Loot")
+	v45.Visible = false
+	for _, v46 in ipairs(p37) do
+		local v47 = v45:Clone()
+		v47:SetAttribute("template", false)
+		v47.NonPet.Level.Text = v_u_2.Functions.NumberShorten(v46.Min)
+		if v46.Category == "Currency" then
+			v47.NonPet.Icon.Image = v_u_2.Directory.Currency[v46.Data].ImageTiny
+			local v48 = v47.NonPet.Icon
+			local v49 = v_u_13[v46.Data] or v_u_13.Currency
+			if v49 then
+				v48.Position = v49.Position
+				v48.Size = v49.Size
+			end
+			v_u_2.GUIFX.Tooltip(v47.NonPet, v46.Data)
+		elseif v46.Category == "Boost" then
+			v47.NonPet.Icon.Image = v_u_14[v46.Data]
+			local v50 = v47.NonPet.Icon
+			local v51 = v_u_13[v46.Data] or nil
+			if v51 then
+				v50.Position = v51.Position
+				v50.Size = v51.Size
+			end
+			v_u_2.GUIFX.Tooltip(v47.NonPet, v46.Data)
+		elseif v46.Category == "Pet" then
+			v47.NonPet.Visible = false
+			local v52 = v46.Data
+			local v53 = v_u_2.Assets.UI.Inventory.Pet:Clone()
+			v53.Size = UDim2.new(1, 0, 1, 0)
+			v_u_2.PetUI.Create(v53, v52.id, {
+				["g"] = v52.isGolden,
+				["r"] = v52.isRainbow,
+				["dm"] = v52.isDarkMatter
+			})
+			local v54 = v53:FindFirstChild("Level")
+			if v54 then
+				v54:Destroy()
+			end
+			v53.PetIcon.ImageColor3 = Color3.new(1, 1, 1)
+			v53.PetIcon.Locked.Visible = false
+			if v52.id ~= "1019" then
+				v_u_9 = v52
+			end
+			v53.Parent = v47
+		end
+		v47.Parent = v43
+		v47.Visible = true
+	end
+	ClaimScrolling()
+end
+local function v_u_60(p55, p56) -- name: fitGrid
+	local v57 = p55:FindFirstChildOfClass("UIGridLayout")
+	local v58 = p55:FindFirstChildOfClass("UIPadding")
+	local v59 = (p55.AbsoluteSize.X - p55.ScrollBarThickness - v58.PaddingLeft.Offset - v58.PaddingRight.Offset) / p56 - v57.CellPadding.X.Offset
+	v57.CellSize = UDim2.new(0, v59, 0, v59)
+	v57:ApplyLayout()
+	p55.CanvasSize = UDim2.new(0, v57.AbsoluteContentSize.X, 0, v57.AbsoluteContentSize.Y + 30)
+end
+function ClaimScrolling() -- name: ClaimScrolling
+	-- upvalues: (copy) v_u_2, (copy) v_u_60, (copy) v_u_3
+	local v61 = v_u_2.Functions.ResolutionScale()
+	v_u_60(v_u_3.Pets, v61 <= 0.5 and 2 or (v61 <= 1.1 and 2.5 or 3))
+	v_u_60(v_u_3.LootHolder, v61 <= 0.5 and 2 or (v61 <= 1.1 and 2.5 or 3))
+end
+function QueueScrolling() -- name: QueueScrolling
+	-- upvalues: (copy) v_u_3
+	local v62 = v_u_3.View.Holder
+	local v63 = v62:FindFirstChildOfClass("UIPadding")
+	local v64 = v62:FindFirstChildOfClass("UIListLayout")
+	v64:ApplyLayout()
+	v62.CanvasSize = UDim2.new(0, v64.AbsoluteContentSize.X + v63.PaddingLeft.Offset + v63.PaddingRight.Offset, 0, 0)
+end
+function ScaleScrolling() -- name: ScaleScrolling
+	-- upvalues: (ref) v_u_6, (copy) v_u_3, (copy) v_u_60, (copy) v_u_2
+	local v65 = #v_u_6 > 0
+	local v66 = v65 and v_u_3.Holder1Stage2 or v_u_3.HolderStage1
+	local v67 = v_u_60
+	local v68 = v_u_2.Functions.ResolutionScale()
+	v67(v66, (v68 <= 0.5 and 4 or (v68 <= 1.1 and 5 or 6)) / (v65 and 2 or 1))
+	if v65 then
+		local v69 = v_u_3.Holder2Stage2
+		local v70 = v69:FindFirstChildOfClass("UIListLayout")
+		local v71 = v69:FindFirstChildOfClass("UIPadding")
+		v70:ApplyLayout()
+		v69.CanvasSize = UDim2.new(0, 0, 0, v70.AbsoluteContentSize.Y + v71.PaddingBottom.Offset + v71.PaddingTop.Offset)
+	end
+end
+local function v_u_79(p72) -- name: claim
+	-- upvalues: (copy) v_u_2, (copy) v_u_3, (ref) v_u_7
+	local v73 = v_u_2.Save.Get()
+	if v73 then
+		local v74, v75, v76, v77, v78 = v_u_2.Network.Invoke("Daycare: Claim", p72)
+		if v74 then
+			if v78 then
+				v73.DaycareQueue = v78
+			end
+			UpdateView()
+			v_u_3.Title.Text = "Your Loot!"
+			UpdateClaim(v76 or {}, v77 or {})
+			v_u_7 = false
+			v_u_3.Categories.ViewPets.Frame.PetReady.Visible = false
+			v_u_3.Categories.Visible = false
+			v_u_3.LootView.Visible = true
+			v_u_3.PetsAndLoot.Visible = false
+			v_u_3.View.Visible = false
+		else
+			v_u_2.Message.New(v75 or "Something went wrong!")
+		end
+	else
+		v_u_2.Message.New("Something went wrong! Try re-logging!")
+		return
+	end
+end
+v_u_1.RenderStepped:Connect(function(p80)
+	-- upvalues: (ref) v_u_11, (ref) v_u_12
+	v_u_11 = v_u_11 + p80
+	v_u_12 = Color3.fromHSV(v_u_11 / 2 % 1, 1, 1)
+end)
+function UpdateView() -- name: UpdateView
+	-- upvalues: (copy) v_u_2, (copy) v_u_3, (ref) v_u_7, (ref) v_u_12, (copy) v_u_1, (ref) v_u_5, (copy) v_u_79
+	local v81 = v_u_2.Save.Get()
+	if v81 then
+		local v82 = v_u_3.View.Holder
+		local v83 = v81.DaycareQueue
+		local v84 = type(v83) == "table" and (v81.DaycareQueue or {}) or {}
+		for v_u_85, v86 in ipairs(v84) do
+			local v_u_87 = v86.Pet
+			local v88 = v82:FindFirstChild((tostring(v_u_85)))
+			if v88 and v88:GetAttribute("PetUid") ~= v_u_87.uid then
+				v88:Destroy()
+				v88 = nil
+			end
+			if v88 then
+				continue
+			end
+			local v89 = v_u_2.Directory.Pets[v_u_87.id]
+			local v_u_90 = v_u_3.View.Holder.ViewTemplate:Clone()
+			v_u_90.Name = tostring(v_u_85)
+			v_u_90.PetIcon.Image = v_u_87.dm and v89.darkMatterThumbnail or (v_u_87.g and v89.goldenThumbnail or v89.thumbnail)
+			v_u_90:SetAttribute("SlotId", v_u_85)
+			v_u_90:SetAttribute("PetUid", v_u_87.uid)
+			v_u_90.Parent = v82
+			v_u_90.Visible = true
+			local function v_u_96() -- name: updateTimer
+				-- upvalues: (ref) v_u_2, (copy) v_u_85, (copy) v_u_87, (copy) v_u_90, (ref) v_u_7, (ref) v_u_3
+				local v91 = v_u_2.Save.Get()
+				local v92
+				if v91 then
+					local v93 = v91.DaycareQueue
+					v92 = (type(v93) == "table" and (v91.DaycareQueue or {}) or {})[v_u_85]
+				else
+					v92 = v91
+				end
+				if v92 and v92.Pet.uid == v_u_87.uid then
+					local v94 = v_u_2.Shared.DaycareComputeRemainingTime(v91, v92)
+					local v95 = v94 <= 0
+					v_u_90.TimeDescStage1.Visible = not v95
+					v_u_90.TimeLeftStage1.Visible = not v95
+					v_u_90.ClaimStage2.Visible = v95
+					v_u_90.ClaimDescStage2.Visible = v95
+					v_u_90.PetIcon.UIGradient.Enabled = not v95
+					if v95 then
+						v_u_7 = true
+						v_u_3.ClaimAll.ImageColor3 = Color3.new(1, 1, 1)
+						v_u_3.Categories.ViewPets.Frame.PetReady.Visible = true
+					else
+						v_u_90.TimeLeftStage1.Text = v_u_2.Functions.FormatTime(v94)
+					end
+				else
+					return
+				end
+			end
+			if v_u_87.r then
+				task.spawn(function()
+					-- upvalues: (copy) v_u_90, (copy) v_u_87, (ref) v_u_3, (ref) v_u_12, (ref) v_u_1
+					while v_u_90.Parent and v_u_87.r do
+						if v_u_3.Gui.Enabled then
+							v_u_90.PetIcon.ImageColor3 = v_u_12
+							v_u_1.RenderStepped:Wait()
+						else
+							task.wait(0.5)
+						end
+					end
+				end)
+			end
+			v_u_96()
+			v_u_2.GUIFX.ButtonFX(v_u_90.ClaimStage2)
+			v_u_90.ClaimStage2.Activated:Connect(function()
+				-- upvalues: (ref) v_u_5, (ref) v_u_79, (copy) v_u_85
+				if not v_u_5 then
+					v_u_5 = true
+					v_u_79(v_u_85)
+					v_u_5 = false
+				end
+			end)
+			task.spawn(function()
+				-- upvalues: (copy) v_u_90, (ref) v_u_3, (copy) v_u_96, (ref) v_u_2
+				while v_u_90.Parent do
+					if v_u_3.Gui.Enabled then
+						v_u_96()
+					end
+					v_u_2.Heartbeat(5)
+				end
+			end)
+		end
+		for _, v97 in ipairs(v82:GetChildren()) do
+			local v98 = v97:GetAttribute("SlotId")
+			if not v98 or v84[v98] then
+				continue
+			end
+			v97:Destroy()
+		end
+		v_u_3.View.None.Visible = #v84 <= 0
+		v_u_3.ClaimAll.ImageColor3 = v_u_7 and Color3.new(1, 1, 1) or Color3.new(0.5, 0.5, 0.5)
+		v_u_3.SlotAmount.Text = GetUsedSlots() .. "/" .. GetMaxSlots() .. " Slots"
+		QueueScrolling()
+	end
+end
+local function v_u_113() -- name: renderPossibleLoot
+	-- upvalues: (copy) v_u_3, (ref) v_u_8, (copy) v_u_2, (ref) v_u_6, (copy) v_u_13, (copy) v_u_14
+	local v99 = v_u_3.Holder2Stage2
+	if v_u_8 then
+		return true
+	end
+	v_u_8 = true
+	local v100, v101 = v_u_2.Network.Invoke("Daycare: Compute Loot", v_u_6)
+	v_u_8 = false
+	if not v100 then
+		v_u_2.Message.New(v101 or "Error!")
+		return false
+	end
+	for _, v102 in ipairs(v99:GetChildren()) do
+		if v102.ClassName ~= "Frame" or v102:GetAttribute("template") then
+			continue
+		end
+		v102:Destroy()
+	end
+	local v103 = v99:FindFirstChild("Loot")
+	v103.Visible = false
+	for _, v104 in ipairs(v100) do
+		local v105 = v103:Clone()
+		v105:SetAttribute("template", false)
+		v105.LootRange.Range.Text = v_u_2.Functions.NumberShorten(v104.Min) .. " - " .. v_u_2.Functions.NumberShorten(v104.Max)
+		if v104.Min == 0 then
+			v105.LootRange.Range.Text = "Max " .. v_u_2.Functions.NumberShorten(v104.Max)
+		end
+		if v104.Category == "Currency" then
+			v105.NonPet.Icon.Image = v_u_2.Directory.Currency[v104.Data].ImageTiny
+			local v106 = v105.NonPet.Icon
+			local v107 = v_u_13[v104.Data] or v_u_13.Currency
+			if v107 then
+				v106.Position = v107.Position
+				v106.Size = v107.Size
+			end
+			v_u_2.GUIFX.Tooltip(v105.NonPet, v104.Data)
+		elseif v104.Category == "Boost" then
+			v105.NonPet.Icon.Image = v_u_14[v104.Data]
+			if v_u_13[v104.Data] then
+				local v108 = v105.NonPet.Icon
+				local v109 = v_u_13[v104.Data] or nil
+				if v109 then
+					v108.Position = v109.Position
+					v108.Size = v109.Size
+				end
+				v105.LootRange.Range.Text = "Max " .. v_u_2.Functions.NumberShorten(v104.Min)
+			end
+			v_u_2.GUIFX.Tooltip(v105.NonPet, v104.Data)
+		elseif v104.Category == "Pet" then
+			v105.NonPet.Visible = false
+			local v110 = v104.Data
+			local v111 = v_u_2.Assets.UI.Inventory.Pet:Clone()
+			v_u_2.PetUI.Create(v111, v110.id, {
+				["g"] = v110.isGolden,
+				["r"] = v110.isRainbow,
+				["dm"] = v110.isDarkMatter
+			})
+			local v112 = v111:FindFirstChild("Level")
+			if v112 then
+				v112:Destroy()
+			end
+			v111.PetIcon.ImageColor3 = Color3.new(1, 1, 1)
+			v111.PetIcon.Locked.Visible = false
+			v105.LootRange.Range.Text = "???"
+			v111.Parent = v105
+		end
+		v105.Parent = v99
+		v105.Visible = true
+	end
+	return true
+end
+function UpdateEnroll(p114) -- name: UpdateEnroll
+	-- upvalues: (ref) v_u_10, (ref) v_u_6, (copy) v_u_3, (copy) v_u_2, (ref) v_u_5, (copy) v_u_113
+	if v_u_10 then
+		return
+	else
+		v_u_10 = true
+		local v115 = #v_u_6 > 0
+		v_u_3.DividerStage2.Visible = v115
+		v_u_3.Holder1Stage2.Visible = v115
+		v_u_3.Holder2Stage2.Visible = v115
+		v_u_3.TimerFrameStage2.Visible = v115
+		v_u_3.TimerStage2.Visible = v115
+		v_u_3.AmountStage2.Visible = v115
+		v_u_3.NoticeOnStage1.Visible = not v115
+		v_u_3.HolderStage1.Visible = not v115
+		v_u_3.NoticeStage1.Visible = not v115
+		local v116 = v_u_2.Save.Get()
+		if v116 then
+			v_u_3.TitleRight.Text = "Possible Loot"
+			v_u_3.TitleRight.Visible = v115
+			v_u_3.SlotAmount.Visible = not v115
+			local v117 = v115 and v_u_3.Holder1Stage2 or v_u_3.HolderStage1
+			for _, v118 in ipairs(v117:GetChildren()) do
+				if not v118:IsA("TextButton") or v_u_2.PetCmds.Get(v118.Name) then
+					continue
+				end
+				v118:Destroy()
+			end
+			for v119, v120 in ipairs(v_u_2.Shared.SortPets(table.clone(v116.Pets))) do
+				local v121 = v117:FindFirstChild(v120.uid)
+				if v121 then
+					v121.LayoutOrder = v119
+					if not v121:FindFirstChild("Locked") or v120.l == v121.Locked.Visible then
+						continue
+					end
+					v121.Locked.Visible = v120.l or false
+				else
+					local v122 = v_u_2.Directory.Pets[v120.id]
+					if not v122 or (v122.huge or v122.titanic or (v122.isGift or v122.companionEnchantLevel ~= nil)) then
+						continue
+					end
+					local v_u_123 = v120.uid
+					local v124 = v_u_2.Assets.UI.Inventory.Pet:Clone()
+					v_u_2.PetUI.Create(v124, v_u_123)
+					v124.LayoutOrder = v119
+					v124:SetAttribute("DirId", v120.id)
+					v124.Parent = v117
+					v124.Activated:Connect(function()
+						-- upvalues: (ref) v_u_5, (ref) v_u_2, (copy) v_u_123, (ref) v_u_6
+						if not v_u_5 then
+							v_u_5 = true
+							local v125 = v_u_2.PetCmds.Get(v_u_123)
+							if v125 and v125.l then
+								v_u_2.Message.New("This pet is locked! Unlock it before you can enroll it in Daycare!")
+							elseif v_u_2.Signal.Invoke("Is Trading Booth Pet", v_u_123) then
+								v_u_2.Message.New("This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!")
+							elseif v_u_2.Functions.SearchArray(v_u_6, v_u_123) then
+								PetsDeselect(v_u_123)
+							else
+								PetsSelect(v_u_123)
+							end
+							v_u_5 = false
+						end
+					end)
+					v_u_2.GUIFX.ButtonFX(v124)
+				end
+			end
+			if v115 and not (p114 or v_u_113()) then
+				v_u_10 = false
+			else
+				v_u_3.EnrollStage12.ImageColor3 = v115 and Color3.new(1, 1, 1) or Color3.new(0.5, 0.5, 0.5)
+				PetsUpdate()
+				v_u_10 = false
+			end
+		else
+			v_u_10 = false
+			return
+		end
+	end
+end
+v_u_2.GUIFX.ButtonFX(v_u_3.EnrollStage12)
+v_u_3.EnrollStage12.Activated:Connect(function()
+	-- upvalues: (ref) v_u_5, (ref) v_u_6, (copy) v_u_2, (copy) v_u_3
+	if not v_u_5 then
+		v_u_5 = true
+		if #v_u_6 > 0 then
+			local v126 = v_u_2.Save.Get()
+			if v126 and v_u_2.Message.New("Put these pets in daycare? They cannot be taken out early!", true) then
+				local v127, v128, v129 = v_u_2.Network.Invoke("Daycare: Enroll", v_u_6)
+				if v127 then
+					v_u_6 = {}
+					v_u_3.PetsAndLoot.Visible = false
+					v_u_3.Categories.Visible = false
+					v_u_3.View.Visible = true
+					if v129 then
+						v126.DaycareQueue = v129
+					end
+					v_u_3.Title.Text = "Daycare!"
+					UpdateView()
+					UpdateEnroll(true)
+				else
+					v_u_2.Message.New(v128 or "Something went wrong!")
+				end
+			end
+		end
+		v_u_5 = false
+	end
+end)
+v_u_2.GUIFX.ButtonFX(v_u_3.ClaimAll)
+v_u_3.ClaimAll.Activated:Connect(function()
+	-- upvalues: (ref) v_u_5, (copy) v_u_79
+	if not v_u_5 then
+		v_u_5 = true
+		v_u_79(nil)
+		v_u_5 = false
+	end
+end)
+v_u_2.GUIFX.ButtonFX(v_u_3.UpgradeSlots)
+v_u_3.UpgradeSlots.Activated:Connect(function()
+	-- upvalues: (ref) v_u_5, (copy) v_u_2
+	if not v_u_5 then
+		v_u_5 = true
+		local v130, v131 = v_u_2.Network.Invoke("Attempt Buy +10 Daycare Slots")
+		if v130 == true then
+			v_u_2.Functions.PromptPurchase(v131, true)
+		else
+			v_u_2.Message.New(v131 or "Something went wrong!")
+		end
+		v_u_5 = false
+	end
+end)
+v_u_2.GUIFX.ButtonFX(v_u_3.OpenEnrollMenu)
+v_u_3.OpenEnrollMenu.Activated:Connect(function()
+	-- upvalues: (ref) v_u_5, (copy) v_u_3
+	if not v_u_5 then
+		v_u_5 = true
+		UpdateEnroll()
+		v_u_3.Title.Text = "Daycare!"
+		v_u_3.LootView.Visible = false
+		v_u_3.Categories.Visible = false
+		v_u_3.PetsAndLoot.Visible = true
+		v_u_5 = false
+	end
+end)
+v_u_2.GUIFX.ButtonFX(v_u_3.OpenViewMenu)
+v_u_3.OpenViewMenu.Activated:Connect(function()
+	-- upvalues: (ref) v_u_5, (copy) v_u_3
+	if not v_u_5 then
+		v_u_5 = true
+		UpdateView()
+		v_u_3.Title.Text = "Daycare!"
+		v_u_3.LootView.Visible = false
+		v_u_3.Categories.Visible = false
+		v_u_3.View.Visible = true
+		v_u_5 = false
+	end
+end)
+v_u_2.GUIFX.ButtonFX(v_u_3.Close)
+v_u_3.Close.Activated:Connect(function()
+	-- upvalues: (ref) v_u_5, (copy) v_u_3, (ref) v_u_6, (ref) v_u_9, (copy) v_u_2
+	if not v_u_5 then
+		v_u_5 = true
+		v_u_3.TitleRight.Visible = false
+		v_u_3.LootView.Visible = false
+		v_u_3.Categories.Visible = true
+		v_u_3.PetsAndLoot.Visible = false
+		v_u_3.View.Visible = false
+		v_u_6 = {}
+		v_u_3.Gui.Enabled = false
+		if v_u_9 then
+			local v132 = v_u_9
+			v_u_9 = nil
+			v_u_2.Signal.Fire("Open Egg", "Huge Machine Egg 1", { v132 })
+		end
+		v_u_5 = false
+	end
+end)
+v_u_2.Signal.Fired("Window Opened"):Connect(function(p133)
+	-- upvalues: (copy) v_u_3, (copy) v_u_2
+	if p133 == v_u_3.Gui then
+		v_u_3.LootView.Visible = false
+		v_u_3.Categories.Visible = true
+		v_u_3.PetsAndLoot.Visible = false
+		v_u_3.View.Visible = false
+		v_u_3.Title.Text = "Daycare!"
+		v_u_2.Audio.Play("rbxassetid://7495293012", script, 1, 0.4)
+	end
+end)
+v_u_2.Signal.Fired("Window Closed"):Connect(function(p134)
+	-- upvalues: (copy) v_u_3
+	if p134 == v_u_3.Gui then
+		Update()
+		v_u_3.LootView.Visible = false
+		v_u_3.Categories.Visible = true
+		v_u_3.PetsAndLoot.Visible = false
+		v_u_3.View.Visible = false
+	end
+end)
+v_u_2.Signal.Fired("Resolution Changed"):Connect(function()
+	-- upvalues: (copy) v_u_3
+	if v_u_3.Gui.Enabled then
+		task.defer(ScaleScrolling)
+	end
+end)
+v_u_2.Signal.Fired("Stat Changed"):Connect(function(p135)
+	if p135 == "DaycareQueue" then
+		UpdateView()
+	elseif p135 == "DaycareTier" then
+		Update()
+		UpdateView()
+	end
+end)
+UpdateEnroll()
+UpdateView()
+Update()
+v_u_3.LootView.Visible = false
+v_u_3.Categories.Visible = true
+v_u_3.PetsAndLoot.Visible = false
+v_u_3.View.Visible = false
+
+-- // Function Dumper made by King.Kevin
+-- // Script Path: Players.Emerson_GTA.PlayerScripts.Scripts.GUIs.Daycare
+
+--[[
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [Instance] = 10
+		2 [table]:
+		2 [table] table: 0xda784ad71401b9b2
+				1 [Instance] = Categories
+				2 [Instance] = Divider
+				3 [Instance] = Label
+				4 [Instance] = NonPet
+				5 [Instance] = Range
+				6 [Instance] = HolderStage1
+				7 [Instance] = HC
+				8 [Instance] = Time
+				9 [Instance] = LootView
+				10 [Instance] = EnrollPets
+				11 [Instance] = OpenViewMenu
+				12 [Instance] = SlotAmount
+				13 [Instance] = Side
+				14 [Instance] = TitleRight
+				15 [Instance] = DividerStage2
+				16 [Instance] = TimeLeftStage1
+				17 [Instance] = Holder
+				18 [Instance] = OpenEnrollMenu
+				19 [Instance] = NoticeStage1
+				20 [Instance] = PetReady
+				21 [Instance] = TextLabel
+				22 [Instance] = UpgradeSlots
+				23 [Instance] = Timer Icon
+				24 [Instance] = Frame
+				25 [Instance] = AmountStage2
+				26 [Instance] = Daycare
+				27 [Instance] = NoPets
+				28 [Instance] = TimerStage2
+				29 [Instance] = pattern
+				30 [Instance] = Close
+				31 [Instance] = TimeDescStage1
+				32 [Instance] = NoticeOnStage1
+				33 [Instance] = Holder2Stage2
+				34 [Instance] = ButtonKeybind
+				35 [Instance] = Pets
+				36 [Instance] = PetIcon
+				37 [Instance] = ClaimDescStage2
+				38 [Instance] = ui-stroke
+				39 [Instance] = Xbox
+				40 [Instance] = Level
+				41 [Instance] = Icon
+				42 [Instance] = ImageLabel
+				43 [Instance] = bg
+				44 [Instance] = Desktop
+				45 [Instance] = View
+				46 [Instance] = LootRange
+				47 [Instance] = Holder1Stage2
+				48 [Instance] = TimerFrameStage2
+				49 [Instance] = ClaimAll
+				50 [Instance] = ViewPets
+				51 [Instance] = Loot
+				52 [Instance] = ViewTemplate
+				53 [Instance] = Title
+				54 [Instance] = LootHolder
+				55 [Instance] = EnrollStage12
+				56 [Instance] = ClaimStage2
+				57 [Instance] = PetsAndLoot
+				58 [Instance] = None
+		3 [function] = updateTimer
+		4 [table]:
+		4 [table] table: 0xd355fbda0535bd16
+
+Function Constants: Unknown Name
+		1 [string] = Parent
+		2 [string] = Gui
+		3 [string] = Enabled
+		4 [string] = Heartbeat
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [Instance] = 9
+		2 [table] (Recursive table detected)
+		3 [function] = updateTimer
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Parent
+		2 [string] = Gui
+		3 [string] = Enabled
+		4 [string] = Heartbeat
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [Instance] = 8
+		2 [table] (Recursive table detected)
+		3 [function] = updateTimer
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Parent
+		2 [string] = Gui
+		3 [string] = Enabled
+		4 [string] = Heartbeat
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [Instance] = 7
+		2 [table] (Recursive table detected)
+		3 [function] = updateTimer
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Parent
+		2 [string] = Gui
+		3 [string] = Enabled
+		4 [string] = Heartbeat
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [Instance] = 6
+		2 [table] (Recursive table detected)
+		3 [function] = updateTimer
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Parent
+		2 [string] = Gui
+		3 [string] = Enabled
+		4 [string] = Heartbeat
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [Instance] = 5
+		2 [table] (Recursive table detected)
+		3 [function] = updateTimer
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Parent
+		2 [string] = Gui
+		3 [string] = Enabled
+		4 [string] = Heartbeat
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [Instance] = 4
+		2 [table] (Recursive table detected)
+		3 [function] = updateTimer
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Parent
+		2 [string] = Gui
+		3 [string] = Enabled
+		4 [string] = Heartbeat
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [Instance] = 3
+		2 [table] (Recursive table detected)
+		3 [function] = updateTimer
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Parent
+		2 [string] = Gui
+		3 [string] = Enabled
+		4 [string] = Heartbeat
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [Instance] = 2
+		2 [table] (Recursive table detected)
+		3 [function] = updateTimer
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Parent
+		2 [string] = Gui
+		3 [string] = Enabled
+		4 [string] = Heartbeat
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [Instance] = 1
+		2 [table] (Recursive table detected)
+		3 [function] = updateTimer
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Parent
+		2 [string] = Gui
+		3 [string] = Enabled
+		4 [string] = Heartbeat
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id2b09e814d5404ecd8d87722585bf030f
+		4 [table]:
+		4 [table] table: 0x02f31e9fec334dee
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id88fc217e0b0a4da2b7f19b626422c644
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id448a85644a1f49068e424623f5ede7b7
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = ide755d72b7a204b64818a69584ed4aabb
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id736e9e554bea46298ce4f6bfc290ccb8
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id6a7b28a9f55640daa9815cbf1c0ed544
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id6a5dd6e6a2254c16b33850e2beb72060
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id60b905496f5c4c769a8643dbbde7f4aa
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = idb13655eafa08422895fd908f38167188
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id3eb06f7fdf8545e49828ecaac6449a7e
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id033b9738c31b467b946c87f8f5357ce6
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id6c193d18405d4722b73e5d9f1fe0294c
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id8fb94853813c413b897c7246d27bd61a
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id499e01aa16b247059531e73f87a73c08
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = idfaab764334bd4ed1a6e151f0469d0833
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = idc8e0283bd4d6477cb1883c823b418e41
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = id04d78f46c52848c4a8e171186825abd4
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [function] = claim
+		3 [number] = 10
+
+Function Constants: Unknown Name
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [function] = claim
+		3 [number] = 9
+
+Function Constants: Unknown Name
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [function] = claim
+		3 [number] = 8
+
+Function Constants: Unknown Name
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [function] = claim
+		3 [number] = 7
+
+Function Constants: Unknown Name
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [function] = claim
+		3 [number] = 6
+
+Function Constants: Unknown Name
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [function] = claim
+		3 [number] = 5
+
+Function Constants: Unknown Name
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [function] = claim
+		3 [number] = 4
+
+Function Constants: Unknown Name
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [function] = claim
+		3 [number] = 3
+
+Function Constants: Unknown Name
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [function] = claim
+		3 [number] = 2
+
+Function Constants: Unknown Name
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [function] = claim
+		3 [number] = 1
+
+Function Constants: Unknown Name
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = UpdateView
+		2 [string] = Title
+		3 [string] = Daycare!
+		4 [string] = Text
+		5 [string] = LootView
+		6 [string] = Visible
+		7 [string] = Categories
+		8 [string] = View
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = UpdateEnroll
+		2 [string] = Title
+		3 [string] = Daycare!
+		4 [string] = Text
+		5 [string] = LootView
+		6 [string] = Visible
+		7 [string] = Categories
+		8 [string] = PetsAndLoot
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Network
+		2 [string] = Invoke
+		3 [string] = Attempt Buy +10 Daycare Slots
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = Something went wrong!
+		7 [string] = Functions
+		8 [string] = PromptPurchase
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [function] = claim
+
+Function Constants: Unknown Name
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [number] = 185.09864179976285
+		2 [Color3] = 0, 0.704075, 1
+
+Function Constants: Unknown Name
+		1 [string] = Color3
+		2 [string] = fromHSV
+		4 [number] = 1
+		5 [number] = 2
+
+====================================================================================================
+
+Function Dump: UpdateSelectedAmount
+
+Function Upvalues: UpdateSelectedAmount
+		1 [table] (Recursive table detected)
+		2 [table] (Recursive table detected)
+
+Function Constants: UpdateSelectedAmount
+		1 [string] = AmountStage2
+		2 [string] = Selected 
+		3 [string] = /
+		4 [string] = GetRemainingSlots
+		5 [string] =  Pets
+		6 [string] = Text
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [string] = idee08754791114246a38adbd524ad9ac0
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = PetCmds
+		2 [string] = Get
+		3 [string] = l
+		4 [string] = Message
+		5 [string] = New
+		6 [string] = This pet is locked! Unlock it before you can enroll it in Daycare!
+		7 [string] = Signal
+		8 [string] = Invoke
+		9 [string] = Is Trading Booth Pet
+		10 [string] = This pet is currently in your trading booth! Remove it before you can enroll it in Daycare!
+		11 [string] = Functions
+		12 [string] = SearchArray
+		13 [string] = PetsSelect
+		14 [string] = PetsDeselect
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [table] (Recursive table detected)
+		4 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = Message
+		4 [string] = New
+		5 [string] = Put these pets in daycare? They cannot be taken out early!
+		6 [string] = Network
+		7 [string] = Invoke
+		8 [string] = Daycare: Enroll
+		9 [string] = PetsAndLoot
+		10 [string] = Visible
+		11 [string] = Categories
+		12 [string] = View
+		13 [string] = DaycareQueue
+		14 [string] = Title
+		15 [string] = Daycare!
+		16 [string] = Text
+		17 [string] = UpdateView
+		18 [string] = UpdateEnroll
+		19 [string] = Something went wrong!
+
+====================================================================================================
+
+Function Dump: ScaleScrolling
+
+Function Upvalues: ScaleScrolling
+		1 [table] (Recursive table detected)
+		2 [table] (Recursive table detected)
+		3 [function] = fitGrid
+		4 [table] (Recursive table detected)
+
+Function Constants: ScaleScrolling
+		1 [string] = Holder1Stage2
+		2 [string] = HolderStage1
+		3 [string] = Functions
+		4 [string] = ResolutionScale
+		5 [number] = 0.5
+		6 [number] = 1.1
+		7 [string] = Holder2Stage2
+		8 [string] = UIListLayout
+		9 [string] = FindFirstChildOfClass
+		10 [string] = UIPadding
+		11 [string] = ApplyLayout
+		12 [string] = UDim2
+		13 [string] = new
+		15 [string] = AbsoluteContentSize
+		16 [string] = Y
+		17 [string] = PaddingBottom
+		18 [string] = Offset
+		19 [string] = PaddingTop
+		20 [string] = CanvasSize
+
+====================================================================================================
+
+Function Dump: claim
+
+Function Upvalues: claim
+		1 [table] (Recursive table detected)
+		2 [table] (Recursive table detected)
+		3 [boolean] = false
+
+Function Constants: claim
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = Message
+		4 [string] = New
+		5 [string] = Something went wrong! Try re-logging!
+		6 [string] = Network
+		7 [string] = Invoke
+		8 [string] = Daycare: Claim
+		9 [string] = Something went wrong!
+		10 [string] = DaycareQueue
+		11 [string] = UpdateView
+		12 [string] = Title
+		13 [string] = Your Loot!
+		14 [string] = Text
+		15 [string] = UpdateClaim
+		16 [string] = Categories
+		17 [string] = ViewPets
+		18 [string] = Frame
+		19 [string] = PetReady
+		20 [string] = Visible
+		21 [string] = LootView
+		22 [string] = PetsAndLoot
+		23 [string] = View
+
+====================================================================================================
+
+Function Dump: Update
+
+Function Upvalues: Update
+		1 [table] (Recursive table detected)
+		2 [table] (Recursive table detected)
+		3 [boolean] = false
+
+Function Constants: Update
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = UpgradeSlots
+		4 [number] = 0
+		5 [string] = DaycareTier
+		6 [string] = tonumber
+		8 [string] = Visible
+		9 [string] = Categories
+		10 [string] = ViewPets
+		11 [string] = Frame
+		12 [string] = PetReady
+
+====================================================================================================
+
+Function Dump: PetsUpdate
+
+Function Upvalues: PetsUpdate
+		1 [table] (Recursive table detected)
+		2 [table] (Recursive table detected)
+		3 [table] (Recursive table detected)
+
+Function Constants: PetsUpdate
+		1 [string] = Holder1Stage2
+		2 [string] = HolderStage1
+		3 [string] = ipairs
+		5 [string] = GetChildren
+		6 [string] = ClassName
+		7 [string] = TextButton
+		8 [string] = DirId
+		9 [string] = GetAttribute
+		10 [string] = Functions
+		11 [string] = SearchArray
+		12 [string] = Name
+		13 [string] = Equipped
+		14 [string] = Visible
+		15 [string] = Color3
+		16 [string] = fromRGB
+		18 [string] = BackgroundColor3
+		19 [string] = Locked
+		20 [string] = PetIcon
+		21 [string] = ImageTransparency
+		22 [string] = ScaleScrolling
+
+====================================================================================================
+
+Function Dump: PetsDeselect
+
+Function Upvalues: PetsDeselect
+		1 [table] (Recursive table detected)
+		2 [Random] = Random
+		3 [table] (Recursive table detected)
+
+Function Constants: PetsDeselect
+		1 [string] = Audio
+		2 [string] = Play
+		3 [string] = rbxassetid://7139317909
+		4 [string] = script
+		6 [number] = 0.95
+		7 [number] = 1.05
+		8 [string] = NextNumber
+		9 [number] = 0.75
+		10 [string] = table
+		11 [string] = find
+		13 [string] = remove
+		15 [string] = UpdateSelectedAmount
+		16 [string] = UpdateEnroll
+
+====================================================================================================
+
+Function Dump: PetsSelect
+
+Function Upvalues: PetsSelect
+		1 [table] (Recursive table detected)
+		2 [table] (Recursive table detected)
+		3 [Random] = Random
+
+Function Constants: PetsSelect
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = Shared
+		4 [string] = DaycareComputeSlotsForTier
+		5 [string] = DaycareTier
+		6 [string] = DaycareQueue
+		7 [string] = type
+		9 [string] = table
+		10 [string] = math
+		11 [string] = max
+		13 [number] = 0
+		14 [string] = find
+		16 [string] = Audio
+		17 [string] = Play
+		18 [string] = rbxassetid://7139317934
+		19 [string] = script
+		21 [number] = 0.95
+		22 [number] = 1.05
+		23 [string] = NextNumber
+		24 [number] = 0.75
+		25 [string] = insert
+		27 [string] = UpdateSelectedAmount
+		28 [string] = UpdateEnroll
+		29 [number] = inf
+		30 [string] = Message
+		31 [string] = New
+		32 [string] = You're out of daycare slots! Would you like to buy more?
+		33 [string] = Network
+		34 [string] = Invoke
+		35 [string] = Attempt Buy +10 Daycare Slots
+		36 [string] = Something went wrong!
+		37 [string] = Functions
+		38 [string] = PromptPurchase
+		39 [string] = You're out of daycare slots!
+
+====================================================================================================
+
+Function Dump: UpdateView
+
+Function Upvalues: UpdateView
+		1 [table] (Recursive table detected)
+		2 [table] (Recursive table detected)
+		3 [boolean] = false
+		4 [Color3] = 0, 0.704075, 1
+		5 [Instance] = Run Service
+		6 [boolean] = false
+		7 [function] = claim
+
+Function Constants: UpdateView
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = View
+		4 [string] = Holder
+		5 [string] = DaycareQueue
+		6 [string] = type
+		8 [string] = table
+		9 [string] = ipairs
+		11 [string] = Pet
+		12 [string] = tostring
+		14 [string] = FindFirstChild
+		15 [string] = PetUid
+		16 [string] = GetAttribute
+		17 [string] = uid
+		18 [string] = Destroy
+		19 [string] = Directory
+		20 [string] = Pets
+		21 [string] = id
+		22 [string] = ViewTemplate
+		23 [string] = Clone
+		24 [string] = Name
+		25 [string] = PetIcon
+		26 [string] = dm
+		27 [string] = darkMatterThumbnail
+		28 [string] = g
+		29 [string] = goldenThumbnail
+		30 [string] = thumbnail
+		31 [string] = Image
+		32 [string] = SlotId
+		33 [string] = SetAttribute
+		34 [string] = Parent
+		35 [string] = Visible
+		36 [string] = r
+		37 [string] = task
+		38 [string] = spawn
+		40 [string] = GUIFX
+		41 [string] = ButtonFX
+		42 [string] = ClaimStage2
+		43 [string] = Activated
+		44 [string] = Connect
+		45 [string] = GetChildren
+		46 [string] = None
+		47 [string] = ClaimAll
+		48 [string] = Color3
+		49 [string] = new
+		51 [number] = 0.5
+		52 [string] = ImageColor3
+		53 [string] = SlotAmount
+		54 [string] = GetUsedSlots
+		55 [string] = /
+		56 [string] = GetMaxSlots
+		57 [string] =  Slots
+		58 [string] = Text
+		59 [string] = QueueScrolling
+
+====================================================================================================
+
+Function Dump: updateTimer
+
+Function Upvalues: updateTimer
+		1 [table] (Recursive table detected)
+		2 [number] = 10
+		3 [table]:
+		3 [table] table: 0x3b2f4e6ea06d39b5
+				1 [boolean] = true
+				2 [boolean] = false
+				3 [number] = 15913863817665780
+				4 [string] = 507
+				5 [table]:
+				data [table] table: 0xf9ee047077c35cec
+						1 [boolean] = true
+						2 [string] = Ellie
+						3 [number] = 15913863817665780
+						4 [string] = oa1d4af4d94ed497bba12e0bad64f838c
+						5 [boolean] = false
+						6 [string] = id35bc0ebc679e4e1b80f64756e2ad1da7
+						7 [number] = 16861
+						8 [table]:
+						powers [table] table: 0x9d4ff664f93f0762
+								1 [table]:
+								1 [table] table: 0xa00d745ae0ddd82f
+										1 [string] = Glittering
+										2 [number] = 1
+								2 [table]:
+								2 [table] table: 0x65348a296402143c
+										1 [string] = Agility
+										2 [number] = 1
+								3 [table]:
+								3 [table] table: 0x28edf3a725a8ac15
+										1 [string] = Fantasy Coins
+										2 [number] = 1
+						9 [number] = 0
+						10 [number] = 0
+						11 [string] = 507
+				6 [string] = id35bc0ebc679e4e1b80f64756e2ad1da7
+		4 [Instance] = 10
+		5 [boolean] = false
+		6 [table] (Recursive table detected)
+
+Function Constants: updateTimer
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = DaycareQueue
+		4 [string] = type
+		6 [string] = table
+		7 [string] = Pet
+		8 [string] = uid
+		9 [string] = Shared
+		10 [string] = DaycareComputeRemainingTime
+		11 [string] = TimeDescStage1
+		12 [string] = Visible
+		13 [string] = TimeLeftStage1
+		14 [string] = ClaimStage2
+		15 [string] = ClaimDescStage2
+		16 [string] = PetIcon
+		17 [string] = UIGradient
+		18 [string] = Enabled
+		19 [string] = Functions
+		20 [string] = FormatTime
+		21 [string] = Text
+		22 [string] = ClaimAll
+		23 [string] = Color3
+		24 [string] = new
+		26 [string] = ImageColor3
+		27 [string] = Categories
+		28 [string] = ViewPets
+		29 [string] = Frame
+		30 [string] = PetReady
+
+====================================================================================================
+
+Function Dump: updateTimer
+
+Function Upvalues: updateTimer
+		1 [table] (Recursive table detected)
+		2 [number] = 9
+		3 [table]:
+		3 [table] table: 0xe95f7b02f87a51c4
+				1 [boolean] = true
+				2 [boolean] = false
+				3 [number] = 15901385202624000
+				4 [string] = 507
+				5 [table]:
+				data [table] table: 0x0fb633b74b62b8e7
+						1 [boolean] = true
+						2 [string] = Cooper
+						3 [number] = 15901385202624000
+						4 [string] = oe6d407c7ae014e8ca516c32025826805
+						5 [boolean] = false
+						6 [string] = id2a0de02c6ab34a7298788d2104db0882
+						7 [number] = 16806
+						8 [table]:
+						powers [table] table: 0xeed68ba2955de3d4
+								1 [table]:
+								1 [table] table: 0xc9592e95dc11ea39
+										1 [string] = Magnet
+										2 [number] = 1
+								2 [table]:
+								2 [table] table: 0x48b0410040965483
+										1 [string] = Diamonds
+										2 [number] = 5
+								3 [table]:
+								3 [table] table: 0x39013c77990df084
+										1 [string] = Presents
+										2 [number] = 2
+						9 [number] = 0
+						10 [number] = 0
+						11 [string] = 507
+				6 [string] = id2a0de02c6ab34a7298788d2104db0882
+		4 [Instance] = 9
+		5 [boolean] = false
+		6 [table] (Recursive table detected)
+
+Function Constants: updateTimer
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = DaycareQueue
+		4 [string] = type
+		6 [string] = table
+		7 [string] = Pet
+		8 [string] = uid
+		9 [string] = Shared
+		10 [string] = DaycareComputeRemainingTime
+		11 [string] = TimeDescStage1
+		12 [string] = Visible
+		13 [string] = TimeLeftStage1
+		14 [string] = ClaimStage2
+		15 [string] = ClaimDescStage2
+		16 [string] = PetIcon
+		17 [string] = UIGradient
+		18 [string] = Enabled
+		19 [string] = Functions
+		20 [string] = FormatTime
+		21 [string] = Text
+		22 [string] = ClaimAll
+		23 [string] = Color3
+		24 [string] = new
+		26 [string] = ImageColor3
+		27 [string] = Categories
+		28 [string] = ViewPets
+		29 [string] = Frame
+		30 [string] = PetReady
+
+====================================================================================================
+
+Function Dump: updateTimer
+
+Function Upvalues: updateTimer
+		1 [table] (Recursive table detected)
+		2 [number] = 8
+		3 [table]:
+		3 [table] table: 0xcf9b8a990979e987
+				1 [boolean] = true
+				2 [boolean] = false
+				3 [number] = 15928180833550080
+				4 [string] = 507
+				5 [table]:
+				data [table] table: 0xa20d0d849be5aeef
+						1 [boolean] = true
+						2 [string] = Teddy
+						3 [number] = 15928180833550080
+						4 [string] = o073e18e1d70744fa9932096ab6e90f11
+						5 [boolean] = false
+						6 [string] = id3ca240ecf2874708b03467b143e88f74
+						7 [number] = 16839
+						8 [table]:
+						powers [table] table: 0x26a46d8ca4f3387f
+								1 [table]:
+								1 [table] table: 0x92e86bc101907b06
+										1 [string] = Glittering
+										2 [number] = 1
+								2 [table]:
+								2 [table] table: 0x836abcd6c28ed90e
+										1 [string] = Presents
+										2 [number] = 3
+								3 [table]:
+								3 [table] table: 0x140fc7da9ada762f
+										1 [string] = Teamwork
+										2 [number] = 2
+						9 [number] = 0
+						10 [number] = 0
+						11 [string] = 507
+				6 [string] = id3ca240ecf2874708b03467b143e88f74
+		4 [Instance] = 8
+		5 [boolean] = false
+		6 [table] (Recursive table detected)
+
+Function Constants: updateTimer
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = DaycareQueue
+		4 [string] = type
+		6 [string] = table
+		7 [string] = Pet
+		8 [string] = uid
+		9 [string] = Shared
+		10 [string] = DaycareComputeRemainingTime
+		11 [string] = TimeDescStage1
+		12 [string] = Visible
+		13 [string] = TimeLeftStage1
+		14 [string] = ClaimStage2
+		15 [string] = ClaimDescStage2
+		16 [string] = PetIcon
+		17 [string] = UIGradient
+		18 [string] = Enabled
+		19 [string] = Functions
+		20 [string] = FormatTime
+		21 [string] = Text
+		22 [string] = ClaimAll
+		23 [string] = Color3
+		24 [string] = new
+		26 [string] = ImageColor3
+		27 [string] = Categories
+		28 [string] = ViewPets
+		29 [string] = Frame
+		30 [string] = PetReady
+
+====================================================================================================
+
+Function Dump: updateTimer
+
+Function Upvalues: updateTimer
+		1 [table] (Recursive table detected)
+		2 [number] = 7
+		3 [table]:
+		3 [table] table: 0x59734868b4633cfc
+				1 [boolean] = true
+				2 [boolean] = false
+				3 [number] = 15920667455770840
+				4 [string] = 507
+				5 [table]:
+				data [table] table: 0x40f114383b09ccb0
+						1 [boolean] = true
+						2 [string] = Max
+						3 [number] = 15920667455770840
+						4 [string] = o458678bdd097412886065298c459276e
+						5 [boolean] = false
+						6 [string] = id26415d9c9ff7441c8cf7225c06eb19b2
+						7 [number] = 16848
+						8 [table]:
+						powers [table] table: 0xa98c852b72240640
+								1 [table]:
+								1 [table] table: 0x484cf09ddb3461ef
+										1 [string] = Magnet
+										2 [number] = 1
+								2 [table]:
+								2 [table] table: 0x1304a84aaa1914b8
+										1 [string] = Presents
+										2 [number] = 1
+								3 [table]:
+								3 [table] table: 0xcbcde6b8744f06ff
+										1 [string] = Chests
+										2 [number] = 2
+						9 [number] = 0
+						10 [number] = 0
+						11 [string] = 507
+				6 [string] = id26415d9c9ff7441c8cf7225c06eb19b2
+		4 [Instance] = 7
+		5 [boolean] = false
+		6 [table] (Recursive table detected)
+
+Function Constants: updateTimer
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = DaycareQueue
+		4 [string] = type
+		6 [string] = table
+		7 [string] = Pet
+		8 [string] = uid
+		9 [string] = Shared
+		10 [string] = DaycareComputeRemainingTime
+		11 [string] = TimeDescStage1
+		12 [string] = Visible
+		13 [string] = TimeLeftStage1
+		14 [string] = ClaimStage2
+		15 [string] = ClaimDescStage2
+		16 [string] = PetIcon
+		17 [string] = UIGradient
+		18 [string] = Enabled
+		19 [string] = Functions
+		20 [string] = FormatTime
+		21 [string] = Text
+		22 [string] = ClaimAll
+		23 [string] = Color3
+		24 [string] = new
+		26 [string] = ImageColor3
+		27 [string] = Categories
+		28 [string] = ViewPets
+		29 [string] = Frame
+		30 [string] = PetReady
+
+====================================================================================================
+
+Function Dump: updateTimer
+
+Function Upvalues: updateTimer
+		1 [table] (Recursive table detected)
+		2 [number] = 6
+		3 [table]:
+		3 [table] table: 0x07c2e6e7d080016f
+				1 [boolean] = true
+				2 [boolean] = false
+				3 [number] = 15976650372571320
+				4 [string] = 507
+				5 [table]:
+				data [table] table: 0x7a90be8a52d0f365
+						1 [boolean] = true
+						2 [table]:
+						powers [table] table: 0xe27b103510aa44da
+								1 [table]:
+								1 [table] table: 0x226869aadbb474f0
+										1 [string] = Magnet
+										2 [number] = 1
+								2 [table]:
+								2 [table] table: 0xf59d2e34e065fead
+										1 [string] = Diamonds
+										2 [number] = 3
+								3 [table]:
+								3 [table] table: 0x1417519d5cd788a9
+										1 [string] = Teamwork
+										2 [number] = 1
+						3 [number] = 15976650372571320
+						4 [string] = o3646045bf5414cce92969de374638c47
+						5 [string] = 507
+						6 [string] = id2aa25112404b4af1a33ddeea638662cf
+						7 [number] = 16826
+						8 [string] = Josh
+						9 [number] = 0
+						10 [number] = 0
+						11 [boolean] = false
+				6 [string] = id2aa25112404b4af1a33ddeea638662cf
+		4 [Instance] = 6
+		5 [boolean] = false
+		6 [table] (Recursive table detected)
+
+Function Constants: updateTimer
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = DaycareQueue
+		4 [string] = type
+		6 [string] = table
+		7 [string] = Pet
+		8 [string] = uid
+		9 [string] = Shared
+		10 [string] = DaycareComputeRemainingTime
+		11 [string] = TimeDescStage1
+		12 [string] = Visible
+		13 [string] = TimeLeftStage1
+		14 [string] = ClaimStage2
+		15 [string] = ClaimDescStage2
+		16 [string] = PetIcon
+		17 [string] = UIGradient
+		18 [string] = Enabled
+		19 [string] = Functions
+		20 [string] = FormatTime
+		21 [string] = Text
+		22 [string] = ClaimAll
+		23 [string] = Color3
+		24 [string] = new
+		26 [string] = ImageColor3
+		27 [string] = Categories
+		28 [string] = ViewPets
+		29 [string] = Frame
+		30 [string] = PetReady
+
+====================================================================================================
+
+Function Dump: updateTimer
+
+Function Upvalues: updateTimer
+		1 [table] (Recursive table detected)
+		2 [number] = 5
+		3 [table]:
+		3 [table] table: 0x7394cd4d6ad6ec80
+				1 [boolean] = true
+				2 [boolean] = false
+				3 [number] = 15936711512956900
+				4 [string] = 507
+				5 [table]:
+				data [table] table: 0xda82dffe07ae96ec
+						1 [boolean] = true
+						2 [string] = Ellie
+						3 [number] = 15936711512956900
+						4 [string] = o610de015a07745cc8f0ca919969914cf
+						5 [boolean] = false
+						6 [string] = id8dbe563f7ae8404aab8eba625c3c1d7c
+						7 [number] = 16840
+						8 [table]:
+						powers [table] table: 0x1f160f594d750fb5
+								1 [table]:
+								1 [table] table: 0xe8bd3a634790026a
+										1 [string] = Royalty
+										2 [number] = 1
+								2 [table]:
+								2 [table] table: 0xe49ddc1568116674
+										1 [string] = Presents
+										2 [number] = 1
+								3 [table]:
+								3 [table] table: 0x778880ee219ce6b3
+										1 [string] = Fantasy Coins
+										2 [number] = 3
+						9 [number] = 0
+						10 [number] = 0
+						11 [string] = 507
+				6 [string] = id8dbe563f7ae8404aab8eba625c3c1d7c
+		4 [Instance] = 5
+		5 [boolean] = false
+		6 [table] (Recursive table detected)
+
+Function Constants: updateTimer
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = DaycareQueue
+		4 [string] = type
+		6 [string] = table
+		7 [string] = Pet
+		8 [string] = uid
+		9 [string] = Shared
+		10 [string] = DaycareComputeRemainingTime
+		11 [string] = TimeDescStage1
+		12 [string] = Visible
+		13 [string] = TimeLeftStage1
+		14 [string] = ClaimStage2
+		15 [string] = ClaimDescStage2
+		16 [string] = PetIcon
+		17 [string] = UIGradient
+		18 [string] = Enabled
+		19 [string] = Functions
+		20 [string] = FormatTime
+		21 [string] = Text
+		22 [string] = ClaimAll
+		23 [string] = Color3
+		24 [string] = new
+		26 [string] = ImageColor3
+		27 [string] = Categories
+		28 [string] = ViewPets
+		29 [string] = Frame
+		30 [string] = PetReady
+
+====================================================================================================
+
+Function Dump: updateTimer
+
+Function Upvalues: updateTimer
+		1 [table] (Recursive table detected)
+		2 [number] = 4
+		3 [table]:
+		3 [table] table: 0xdace08c8b97ae935
+				1 [boolean] = true
+				2 [boolean] = false
+				3 [number] = 15928346449765900
+				4 [string] = 507
+				5 [table]:
+				data [table] table: 0xccdc4c2da5a35381
+						1 [boolean] = true
+						2 [string] = Bella
+						3 [number] = 15928346449765900
+						4 [string] = o7b56fce3501a425c9b88b70884d97360
+						5 [boolean] = false
+						6 [string] = id6f78fb27dad043e8abfe5a51d9332489
+						7 [number] = 16842
+						8 [table]:
+						powers [table] table: 0x16518e2a94274deb
+								1 [table]:
+								1 [table] table: 0xec6f2b3454bf2461
+										1 [string] = Royalty
+										2 [number] = 1
+								2 [table]:
+								2 [table] table: 0xa95afdb2515e1023
+										1 [string] = Presents
+										2 [number] = 2
+								3 [table]:
+								3 [table] table: 0x24a17b82429c4beb
+										1 [string] = Fantasy Coins
+										2 [number] = 1
+						9 [number] = 0
+						10 [number] = 0
+						11 [string] = 507
+				6 [string] = id6f78fb27dad043e8abfe5a51d9332489
+		4 [Instance] = 4
+		5 [boolean] = false
+		6 [table] (Recursive table detected)
+
+Function Constants: updateTimer
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = DaycareQueue
+		4 [string] = type
+		6 [string] = table
+		7 [string] = Pet
+		8 [string] = uid
+		9 [string] = Shared
+		10 [string] = DaycareComputeRemainingTime
+		11 [string] = TimeDescStage1
+		12 [string] = Visible
+		13 [string] = TimeLeftStage1
+		14 [string] = ClaimStage2
+		15 [string] = ClaimDescStage2
+		16 [string] = PetIcon
+		17 [string] = UIGradient
+		18 [string] = Enabled
+		19 [string] = Functions
+		20 [string] = FormatTime
+		21 [string] = Text
+		22 [string] = ClaimAll
+		23 [string] = Color3
+		24 [string] = new
+		26 [string] = ImageColor3
+		27 [string] = Categories
+		28 [string] = ViewPets
+		29 [string] = Frame
+		30 [string] = PetReady
+
+====================================================================================================
+
+Function Dump: updateTimer
+
+Function Upvalues: updateTimer
+		1 [table] (Recursive table detected)
+		2 [number] = 3
+		3 [table]:
+		3 [table] table: 0x6da5b1c8e3f4bf99
+				1 [boolean] = true
+				2 [boolean] = false
+				3 [number] = 15932048693945400
+				4 [string] = 507
+				5 [table]:
+				data [table] table: 0x18bc47a951c69be6
+						1 [boolean] = true
+						2 [string] = Daisy
+						3 [number] = 15932048693945400
+						4 [string] = o703f547d0a1541e1bc630e4253f08cb9
+						5 [boolean] = false
+						6 [string] = id0ec939cd625d499dbe0d31e7f03d6603
+						7 [number] = 16844
+						8 [table]:
+						powers [table] table: 0xd725f87a3a1ce4f8
+								1 [table]:
+								1 [table] table: 0xc5ffdad11156db77
+										1 [string] = Glittering
+										2 [number] = 1
+								2 [table]:
+								2 [table] table: 0x78d3ac6818784058
+										1 [string] = Tech Coins
+										2 [number] = 1
+								3 [table]:
+								3 [table] table: 0x676dd0b1594c8716
+										1 [string] = Agility
+										2 [number] = 1
+						9 [number] = 0
+						10 [number] = 0
+						11 [string] = 507
+				6 [string] = id0ec939cd625d499dbe0d31e7f03d6603
+		4 [Instance] = 3
+		5 [boolean] = false
+		6 [table] (Recursive table detected)
+
+Function Constants: updateTimer
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = DaycareQueue
+		4 [string] = type
+		6 [string] = table
+		7 [string] = Pet
+		8 [string] = uid
+		9 [string] = Shared
+		10 [string] = DaycareComputeRemainingTime
+		11 [string] = TimeDescStage1
+		12 [string] = Visible
+		13 [string] = TimeLeftStage1
+		14 [string] = ClaimStage2
+		15 [string] = ClaimDescStage2
+		16 [string] = PetIcon
+		17 [string] = UIGradient
+		18 [string] = Enabled
+		19 [string] = Functions
+		20 [string] = FormatTime
+		21 [string] = Text
+		22 [string] = ClaimAll
+		23 [string] = Color3
+		24 [string] = new
+		26 [string] = ImageColor3
+		27 [string] = Categories
+		28 [string] = ViewPets
+		29 [string] = Frame
+		30 [string] = PetReady
+
+====================================================================================================
+
+Function Dump: updateTimer
+
+Function Upvalues: updateTimer
+		1 [table] (Recursive table detected)
+		2 [number] = 2
+		3 [table]:
+		3 [table] table: 0xaafa55fa2b406999
+				1 [boolean] = true
+				2 [boolean] = false
+				3 [number] = 15932305352732940
+				4 [string] = 507
+				5 [table]:
+				data [table] table: 0x0aae426851532cd4
+						1 [boolean] = true
+						2 [string] = Chloe
+						3 [number] = 15932305352732940
+						4 [string] = o414ef40e16114fd8967de52a19102466
+						5 [boolean] = false
+						6 [string] = id36dfc0e0e91a43b2b6dbf38b71ef3a4b
+						7 [number] = 16813
+						8 [table]:
+						powers [table] table: 0x6c99b5cc9d21ac48
+								1 [table]:
+								1 [table] table: 0x64067f52d2f6b661
+										1 [string] = Magnet
+										2 [number] = 1
+								2 [table]:
+								2 [table] table: 0x9c3f00643efd0cf2
+										1 [string] = Strength
+										2 [number] = 2
+								3 [table]:
+								3 [table] table: 0xc6e6b4baf59f184a
+										1 [string] = Agility
+										2 [number] = 2
+						9 [number] = 0
+						10 [number] = 0
+						11 [string] = 507
+				6 [string] = id36dfc0e0e91a43b2b6dbf38b71ef3a4b
+		4 [Instance] = 2
+		5 [boolean] = false
+		6 [table] (Recursive table detected)
+
+Function Constants: updateTimer
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = DaycareQueue
+		4 [string] = type
+		6 [string] = table
+		7 [string] = Pet
+		8 [string] = uid
+		9 [string] = Shared
+		10 [string] = DaycareComputeRemainingTime
+		11 [string] = TimeDescStage1
+		12 [string] = Visible
+		13 [string] = TimeLeftStage1
+		14 [string] = ClaimStage2
+		15 [string] = ClaimDescStage2
+		16 [string] = PetIcon
+		17 [string] = UIGradient
+		18 [string] = Enabled
+		19 [string] = Functions
+		20 [string] = FormatTime
+		21 [string] = Text
+		22 [string] = ClaimAll
+		23 [string] = Color3
+		24 [string] = new
+		26 [string] = ImageColor3
+		27 [string] = Categories
+		28 [string] = ViewPets
+		29 [string] = Frame
+		30 [string] = PetReady
+
+====================================================================================================
+
+Function Dump: updateTimer
+
+Function Upvalues: updateTimer
+		1 [table] (Recursive table detected)
+		2 [number] = 1
+		3 [table]:
+		3 [table] table: 0xf9c5416e1a0d7783
+				1 [boolean] = true
+				2 [boolean] = false
+				3 [number] = 15934403341195680
+				4 [string] = 507
+				5 [table]:
+				data [table] table: 0xba68ebeec177303b
+						1 [boolean] = true
+						2 [string] = Ethan
+						3 [number] = 15934403341195680
+						4 [string] = o65986e157d454dbaac1e10286c9948b7
+						5 [boolean] = false
+						6 [string] = id8a11b263a1de4cfa97359b80728f1050
+						7 [number] = 16847
+						8 [table]:
+						powers [table] table: 0x05ab10d774c49f45
+								1 [table]:
+								1 [table] table: 0xb0a4896375835ec9
+										1 [string] = Magnet
+										2 [number] = 1
+								2 [table]:
+								2 [table] table: 0x535e62765be87565
+										1 [string] = Fantasy Coins
+										2 [number] = 2
+								3 [table]:
+								3 [table] table: 0x224d15c057e50168
+										1 [string] = Strength
+										2 [number] = 2
+						9 [number] = 0
+						10 [number] = 0
+						11 [string] = 507
+				6 [string] = id8a11b263a1de4cfa97359b80728f1050
+		4 [Instance] = 1
+		5 [boolean] = false
+		6 [table] (Recursive table detected)
+
+Function Constants: updateTimer
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = DaycareQueue
+		4 [string] = type
+		6 [string] = table
+		7 [string] = Pet
+		8 [string] = uid
+		9 [string] = Shared
+		10 [string] = DaycareComputeRemainingTime
+		11 [string] = TimeDescStage1
+		12 [string] = Visible
+		13 [string] = TimeLeftStage1
+		14 [string] = ClaimStage2
+		15 [string] = ClaimDescStage2
+		16 [string] = PetIcon
+		17 [string] = UIGradient
+		18 [string] = Enabled
+		19 [string] = Functions
+		20 [string] = FormatTime
+		21 [string] = Text
+		22 [string] = ClaimAll
+		23 [string] = Color3
+		24 [string] = new
+		26 [string] = ImageColor3
+		27 [string] = Categories
+		28 [string] = ViewPets
+		29 [string] = Frame
+		30 [string] = PetReady
+
+====================================================================================================
+
+Function Dump: UpdateEnroll
+
+Function Upvalues: UpdateEnroll
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [table] (Recursive table detected)
+		4 [table] (Recursive table detected)
+		5 [boolean] = false
+		6 [function] = renderPossibleLoot
+
+Function Constants: UpdateEnroll
+		1 [string] = DividerStage2
+		2 [string] = Visible
+		3 [string] = Holder1Stage2
+		4 [string] = Holder2Stage2
+		5 [string] = TimerFrameStage2
+		6 [string] = TimerStage2
+		7 [string] = AmountStage2
+		8 [string] = NoticeOnStage1
+		9 [string] = HolderStage1
+		10 [string] = NoticeStage1
+		11 [string] = Save
+		12 [string] = Get
+		13 [string] = TitleRight
+		14 [string] = Possible Loot
+		15 [string] = Text
+		16 [string] = SlotAmount
+		17 [string] = ipairs
+		19 [string] = GetChildren
+		20 [string] = TextButton
+		21 [string] = IsA
+		22 [string] = PetCmds
+		23 [string] = Name
+		24 [string] = Destroy
+		25 [string] = Shared
+		26 [string] = SortPets
+		27 [string] = table
+		28 [string] = clone
+		30 [string] = Pets
+		31 [string] = uid
+		32 [string] = FindFirstChild
+		33 [string] = LayoutOrder
+		34 [string] = Locked
+		35 [string] = l
+		36 [boolean] = false
+		37 [string] = Directory
+		38 [string] = id
+		39 [string] = huge
+		40 [string] = titanic
+		41 [string] = isGift
+		42 [string] = companionEnchantLevel
+		43 [string] = Assets
+		44 [string] = UI
+		45 [string] = Inventory
+		46 [string] = Pet
+		47 [string] = Clone
+		48 [string] = PetUI
+		49 [string] = Create
+		50 [string] = DirId
+		51 [string] = SetAttribute
+		52 [string] = Parent
+		53 [string] = Activated
+		54 [string] = Connect
+		55 [string] = GUIFX
+		56 [string] = ButtonFX
+		57 [string] = EnrollStage12
+		58 [string] = Color3
+		59 [string] = new
+		61 [number] = 0.5
+		62 [string] = ImageColor3
+		63 [string] = PetsUpdate
+
+====================================================================================================
+
+Function Dump: renderPossibleLoot
+
+Function Upvalues: renderPossibleLoot
+		1 [table] (Recursive table detected)
+		2 [boolean] = false
+		3 [table] (Recursive table detected)
+		4 [table] (Recursive table detected)
+		5 [table]:
+		5 [table] table: 0x42943e06842497f9
+				1 [table]:
+				Diamonds [table] table: 0x0d8823c8e8ed9aa1
+						1 [UDim2] = {0.699999988, 0}, {0.699999988, 0}
+						2 [UDim2] = {0.469999999, 0}, {0.5, 0}
+				2 [table]:
+				Ultra Lucky [table] table: 0x02a8d04507abc1d7
+						1 [UDim2] = {0.899999976, 0}, {0.899999976, 0}
+						2 [UDim2] = {0.469999999, 0}, {0.5, 0}
+				3 [table]:
+				Triple Damage [table] table: 0x3e5608cf9f8e9ce1
+						1 [UDim2] = {1.04999995, 0}, {1.04999995, 0}
+						2 [UDim2] = {0.540000021, 0}, {0.5, 0}
+				4 [table]:
+				Triple Coins [table] table: 0xe041e2a2b8d586bb
+						1 [UDim2] = {1.04999995, 0}, {1.04999995, 0}
+						2 [UDim2] = {0.540000021, 0}, {0.5, 0}
+				5 [table]:
+				Super Lucky [table] table: 0xa213b5d3eb87db06
+						1 [UDim2] = {1.04999995, 0}, {1.04999995, 0}
+						2 [UDim2] = {0.540000021, 0}, {0.5, 0}
+				6 [table]:
+				Currency [table] table: 0x253f84e035ab2ac0
+						1 [UDim2] = {0.800000012, 0}, {0.800000012, 0}
+						2 [UDim2] = {0.5, 0}, {0.5, 0}
+		6 [table]:
+		6 [table] table: 0x56b0f98c0cd2d1fe
+				1 [string] = rbxassetid://7402604552
+				2 [string] = rbxassetid://7402706511
+				3 [string] = rbxassetid://7402604677
+				4 [string] = rbxassetid://7402604431
+
+Function Constants: renderPossibleLoot
+		1 [string] = Holder2Stage2
+		2 [string] = Network
+		3 [string] = Invoke
+		4 [string] = Daycare: Compute Loot
+		5 [string] = Message
+		6 [string] = New
+		7 [string] = Error!
+		8 [string] = ipairs
+		10 [string] = GetChildren
+		11 [string] = ClassName
+		12 [string] = Frame
+		13 [string] = template
+		14 [string] = GetAttribute
+		15 [string] = Destroy
+		16 [string] = Loot
+		17 [string] = FindFirstChild
+		18 [string] = Visible
+		19 [string] = Clone
+		20 [string] = SetAttribute
+		21 [string] = LootRange
+		22 [string] = Range
+		23 [string] = Functions
+		24 [string] = NumberShorten
+		25 [string] = Min
+		26 [string] =  - 
+		27 [string] = Max
+		28 [string] = Text
+		29 [number] = 0
+		30 [string] = Max 
+		31 [string] = Category
+		32 [string] = Currency
+		33 [string] = NonPet
+		34 [string] = Icon
+		35 [string] = Directory
+		36 [string] = Data
+		37 [string] = ImageTiny
+		38 [string] = Image
+		39 [string] = Position
+		40 [string] = Size
+		41 [string] = GUIFX
+		42 [string] = Tooltip
+		43 [string] = Boost
+		45 [string] = Pet
+		46 [string] = Assets
+		47 [string] = UI
+		48 [string] = Inventory
+		49 [string] = PetUI
+		50 [string] = Create
+		51 [string] = id
+		52 [string] = g
+		53 [string] = r
+		54 [string] = dm
+		56 [string] = isGolden
+		57 [string] = isRainbow
+		58 [string] = isDarkMatter
+		59 [string] = Level
+		60 [string] = PetIcon
+		61 [string] = Color3
+		62 [string] = new
+		64 [string] = ImageColor3
+		65 [string] = Locked
+		66 [string] = ???
+		67 [string] = Parent
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [boolean] = false
+		2 [table] (Recursive table detected)
+		3 [table] (Recursive table detected)
+		5 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = TitleRight
+		2 [string] = Visible
+		3 [string] = LootView
+		4 [string] = Categories
+		5 [string] = PetsAndLoot
+		6 [string] = View
+		7 [string] = Gui
+		8 [string] = Enabled
+		9 [string] = Signal
+		10 [string] = Fire
+		11 [string] = Open Egg
+		12 [string] = Huge Machine Egg 1
+
+====================================================================================================
+
+Function Dump: UpdateClaim
+
+Function Upvalues: UpdateClaim
+		1 [table] (Recursive table detected)
+		2 [table] (Recursive table detected)
+		3 [table] (Recursive table detected)
+		4 [table] (Recursive table detected)
+
+Function Constants: UpdateClaim
+		1 [string] = LootView
+		2 [string] = Pets
+		3 [string] = ipairs
+		5 [string] = GetChildren
+		6 [string] = TextButton
+		7 [string] = IsA
+		8 [string] = Destroy
+		9 [string] = Directory
+		10 [string] = id
+		11 [string] = huge
+		12 [string] = titanic
+		13 [string] = isGift
+		14 [string] = companionEnchantLevel
+		15 [string] = Assets
+		16 [string] = UI
+		17 [string] = Inventory
+		18 [string] = Pet
+		19 [string] = Clone
+		20 [string] = PetUI
+		21 [string] = Create
+		22 [string] = s
+		23 [string] = g
+		24 [string] = r
+		25 [string] = dm
+		26 [string] = sh
+		28 [string] = DirId
+		29 [string] = SetAttribute
+		30 [string] = UDim2
+		31 [string] = new
+		33 [string] = Size
+		34 [string] = Parent
+		35 [string] = LootHolder
+		36 [string] = ClassName
+		37 [string] = Frame
+		38 [string] = template
+		39 [string] = GetAttribute
+		40 [string] = Loot
+		41 [string] = FindFirstChild
+		42 [string] = Visible
+		43 [string] = NonPet
+		44 [string] = Level
+		45 [string] = Functions
+		46 [string] = NumberShorten
+		47 [string] = Min
+		48 [string] = Text
+		49 [string] = Category
+		50 [string] = Currency
+		51 [string] = Icon
+		52 [string] = Data
+		53 [string] = ImageTiny
+		54 [string] = Image
+		55 [string] = Position
+		56 [string] = GUIFX
+		57 [string] = Tooltip
+		58 [string] = Boost
+		61 [string] = isGolden
+		62 [string] = isRainbow
+		63 [string] = isDarkMatter
+		64 [string] = PetIcon
+		65 [string] = Color3
+		67 [string] = ImageColor3
+		68 [string] = Locked
+		69 [string] = 1019
+		70 [string] = ClaimScrolling
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Gui
+		2 [string] = Enabled
+		3 [string] = task
+		4 [string] = defer
+		6 [string] = ScaleScrolling
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Gui
+		2 [string] = Update
+		3 [string] = LootView
+		4 [string] = Visible
+		5 [string] = Categories
+		6 [string] = PetsAndLoot
+		7 [string] = View
+
+====================================================================================================
+
+Function Dump: QueueScrolling
+
+Function Upvalues: QueueScrolling
+		1 [table] (Recursive table detected)
+
+Function Constants: QueueScrolling
+		1 [string] = View
+		2 [string] = Holder
+		3 [string] = UIPadding
+		4 [string] = FindFirstChildOfClass
+		5 [string] = UIListLayout
+		6 [string] = ApplyLayout
+		7 [string] = UDim2
+		8 [string] = new
+		10 [string] = AbsoluteContentSize
+		11 [string] = X
+		12 [string] = PaddingLeft
+		13 [string] = Offset
+		14 [string] = PaddingRight
+		15 [string] = CanvasSize
+
+====================================================================================================
+
+Function Dump: GetUsedSlots
+
+Function Upvalues: GetUsedSlots
+		1 [table] (Recursive table detected)
+
+Function Constants: GetUsedSlots
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = DaycareQueue
+		4 [string] = type
+		6 [string] = table
+
+====================================================================================================
+
+Function Dump: GetMaxSlots
+
+Function Upvalues: GetMaxSlots
+		1 [table] (Recursive table detected)
+
+Function Constants: GetMaxSlots
+		1 [string] = Save
+		2 [string] = Get
+		3 [string] = Shared
+		4 [string] = DaycareComputeSlotsForTier
+		5 [string] = DaycareTier
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+
+Function Constants: Unknown Name
+		1 [string] = DaycareQueue
+		2 [string] = UpdateView
+		3 [string] = DaycareTier
+		4 [string] = Update
+
+====================================================================================================
+
+Function Dump: fitGrid
+
+Function Upvalues: fitGrid
+
+Function Constants: fitGrid
+		1 [string] = UIGridLayout
+		2 [string] = FindFirstChildOfClass
+		3 [string] = UIPadding
+		4 [string] = AbsoluteSize
+		5 [string] = X
+		6 [string] = ScrollBarThickness
+		7 [string] = PaddingLeft
+		8 [string] = Offset
+		9 [string] = PaddingRight
+		10 [string] = CellPadding
+		11 [string] = UDim2
+		12 [string] = new
+		14 [string] = CellSize
+		15 [string] = ApplyLayout
+		16 [string] = AbsoluteContentSize
+		17 [number] = 30
+		18 [string] = Y
+		19 [string] = CanvasSize
+
+====================================================================================================
+
+Function Dump: GetRemainingSlots
+
+Function Upvalues: GetRemainingSlots
+
+Function Constants: GetRemainingSlots
+		1 [string] = GetMaxSlots
+		2 [string] = GetUsedSlots
+		3 [string] = math
+		4 [string] = max
+
+====================================================================================================
+
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [table] (Recursive table detected)
+		2 [table] (Recursive table detected)
+
+Function Constants: Unknown Name
+		1 [string] = Gui
+		2 [string] = LootView
+		3 [string] = Visible
+		4 [string] = Categories
+		5 [string] = PetsAndLoot
+		6 [string] = View
+		7 [string] = Title
+		8 [string] = Daycare!
+		9 [string] = Text
+		10 [string] = Audio
+		11 [string] = Play
+		12 [string] = rbxassetid://7495293012
+		13 [string] = script
+		15 [number] = 0.4
+
+====================================================================================================
+
+Function Dump: ClaimScrolling
+
+Function Upvalues: ClaimScrolling
+		1 [table] (Recursive table detected)
+		2 [function] = fitGrid
+		3 [table] (Recursive table detected)
+
+Function Constants: ClaimScrolling
+		1 [string] = Functions
+		2 [string] = ResolutionScale
+		3 [string] = Pets
+		4 [number] = 0.5
+		5 [number] = 1.1
+		6 [number] = 2.5
+		7 [string] = LootHolder
+
+====================================================================================================
+]]

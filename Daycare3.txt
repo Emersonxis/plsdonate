@@ -1,0 +1,55 @@
+local v_u_1 = require(game:GetService("ReplicatedStorage"):WaitForChild("Library"):WaitForChild("Modules"):WaitForChild("Daycare"))
+return function(p2, p3, p4)
+	-- upvalues: (copy) v_u_1
+	local v5 = p4 or workspace:GetServerTimeNow()
+	local v6 = p3.CreationTime
+	local v7 = v5 - (tonumber(v6) or v5)
+	local v8 = math.max(0, v7)
+	local v9 = v_u_1.GetOnlineTime(p2, v5)
+	local v10 = p3.CreationAge
+	local v11 = v9 - (tonumber(v10) or 0)
+	local v12 = math.clamp(v11, 0, v8)
+	local v13 = v_u_1.DURATION_SECONDS - (v12 * v_u_1.ONLINE_SPEEDUP + (v8 - v12))
+	return math.max(0, v13)
+end
+
+-- // Function Dumper made by King.Kevin
+-- // Script Path: ReplicatedStorage.Library.Shared.Functions.DaycareComputeRemainingTime
+
+--[[
+Function Dump: Unknown Name
+
+Function Upvalues: Unknown Name
+		1 [table]:
+		1 [table] table: 0xa881c209c43a265e
+				1 [number] = 21600
+				2 [function] = GetOnlineTime
+				3 [number] = 3
+				4 [number] = 20
+				5 [number] = 10
+				6 [number] = 60
+				7 [number] = 21600
+				8 [table]:
+				SLOT_TIERS [table] table: 0x5cdad6011f77f73a
+						1 [table]:
+						1 [table] table: 0x63e1f065347089dc
+								1 [string] = Daycare Tier 1
+								2 [number] = 10
+
+Function Constants: Unknown Name
+		1 [string] = workspace
+		2 [Instance] = Workspace
+		3 [string] = GetServerTimeNow
+		4 [string] = CreationTime
+		5 [string] = tonumber
+		7 [string] = math
+		8 [string] = max
+		10 [string] = GetOnlineTime
+		11 [number] = 0
+		12 [string] = CreationAge
+		13 [string] = clamp
+		15 [string] = DURATION_SECONDS
+		16 [string] = ONLINE_SPEEDUP
+
+====================================================================================================
+]]
