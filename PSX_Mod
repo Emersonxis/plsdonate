@@ -98,31 +98,14 @@ local function resolveLibrary()
         addLibraryCandidate(candidates, seen, ReplicatedStorage:WaitForChild("Library", 5), "ReplicatedStorage.Library")
     end
 
-    -- Nesta versão o alvo principal é o mod baseado em LibraryOld. Se o
-    -- caminho clássico existir e for funcional, ele sempre tem prioridade;
-    -- isso evita que um Framework parcialmente carregado seja escolhido.
-    local legacyLib, legacyPath, legacyScore = nil, nil, -1
-    for _, candidate in ipairs(candidates) do
-        if candidate.path == "ReplicatedStorage.Library" then
-            local ok, lib = pcall(require, candidate.instance)
-            if ok and lib then
-                local score = libraryScore(lib)
-                if score > legacyScore then
-                    legacyLib, legacyPath, legacyScore = lib, candidate.path, score
-                end
-            end
-        end
-    end
-    if legacyLib and legacyScore >= 8 then
-        return legacyLib, legacyPath, legacyScore
-    end
-
     local bestLib, bestPath, bestScore = nil, nil, -1
     for _, candidate in ipairs(candidates) do
         local ok, lib = pcall(require, candidate.instance)
         if ok and lib then
             local score = libraryScore(lib)
-            if score > bestScore then
+            local preferFramework = candidate.path:find("Framework", 1, true) ~= nil
+            local bestIsFramework = tostring(bestPath or ""):find("Framework", 1, true) ~= nil
+            if score > bestScore or (score == bestScore and preferFramework and not bestIsFramework) then
                 bestLib, bestPath, bestScore = lib, candidate.path, score
             end
         end
@@ -142,9 +125,14 @@ pcall(function()
     end
 end)
 local Network = Library.Network
--- Backend deliberadamente fixado no Old nesta etapa de estabilização.
--- O suporte Framework permanece no arquivo, mas não interfere neste mod.
-local IsFrameworkBackend = false
+-- Backend selecionado automaticamente pelo caminho funcional da Library.
+-- O mesmo resultado alimenta o adapter de hatch e as capabilities do mod.
+local IsFrameworkBackend = tostring(LibraryPath or ""):find("Framework", 1, true) ~= nil
+HatchIsFramework = tostring(LibraryPath or ""):find("Framework", 1, true) ~= nil
+HatchBackendKind = HatchIsFramework and "Framework" or "Old"
+HatchMethodName = HatchIsFramework
+    and 'Framework: Network.Invoke("Buy Egg", eggId, tripleOpen)'
+    or 'Old: Network.Invoke("Buy Egg", eggName, amount)'
 WorldCmdsOld = Library.WorldCmds
 if not WorldCmdsOld then
     pcall(function()
@@ -154,12 +142,12 @@ if not WorldCmdsOld then
         if module then WorldCmdsOld = require(module) end
     end)
 end
-local FrameworkWorldCmds = IsFrameworkBackend and Library.WorldCmds or nil
+local FrameworkWorldCmds = HatchIsFramework and Library.WorldCmds or nil
 local FrameworkThings = IsFrameworkBackend and Library.Things or nil
-local FrameworkSave = IsFrameworkBackend and Library.Save or nil
+local FrameworkSave = HatchIsFramework and Library.Save or nil
 
 local function frameworkReadyForAction()
-    if not IsFrameworkBackend then return true end
+    if not HatchIsFramework then return true end
     local okLoaded, loaded = pcall(function()
         return FrameworkWorldCmds and FrameworkWorldCmds.HasLoaded and FrameworkWorldCmds.HasLoaded()
     end)
@@ -171,7 +159,7 @@ local function frameworkReadyForAction()
 end
 
 local function resolveFrameworkEggId(selected)
-    if not IsFrameworkBackend then return selected end
+    if not HatchIsFramework then return selected end
     local selectedText = tostring(selected or "")
     local ok, eggs = pcall(function()
         return FrameworkWorldCmds and FrameworkWorldCmds.GetAllEggs and FrameworkWorldCmds.GetAllEggs()
@@ -195,7 +183,7 @@ local function resolveFrameworkEggId(selected)
 end
 
 local function frameworkHasTripleEgg()
-    if not IsFrameworkBackend then return false end
+    if not HatchIsFramework then return false end
     local save
     pcall(function() save = FrameworkSave and FrameworkSave.Get() end)
     local passes = save and (save.Gamepasses or save.GamePasses)
@@ -1370,7 +1358,7 @@ local HatchAmountsCache = {}
 local HatchAmountsCacheAt = {}
 
 local function getAllowedHatchAmounts(eggName)
-    if IsFrameworkBackend then
+    if HatchIsFramework then
         return {1, 3}
     end
     local now = os.clock()
@@ -1415,7 +1403,7 @@ end
 
 local function buyEggExact(eggName, requested)
     if not eggName or HatchRequestBusy then return false, 0 end
-    if IsFrameworkBackend then
+    if HatchIsFramework then
         if not frameworkReadyForAction() then return false, 0, "Framework bloqueado ou mapa carregando" end
         local eggId = resolveFrameworkEggId(eggName)
         local triple = tonumber(requested) >= 3 and frameworkHasTripleEgg()
@@ -1439,6 +1427,12 @@ local function buyEggExact(eggName, requested)
 end
 -- ====================== TAB: HATCH ======================
 
+Hatching_Tab:CreateButton({
+    name = "Método detectado: " .. tostring(HatchBackendKind),
+    callback = function()
+        notify("Auto Hatch", HatchMethodName, 5)
+    end,
+})
 Hatching_Tab:CreateDropdown({
     name = "Select Egg",
     options = All_Eggs_Available,
@@ -1596,7 +1590,22 @@ Hatching_Tab:CreateToggle({
 
 Pet_Tab:CreateSection({ name = "Acesso rápido às máquinas" })
 function openMachineGui(names)
-    for _, guiName in ipairs(names or {}) do
+    local aliases = names or {}
+    local function normalize(value)
+        return tostring(value or ""):lower():gsub("[^%w]", "")
+    end
+    if listAllPlayerGuis then
+        for _, actualName in ipairs(listAllPlayerGuis()) do
+            local actual = normalize(actualName)
+            for _, alias in ipairs(aliases) do
+                local wanted = normalize(alias)
+                if actual == wanted or actual:find(wanted, 1, true) or wanted:find(actual, 1, true) then
+                    if setPlayerGuiEnabled and setPlayerGuiEnabled(actualName, true) then return true end
+                end
+            end
+        end
+    end
+    for _, guiName in ipairs(aliases) do
         if setPlayerGuiEnabled and setPlayerGuiEnabled(guiName, true) then return true end
     end
     return false
@@ -3576,11 +3585,14 @@ function setPlayerGuiEnabled(name, state)
         end)
         return true
     end
+    local libraryGuiOpened = false
     pcall(function()
         if Library.GUI and Library.GUI[name] and Library.GUI[name].Gui then
             Library.GUI[name].Gui.Enabled = state
+            libraryGuiOpened = true
         end
     end)
+    if libraryGuiOpened then return true end
     for _, child in ipairs(pg:GetChildren()) do
         if child.Name:lower() == tostring(name):lower() then
             pcall(function() child.Enabled = state end)
@@ -3590,7 +3602,7 @@ function setPlayerGuiEnabled(name, state)
     return false
 end
 
-local function listAllPlayerGuis()
+function listAllPlayerGuis()
     local names = {}
     local pg = Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui")
     if not pg then return names end
