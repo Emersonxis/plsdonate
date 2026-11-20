@@ -359,6 +359,13 @@ local PendingDarkMatterUIDs = {} -- UIDs enviados pra maquina, pra claim/skip
 local AutoDelete = false
 local Auto_Delete_Rarity = {}
 local AutoLockHuges = false
+DaycareState = {
+    Enabled = false,
+    PetNames = {},
+    Position = Vector3.new(42, 102, 33),
+    CheckDelay = 15,
+    Status = "idle",
+}
 
 local InstantCollectEnabled = false
 local InstantCollectWanted = true
@@ -1318,6 +1325,7 @@ autoFarmTab = window:CreateTab({ name = "Auto Farm", icon = "swords" })
 Hatching_Tab = window:CreateTab({ name = "Hatch", icon = "egg" })
 Pet_Tab = window:CreateTab({ name = "Pets", icon = "cat" })
 Enchant_Tab = window:CreateTab({ name = "Enchant", icon = "sparkles" })
+Daycare_Tab = window:CreateTab({ name = "Daycare", icon = "clock-3" })
 WorldHop_Tab = window:CreateTab({ name = "World Hop", icon = "map" })
 AutoDelete_Tab = window:CreateTab({ name = "Auto Delete", icon = "trash-2" })
 Col_Tab = window:CreateTab({ name = "Collection", icon = "book-open" })
@@ -1585,6 +1593,32 @@ Hatching_Tab:CreateToggle({
 })
 
 -- ====================== TAB: PETS ======================
+
+Pet_Tab:CreateSection({ name = "Acesso rápido às máquinas" })
+function openMachineGui(names)
+    for _, guiName in ipairs(names or {}) do
+        if setPlayerGuiEnabled and setPlayerGuiEnabled(guiName, true) then return true end
+    end
+    return false
+end
+Pet_Tab:CreateButton({
+    name = "Abrir Golden Machine",
+    callback = function()
+        task.defer(function() openMachineGui({"Golden", "Golden Machine", "Gold Machine"}) end)
+    end,
+})
+Pet_Tab:CreateButton({
+    name = "Abrir Rainbow Machine",
+    callback = function()
+        task.defer(function() openMachineGui({"Rainbow", "Rainbow Machine"}) end)
+    end,
+})
+Pet_Tab:CreateButton({
+    name = "Abrir Dark Matter Machine",
+    callback = function()
+        task.defer(function() openMachineGui({"Dark Matter", "Dark Matter Machine"}) end)
+    end,
+})
 
 Pet_Tab:CreateSection({ name = "Craft Amounts (quantos pets por craft)" })
 Pet_Tab:CreateInput({
@@ -3234,6 +3268,162 @@ WorldHop_Tab:CreateToggle({
     end,
 })
 
+-- ====================== TAB: DAYCARE ======================
+Daycare_Tab:CreateSection({ name = "Daycare automático" })
+DaycarePetDropdown = Daycare_Tab:CreateDropdown({
+    name = "Pets permitidos no Daycare (multi)",
+    options = buildDeletePetNameOptions(),
+    value = {},
+    multiSelect = true,
+    flag = "DaycarePetNames",
+    callback = function(Options)
+        DaycareState.PetNames = listDropdown(Options)
+    end,
+})
+Daycare_Tab:CreateSlider({
+    name = "Intervalo de verificação do Daycare",
+    Range = {5, 60},
+    Increment = 1,
+    Suffix = "s",
+    value = 15,
+    flag = "DaycareCheckDelay",
+    callback = function(Value)
+        DaycareState.CheckDelay = math.max(5, tonumber(Value) or 15)
+    end,
+})
+Daycare_Tab:CreateButton({
+    name = "Atualizar lista de pets do Daycare",
+    callback = function()
+        pcall(function()
+            if DaycarePetDropdown and DaycarePetDropdown.Refresh then
+                DaycarePetDropdown:Refresh(buildDeletePetNameOptions())
+            end
+        end)
+    end,
+})
+
+function daycareWaitForWorld(worldKey)
+    local started = os.clock()
+    while os.clock() - started < 20 do
+        local loaded, current = false, nil
+        pcall(function()
+            if WorldCmdsOld and WorldCmdsOld.HasLoaded then loaded = WorldCmdsOld.HasLoaded() == true end
+            if WorldCmdsOld and WorldCmdsOld.Get then current = WorldCmdsOld.Get() end
+        end)
+        if loaded and (not worldKey or tostring(current) == tostring(worldKey)) then
+            task.wait(1)
+            return true
+        end
+        task.wait(0.35)
+    end
+    return false
+end
+
+function daycareRemainingTime(save, entry)
+    local remaining
+    pcall(function()
+        local fn = Library.Shared and Library.Shared.DaycareComputeRemainingTime
+        if type(fn) == "function" then remaining = fn(save, entry) end
+    end)
+    return math.max(0, tonumber(remaining) or 21600)
+end
+
+function daycareHasReadyQueue(save)
+    local queue = save and save.DaycareQueue
+    if type(queue) ~= "table" then return false end
+    for _, entry in ipairs(queue) do
+        if type(entry) == "table" and daycareRemainingTime(save, entry) <= 0 then return true end
+    end
+    return false
+end
+
+function daycareSelectedPetUIDs(save)
+    local selected, seen = {}, {}
+    if not save or type(save.Pets) ~= "table" then return selected end
+    for _, wantedName in ipairs(DaycareState.PetNames or {}) do
+        local wanted = tostring(wantedName):lower()
+        for _, pet in ipairs(save.Pets) do
+            if pet and pet.uid and not seen[tostring(pet.uid)]
+                and not isBlacklisted(pet.uid) and not isPetLocked(pet)
+                and tostring(petDisplayName(pet.id)):lower() == wanted then
+                seen[tostring(pet.uid)] = true
+                table.insert(selected, pet.uid)
+            end
+        end
+    end
+    local maxSlots = 0
+    pcall(function()
+        maxSlots = Library.Shared.DaycareComputeSlotsForTier(save.DaycareTier)
+    end)
+    if maxSlots <= 0 then
+        maxSlots = 10 + math.max(0, tonumber(save.DaycareTier) or 0) * 10
+    end
+    local queue = type(save.DaycareQueue) == "table" and save.DaycareQueue or {}
+    local remaining = math.max(0, maxSlots - #queue)
+    while #selected > remaining do table.remove(selected) end
+    return selected
+end
+
+function daycareTravelAndEnroll()
+    local savedWorld, savedCFrame
+    pcall(function()
+        savedWorld = WorldCmdsOld and WorldCmdsOld.Get and WorldCmdsOld.Get()
+        if HumanoidRootPart and HumanoidRootPart.Parent then savedCFrame = HumanoidRootPart.CFrame end
+    end)
+    local okTravel, spawnKey = worldHopTravel("Spawn World")
+    if not okTravel or not daycareWaitForWorld(spawnKey) then return false end
+    pcall(function()
+        if HumanoidRootPart and HumanoidRootPart.Parent then
+            HumanoidRootPart.CFrame = CFrame.new(DaycareState.Position)
+        end
+    end)
+    task.wait(0.8)
+    refreshData()
+    local uids = daycareSelectedPetUIDs(Data)
+    if #uids > 0 then
+        pcall(function() Network.Invoke("Daycare: Enroll", uids) end)
+        task.wait(0.8)
+    end
+    if savedWorld then
+        local returnOk, returnKey = worldHopTravel(savedWorld)
+        if returnOk and daycareWaitForWorld(returnKey) and savedCFrame then
+            pcall(function() HumanoidRootPart.CFrame = savedCFrame end)
+        end
+    end
+    return #uids > 0
+end
+
+function daycareRunCycle()
+    refreshData()
+    if daycareHasReadyQueue(Data) then
+        pcall(function() Network.Invoke("Daycare: Claim", nil) end)
+        task.wait(1)
+        refreshData()
+    end
+    local queue = Data and Data.DaycareQueue
+    if type(queue) == "table" and #queue > 0 then return end
+    if #daycareSelectedPetUIDs(Data) > 0 then daycareTravelAndEnroll() end
+end
+
+Daycare_Tab:CreateToggle({
+    name = "Auto Daycare (claim + colocar pets)",
+    value = false,
+    flag = "AutoDaycare",
+    callback = function(Value)
+        DaycareState.Enabled = Value
+        if not Value then
+            DaycareState.Status = "idle"
+            return
+        end
+        task.spawn(function()
+            while DaycareState.Enabled do
+                pcall(daycareRunCycle)
+                task.wait(math.max(5, tonumber(DaycareState.CheckDelay) or 15))
+            end
+        end)
+    end,
+})
+
 -- Atualiza sozinho apos o servidor popular Get Coins; o botao manual continua disponivel.
 task.spawn(function()
     task.wait(3)
@@ -3361,7 +3551,7 @@ end)
 -- ====================== TAB: GUIs (PlayerGui) ======================
 Gui_Tab:CreateSection({ name = "Abrir GUIs do PlayerGui (nao desativa nada automaticamente)" })
 
-local function setPlayerGuiEnabled(name, state)
+function setPlayerGuiEnabled(name, state)
     -- Protecao importante: a aba GUIs nunca desativa interfaces.
     -- O Rayfield pode chamar callbacks com false ao carregar a configuracao;
     -- esse caso deve ser ignorado para nao quebrar o jogo.
@@ -4295,27 +4485,6 @@ Exp_Tab:CreateSection({ name = "Remotes / Util" })
 
 
 -- Enchant (dump oficial)
-
--- Daycare claim all
-AutoDaycareClaim = false
-Exp_Tab:CreateToggle({
-    name = "Auto Daycare Claim All",
-    value = false,
-    flag = "AutoDaycareClaim",
-    callback = function(Value)
-        AutoDaycareClaim = Value
-        if not AutoDaycareClaim then return end
-        task.spawn(function()
-            while AutoDaycareClaim do
-                -- Dump: Daycare: Claim(nil) = claim all
-                pcall(function()
-                    Network.Invoke("Daycare: Claim", nil)
-                end)
-                task.wait(8)
-            end
-        end)
-    end,
-})
 
 -- Server boosts: detecta a lista real da build (nao depende de quantidade fixa).
 AutoServerBoosts = false
