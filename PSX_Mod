@@ -141,8 +141,12 @@ pcall(function()
     end
 end)
 local Network = Library.Network
--- Backend Old preservado nesta etapa; o adapter Framework permanece no arquivo.
-local IsFrameworkBackend = false
+-- O contrato de compra de egg muda entre as arquiteturas:
+-- LibraryOld: Buy Egg(eggName, amountNumber)
+-- Framework:  Buy Egg(eggId, tripleOpenBoolean)
+-- A seleção precisa usar o caminho que realmente foi carregado, sem alterar
+-- a prioridade da LibraryOld quando ela está presente.
+local IsFrameworkBackend = LibraryPath == "ReplicatedStorage.Framework.Library"
 WorldCmdsOld = Library.WorldCmds
 if not WorldCmdsOld then
     pcall(function()
@@ -196,6 +200,10 @@ local function frameworkHasTripleEgg()
     if not IsFrameworkBackend then return false end
     local save
     pcall(function() save = FrameworkSave and FrameworkSave.Get() end)
+    local settings = save and save.AutoHatchSettings
+    if type(settings) == "table" and settings.TripleEggs ~= nil then
+        return settings.TripleEggs == true
+    end
     local passes = save and (save.Gamepasses or save.GamePasses)
     if type(passes) ~= "table" then return false end
     return passes["Triple Egg Open"] == true
@@ -1410,10 +1418,12 @@ end
 
 local function buyEggExact(eggName, requested)
     if not eggName or HatchRequestBusy then return false, 0 end
-    local amount = chooseHatchAmount(eggName, requested)
+    local amount = IsFrameworkBackend and ((tonumber(requested) or 1) >= 3 or frameworkHasTripleEgg())
+        or chooseHatchAmount(eggName, requested)
+    local eggId = IsFrameworkBackend and resolveFrameworkEggId(eggName) or eggName
     HatchRequestBusy = true
     local ok, result, err = pcall(function()
-        return Network.Invoke("Buy Egg", eggName, amount)
+        return Network.Invoke("Buy Egg", eggId, amount)
     end)
     HatchRequestBusy = false
     if not ok then return false, amount, result end
