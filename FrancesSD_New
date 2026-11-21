@@ -238,9 +238,26 @@ local function frameworkCoinSnapshot()
         local id = coin:GetAttribute("ID")
         local pos = coin:FindFirstChild("POS")
         if id and pos then
+            local area = coin:GetAttribute("Area")
+                or coin:GetAttribute("area")
+                or coin:GetAttribute("AreaName")
+                or coin:GetAttribute("AREA")
+                or coin:GetAttribute("World")
+                or coin:GetAttribute("world")
+            if not area then
+                local parent = coin.Parent
+                while parent and parent ~= coins do
+                    if Library.Directory.Areas and Library.Directory.Areas[parent.Name] then
+                        area = parent.Name
+                        break
+                    end
+                    parent = parent.Parent
+                end
+            end
             result[tostring(id)] = {
                 p = pos.Position,
                 n = coin:GetAttribute("Name") or coin.Name,
+                a = area,
                 instance = coin,
             }
         end
@@ -1202,6 +1219,18 @@ pcall(function()
     Library.Network.Fired("Open Egg"):Connect(function(a, b)
         OpenEgg(a, b)
     end)
+    if IsFrameworkBackend then
+        Library.Network.Fired("Open Egg"):Connect(function()
+            task.delay(0.05, function()
+                pcall(function()
+                    local eggGui = Library.GUI and Library.GUI.EggOpenInfo
+                    if eggGui and eggGui.Gui then
+                        eggGui.Gui.Enabled = false
+                    end
+                end)
+            end)
+        end)
+    end
 end)
 
 -- ====================== INSTANT COLLECT ======================
@@ -2842,37 +2871,21 @@ autoFarmTab:CreateToggle({
                     task.wait(0.4)
                     continue
                 end
-                -- Caminho original da LibraryOld. Não usa o adaptador de
-                -- snapshot Framework nem Farm Coin atrasado.
+                -- Priority Global ignora a area somente quando encontrou alvos.
+                -- Caso contrario, usa o filtro real da area selecionada e o
+                -- metodo escolhido no dropdown.
                 local validTargets = collectGlobalPriorityTargets(HumanoidRootPart.Position)
                 if #validTargets == 0 then
-                    for id, coin in pairs(ServerCoins or {}) do
-                        if coin and coin.p and coin.a == AreaToFarm then
-                            table.insert(validTargets, { id = id, p = coin.p })
-                        end
-                    end
+                    validTargets = collectAreaFarmTargets(
+                        AreaToFarm,
+                        AreaFarmMethod,
+                        AreaPriorityTargets,
+                        HumanoidRootPart.Position
+                    )
                 end
                 if #validTargets > 0 then
-                    while #validTargets > math.max(1, MAX_BREAKABLES or 1) do
-                        table.remove(validTargets, math.random(1, #validTargets))
-                    end
-                    local byTarget = {}
-                    for _, petUID in ipairs(equippedPets) do
-                        local target = validTargets[math.random(1, #validTargets)]
-                        byTarget[target.id] = byTarget[target.id] or {}
-                        table.insert(byTarget[target.id], petUID)
-                    end
-                    for targetId, pets in pairs(byTarget) do
-                        task.spawn(function()
-                            pcall(function() Network.Invoke("Join Coin", targetId, pets) end)
-                            for _, petUID in ipairs(pets) do
-                                pcall(function()
-                                    Network.Fire("Change Pet Target", petUID, "Coin", targetId)
-                                    Network.Fire("Farm Coin", targetId, petUID)
-                                end)
-                            end
-                        end)
-                    end
+                    local byTarget = assignFarmPets(equippedPets, validTargets)
+                    fireFarmAssignments(byTarget)
                 end
                 task.wait(0.15)
             end
