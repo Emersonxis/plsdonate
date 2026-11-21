@@ -1269,6 +1269,9 @@ end)
 
 -- ====================== REMOVE EGG ANIMATION ======================
 local function applyRemoveEggAnimation(state)
+    -- No Framework, OpenEgg e parte do fluxo nativo de recebimento/limpeza.
+    -- Nao aplicar hooks de remocao ate o Auto Hatch estar validado.
+    if IsFrameworkBackend then return end
     pcall(function()
         local scriptsFolder = PlayerScripts:FindFirstChild("Scripts")
         if not scriptsFolder then return end
