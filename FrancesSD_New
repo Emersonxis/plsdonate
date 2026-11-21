@@ -3708,6 +3708,7 @@ Enchant_Tab:CreateSection({ name = "Auto Enchant - somente pets equipados" })
 
 local AutoEnchant = false
 local SelectedEnchantTitles = {}
+local EnchantBatchSize = 0 -- 0 = todos os pets equipados
 local enchantOptions = {}
 pcall(function()
     for _, power in pairs(Library.Directory.Powers or {}) do
@@ -3746,6 +3747,19 @@ Enchant_Tab:CreateInput({
     callback = function(Text)
         if Text and Text ~= "" and not table.find(SelectedEnchantTitles, Text) then
             table.insert(SelectedEnchantTitles, Text)
+        end
+    end,
+})
+
+Enchant_Tab:CreateInput({
+    name = "Pets por lote de enchant (0 = todos)",
+    value = "0",
+    placeholder = "0 = todos / 3 = tres por vez",
+    flag = "EnchantBatchSize",
+    callback = function(Text)
+        local amount = tonumber(Text)
+        if amount and amount >= 0 then
+            EnchantBatchSize = math.floor(amount)
         end
     end,
 })
@@ -3808,14 +3822,25 @@ Enchant_Tab:CreateToggle({
                     if #pending == 0 then
                         task.wait(0.35)
                     else
-                        local okInvoke = false
-                        pcall(function()
-                            local result = Network.Invoke("Enchant Pets", pending, true)
-                            okInvoke = result ~= false
-                        end)
-                        -- O servidor atualiza os poderes logo apos o batch.
-                        -- Aguarda o suficiente para reler o pet, sem o intervalo grande oficial.
-                        task.wait(okInvoke and 0.75 or 0.35)
+                        local batchSize = EnchantBatchSize > 0 and EnchantBatchSize or #pending
+                        local okAll = true
+                        for first = 1, #pending, batchSize do
+                            if not AutoEnchant then break end
+                            local batch = {}
+                            local last = math.min(first + batchSize - 1, #pending)
+                            for index = first, last do
+                                table.insert(batch, pending[index])
+                            end
+                            local okInvoke = false
+                            pcall(function()
+                                local result = Network.Invoke("Enchant Pets", batch, true)
+                                okInvoke = result ~= false
+                            end)
+                            if not okInvoke then okAll = false end
+                            if last < #pending then task.wait(0.25) end
+                        end
+                        -- O servidor atualiza os poderes logo apos cada lote.
+                        task.wait(okAll and 0.75 or 0.35)
                     end
                 end
             end
