@@ -1,0 +1,4983 @@
+---@diagnostic disable: undefined-global
+--[[
+    FrancesSHUBX - LibraryOld
+    - Fixed bugs (Flags, CharacterAdded, variables, isHugePet)
+    - Better organization
+    - Remove Egg Animation
+    - FPS / Lag Remover
+    - Auto Lock Huges
+    - Improved Webhook + Auto Convert
+    - Cleaner farm logic
+    - BACKEND: LibraryOld (ReplicatedStorage.Library)
+]]
+
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+-- ====================== SERVICES & PLAYER ======================
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+local PlayerScripts = player:WaitForChild("PlayerScripts")
+
+local Character = player.Character or player.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+player.CharacterAdded:Connect(function(char)
+    Character = char
+    HumanoidRootPart = char:WaitForChild("HumanoidRootPart", 10)
+end)
+
+-- Safe part for positioning
+pcall(function()
+    local oldSafePart = Workspace:FindFirstChild("SafePart_Script")
+    if oldSafePart then oldSafePart:Destroy() end
+end)
+local Safe_Part = Instance.new("Part")
+Safe_Part.Name = "SafePart_Script"
+Safe_Part.Anchored = true
+Safe_Part.CanCollide = false
+Safe_Part.Transparency = 1
+Safe_Part.Size = Vector3.new(6, 1, 6)
+Safe_Part.Parent = Workspace
+Safe_Part.CFrame = HumanoidRootPart.CFrame - Vector3.new(0, 5, 0)
+
+-- ====================== LIBRARY (auto-detect path) ======================
+-- Seleciona a Library mais completa entre a variante Framework e a legada.
+local function libraryScore(lib)
+    if type(lib) ~= "table" then return -1 end
+    local score = 0
+    local net = lib.Network
+    local dir = lib.Directory
+    local save = lib.Save
+    if type(net) == "table" then
+        if type(net.Invoke) == "function" then score = score + 3 end
+        if type(net.Fire) == "function" then score = score + 2 end
+        if type(net.Fired) == "function" then score = score + 1 end
+    end
+    if type(dir) == "table" then
+        if type(dir.Pets) == "table" then score = score + 2 end
+        if type(dir.Eggs) == "table" then score = score + 1 end
+        if type(dir.Coins) == "table" then score = score + 1 end
+        if type(dir.Areas) == "table" then score = score + 1 end
+        if type(dir.Worlds) == "table" then score = score + 1 end
+    end
+    if type(save) == "table" and type(save.Get) == "function" then score = score + 2 end
+    if type(lib.PetCmds) == "table" then score = score + 1 end
+    if type(lib.WorldCmds) == "table" then score = score + 1 end
+    if lib.Loaded ~= nil then score = score + 1 end
+    return score
+end
+
+local function addLibraryCandidate(list, seen, instance, path)
+    if not instance or not instance:IsA("ModuleScript") or seen[instance] then return end
+    seen[instance] = true
+    table.insert(list, { instance = instance, path = path })
+end
+
+local function resolveLibrary()
+    local candidates, seen = {}, {}
+    local framework = ReplicatedStorage:FindFirstChild("Framework")
+    local legacy = ReplicatedStorage:FindFirstChild("Library")
+    local modules = ReplicatedStorage:FindFirstChild("Modules")
+
+    if framework then
+        addLibraryCandidate(candidates, seen, framework:FindFirstChild("Library"), "ReplicatedStorage.Framework.Library")
+    end
+    addLibraryCandidate(candidates, seen, legacy, "ReplicatedStorage.Library")
+    if modules then
+        addLibraryCandidate(candidates, seen, modules:FindFirstChild("Library"), "ReplicatedStorage.Modules.Library")
+    end
+
+    -- Aguarda os caminhos comuns somente se ainda não apareceram.
+    if #candidates == 0 then
+        local fw = ReplicatedStorage:WaitForChild("Framework", 10)
+        if fw then addLibraryCandidate(candidates, seen, fw:FindFirstChild("Library"), "ReplicatedStorage.Framework.Library") end
+        addLibraryCandidate(candidates, seen, ReplicatedStorage:WaitForChild("Library", 5), "ReplicatedStorage.Library")
+    end
+
+    -- O alvo atual é a Library Old. Se o caminho clássico existir e for
+    -- funcional, ele tem prioridade para não mudar o backend já estável.
+    local legacyLib, legacyPath, legacyScore = nil, nil, -1
+    for _, candidate in ipairs(candidates) do
+        if candidate.path == "ReplicatedStorage.Library" then
+            local ok, lib = pcall(require, candidate.instance)
+            if ok and lib then
+                local score = libraryScore(lib)
+                if score > legacyScore then
+                    legacyLib, legacyPath, legacyScore = lib, candidate.path, score
+                end
+            end
+        end
+    end
+    if legacyLib and legacyScore >= 8 then
+        return legacyLib, legacyPath, legacyScore
+    end
+
+    local bestLib, bestPath, bestScore = nil, nil, -1
+    for _, candidate in ipairs(candidates) do
+        local ok, lib = pcall(require, candidate.instance)
+        if ok and lib then
+            local score = libraryScore(lib)
+            if score > bestScore then
+                bestLib, bestPath, bestScore = lib, candidate.path, score
+            end
+        end
+    end
+    if not bestLib or bestScore < 8 then
+        error("[PSX Mod Hub] Nenhuma Library funcional foi encontrada. Aguarde o carregamento do mod e tente novamente.")
+    end
+    return bestLib, bestPath, bestScore
+end
+
+local Library, LibraryPath, LibraryScore = resolveLibrary()
+if LibraryPath ~= "ReplicatedStorage.Library" then
+    error("[FrancesSHUBX] LibraryOld nao encontrada. Execute esta Hub somente no mod Old.")
+end
+-- Variantes oficiais podem carregar a tabela depois do require.
+pcall(function()
+    local t0 = os.clock()
+    while Library.Loaded == false and (os.clock() - t0) < 60 do
+        task.wait(0.1)
+    end
+end)
+local Network = Library.Network
+-- O contrato de compra de egg muda entre as arquiteturas:
+-- LibraryOld: Buy Egg(eggName, amountNumber)
+-- Framework:  Buy Egg(eggId, tripleOpenBoolean)
+-- A seleção precisa usar o caminho que realmente foi carregado, sem alterar
+-- a prioridade da LibraryOld quando ela está presente.
+local IsFrameworkBackend = false
+WorldCmdsOld = Library.WorldCmds
+if not WorldCmdsOld then
+    pcall(function()
+        local client = ReplicatedStorage:FindFirstChild("Library")
+            and ReplicatedStorage.Library:FindFirstChild("Client")
+        local module = client and client:FindFirstChild("WorldCmds")
+        if module then WorldCmdsOld = require(module) end
+    end)
+end
+local FrameworkWorldCmds = IsFrameworkBackend and Library.WorldCmds or nil
+local FrameworkThings = IsFrameworkBackend and Library.Things or nil
+local FrameworkSave = IsFrameworkBackend and Library.Save or nil
+
+local function frameworkReadyForAction()
+    if not IsFrameworkBackend then return true end
+    local okLoaded, loaded = pcall(function()
+        return FrameworkWorldCmds and FrameworkWorldCmds.HasLoaded and FrameworkWorldCmds.HasLoaded()
+    end)
+    if not okLoaded or loaded == false then return false end
+    local okAction, canAct = pcall(function()
+        return not FrameworkWorldCmds.CanDoAction or FrameworkWorldCmds.CanDoAction()
+    end)
+    return okAction and canAct ~= false
+end
+
+local function resolveFrameworkEggId(selected)
+    if not IsFrameworkBackend then return selected end
+    local selectedText = tostring(selected or "")
+    local ok, eggs = pcall(function()
+        return FrameworkWorldCmds and FrameworkWorldCmds.GetAllEggs and FrameworkWorldCmds.GetAllEggs()
+    end)
+    if ok and type(eggs) == "table" then
+        for _, egg in ipairs(eggs) do
+            local id = egg and egg.GetAttribute and egg:GetAttribute("ID")
+            if id then
+                local info = Egg_Directory[tostring(id)] or Egg_Directory[id]
+                local display = type(info) == "table" and (info.displayName or info.name)
+                if tostring(id) == selectedText or tostring(display or "") == selectedText
+                    or (egg.Name and egg.Name == selectedText) then
+                    return id
+                end
+            end
+        end
+    end
+    local direct = Egg_Directory[selectedText]
+    if type(direct) == "table" and direct.id then return direct.id end
+    return selected
+end
+
+local function frameworkHasTripleEgg()
+    if not IsFrameworkBackend then return false end
+    local save
+    pcall(function() save = FrameworkSave and FrameworkSave.Get() end)
+    local settings = save and save.AutoHatchSettings
+    if type(settings) == "table" and settings.TripleEggs ~= nil then
+        return settings.TripleEggs == true
+    end
+    local passes = save and (save.Gamepasses or save.GamePasses)
+    if type(passes) ~= "table" then return false end
+    return passes["Triple Egg Open"] == true
+        or passes.TripleEggOpen == true
+        or passes["Triple Egg"] == true
+end
+
+local function frameworkCoinSnapshot()
+    local result = {}
+    local coins = FrameworkThings and FrameworkThings.Coins
+    if not coins then return result end
+    for _, coin in pairs(coins:GetChildren()) do
+        local id = coin:GetAttribute("ID")
+        local pos = coin:FindFirstChild("POS")
+        if id and pos then
+            result[tostring(id)] = {
+                p = pos.Position,
+                n = coin:GetAttribute("Name") or coin.Name,
+                instance = coin,
+            }
+        end
+    end
+    return result
+end
+
+
+local function farmCoinCompat(coinId, petUID)
+    if IsFrameworkBackend then
+        task.spawn(function()
+            task.wait(0.33)
+            pcall(function()
+                Network.Fire("Farm Coin", coinId, petUID)
+            end)
+        end)
+    else
+        Network.Fire("Farm Coin", coinId, petUID)
+    end
+end
+
+local function resolvePetCmds()
+    if Library.Client and Library.Client.PetCmds then return Library.Client.PetCmds end
+    if Library.PetCmds then return Library.PetCmds end
+    local roots = {}
+    if ReplicatedStorage:FindFirstChild("Framework") then table.insert(roots, ReplicatedStorage.Framework) end
+    if ReplicatedStorage:FindFirstChild("Library") then table.insert(roots, ReplicatedStorage.Library) end
+    for _, root in ipairs(roots) do
+        local client = root:FindFirstChild("Client") or (root:FindFirstChild("Library") and root.Library:FindFirstChild("Client"))
+        if client and client:FindFirstChild("PetCmds") then
+            local ok, mod = pcall(require, client.PetCmds)
+            if ok then return mod end
+        end
+    end
+    return { GetEquipped = function() return {} end, Get = function() return nil end }
+end
+local PetCmds = resolvePetCmds()
+
+_G.Library = Library
+_G.LibraryPath = LibraryPath
+
+local Data = Library.Save.Get()
+local Pets_Directory = Library.Directory.Pets
+local Egg_Directory = Library.Directory.Eggs
+local Coin_Directory = Library.Directory.Coins
+
+-- Anti Idle
+for _, v in pairs(getconnections(player.Idled)) do
+    v:Disable()
+end
+
+-- Disable Orbs/Lootbags (menos lag)
+pcall(function()
+    local scripts = PlayerScripts:FindFirstChild("Scripts") and PlayerScripts.Scripts:FindFirstChild("Game")
+    if scripts then
+        if scripts:FindFirstChild("Orbs") then scripts.Orbs.Disabled = true end
+        if scripts:FindFirstChild("Lootbags") then scripts.Lootbags.Disabled = true end
+    end
+end)
+
+pcall(function()
+    if workspace:FindFirstChild("__THINGS") and workspace.__THINGS:FindFirstChild("Orbs") then
+        workspace.__THINGS.Orbs:ClearAllChildren()
+    end
+end)
+
+-- ====================== NETWORK BYPASS (metodo original que funciona) ======================
+pcall(function()
+    local invokeCheck = getupvalue(Network.Invoke, 1)
+    if type(invokeCheck) == "function" then
+        hookfunction(invokeCheck, function(...) return true end)
+    end
+end)
+pcall(function()
+    local fireCheck = getupvalue(Network.Fire, 1)
+    if type(fireCheck) == "function" then
+        hookfunction(fireCheck, function(...) return true end)
+    end
+end)
+-- Hook Fired (necessario pras recompensas / farm forte do original)
+pcall(function()
+    hookfunction(getupvalue(Network.Fired, 1), function()
+        return true
+    end)
+end)
+
+local function ensureNetworkBypass() end -- no-op (ja aplicado no load)
+
+-- ====================== STATE VARIABLES ======================
+local All_Eggs_Available = {}
+local All_Giant_Chest = {
+    "Ancient Island Enchanted Chest",
+    "Axolotl Deep Ocean Chest",
+    "Axolotl Deep Ocean Small Chest",
+    "Axolotl Deep Ocean Vault",
+    "Giant Alien Chest",
+    "Giant Hacker Chest",
+    "Giant Ocean Chest",
+    "Giant Pixel Chest",
+    "Giant Present",
+    "Giant Pumpkin",
+    "Giant Relic Chest",
+    "Giant Steampunk Chest",
+    "Giant Tech Chest",
+    "Haunted Island Haunted Chest",
+    "Heaven Island Angel Chest",
+    "Heaven Island Chest",
+    "Heavens Gate Grand Heaven Chest",
+    "Hell Island Chest",
+    "Hell Island Hell Chest",
+    "Super Chest",
+    "Volcano Magma Chest",
+    "Enchanted Forest Chest",
+    "Gingerbread Chest",
+    "Candy Island Chest",
+    "Pixel Alps Chest",
+    "Pixel Forest Chest",
+    "Samurai Island Chest",
+}
+local AllGameAreas = {}
+local All_Pets_Inventory = {}
+Huges_Hatched = {}
+WebhookSeenPets = {}
+local ServerCoins = {}
+
+local Selected_Egg = nil
+local AutoHatch = false
+-- pauseHatch removido (hatch infinito)
+local HatchAmount = 8
+local HatchLoopDelay = 0.03
+
+local Auto_Convert_Gold = false
+local Auto_Convert_Rainbow = false
+local Auto_Convert_Dark_Matter = false
+local Auto_Skip_Dark_Matter = false
+local Auto_Claim_Dark_Matter = true
+local GoldPetsNeeded = 6
+local RainbowPetsNeeded = 6
+local DarkMatterPetsNeeded = 1
+local PendingDarkMatterUIDs = {} -- UIDs enviados pra maquina, pra claim/skip
+local AutoDelete = false
+local Auto_Delete_Rarity = {}
+local AutoLockHuges = false
+DaycareState = {
+    Enabled = false,
+    PetNames = {},
+    Position = Vector3.new(42, 102, 33),
+    CheckDelay = 15,
+    Status = "idle",
+}
+
+local InstantCollectEnabled = false
+local InstantCollectWanted = true
+local InstantCollectReady = false
+local AutoClaimGifts = false
+
+-- Sniper farm
+local AutoFarmSniper = false
+local SniperTargets = {}
+local SniperMode = "Multi" -- Multi / Single
+
+local MAX_BREAKABLES = 8
+local RANGE = 200
+local NearestFarmRange = 200
+local RandomFarmRange = 200
+local FarmSpeed = 0.15
+local AutoFarmBreakables = false
+local AutoFarmBreakablesRandom = false
+local AutoFarmBreakablesArea = false
+local Auto_Farm_Giant = false
+local Auto_Teleport = false
+
+local AreaToFarm = nil
+local AreaFarmMethod = "Nearest"
+local AreaPriorityTargets = {}
+GlobalPriorityTargets = {}
+local PetAssignMode = "Spread"
+local AreaStickyUntilBreak = true
+local AreaRoundRobinIndex = 0
+local Giant_Chest_Selected = nil
+local Teleportable_Breakables = {}
+
+-- Balloon Event (experimental, desativado por padrão)
+local Balloon = {
+    AutoFarm = false,
+    SelectedWorlds = {},
+    VipLink = "",
+    RejoinDelay = 5,
+    WorldDelay = 2,
+    ResetVipAfterLoop = false,
+    Status = "idle",
+}
+
+local Send_Webhook = false
+local WebhookURL = ""
+local UserID = ""
+local WebhookRarities = { "Huge" }
+
+local RemoveEggAnimation = true
+local RemoveBreakables = false
+local RemoveUselessStuff = false
+local RemoveMap = false
+local Rendering_Mode = false
+local ParticleStates = {}
+local MapTransparencyStates = {}
+RemoveCoinExplosionFX = false
+CoinExplodeBackup = nil
+CoinExplodeParent = nil
+CoinDamageBackup = nil
+CoinDamageParent = nil
+CoinBonusBackup = nil
+CoinBonusParent = nil
+CoinSpecialParticlesBackup = nil
+CoinSpecialParticlesParent = nil
+CoinSpecialOtherBackup = nil
+CoinSpecialOtherParent = nil
+CoinParticleConnection = nil
+AntiAFKConnection = nil
+
+-- Priority / Sniper targets (dump + eventos)
+local priorityList = {
+    -- Lista completa do dump (path: ReplicatedStorage.Framework.Library)
+    "Alien Forest Coins",
+    "Alien Forest Crate",
+    "Alien Forest Large Coins",
+    "Alien Forest Present",
+    "Alien Forest Small Tech Cube",
+    "Alien Forest Tech Cube",
+    "Alien Forest Tiny Coins",
+    "Alien Lab Coins",
+    "Alien Lab Large Coins",
+    "Alien Lab Safe",
+    "Alien Lab Small Tech Cube",
+    "Alien Lab Tech Cube",
+    "Alien Lab Tiny Coins",
+    "Alien Lab Vault",
+    "Ancient Island Coins",
+    "Ancient Island Crate",
+    "Ancient Island Enchanted Chest",
+    "Ancient Island Large Coins",
+    "Ancient Island Present",
+    "Ancient Island Safe",
+    "Ancient Island Tiny Coins",
+    "Ancient Island Vault",
+    "Axolotl Deep Ocean Chest",
+    "Axolotl Deep Ocean Safe",
+    "Axolotl Deep Ocean Small Chest",
+    "Axolotl Deep Ocean Vault",
+    "Axolotl Ocean Coins",
+    "Axolotl Ocean Crate",
+    "Axolotl Ocean Large Coins",
+    "Axolotl Ocean Present",
+    "Axolotl Ocean Tiny Coins",
+    "Beach Chest",
+    "Beach Coins",
+    "Beach Crate",
+    "Beach Large Coins",
+    "Beach Present",
+    "Beach Safe",
+    "Beach Small Chest",
+    "Beach Tiny Coins",
+    "Beach Vault",
+    "Blue Glitched Coins",
+    "Blue Glitched Large Coins",
+    "Blue Glitched Present",
+    "Blue Glitched Small Tech Cube",
+    "Blue Glitched Tech Cube",
+    "Blue Glitched Tiny Coins",
+    "Blue Glitched Vault",
+    "Candy Canes",
+    "Candy Island Chest",
+    "Candy Island Coins",
+    "Candy Island Crate",
+    "Candy Island Large Coins",
+    "Candy Island Present",
+    "Candy Island Safe",
+    "Candy Island Small Chest",
+    "Candy Island Tiny Coins",
+    "Candy Island Vault",
+    "Dark Tech Coins",
+    "Dark Tech Crate",
+    "Dark Tech Large Coins",
+    "Dark Tech Present",
+    "Dark Tech Small Tech Cube",
+    "Dark Tech Tech Cube",
+    "Dark Tech Tiny Coins",
+    "Desert Chest",
+    "Desert Coins",
+    "Desert Crate",
+    "Desert Large Coins",
+    "Desert Present",
+    "Desert Safe",
+    "Desert Small Chest",
+    "Desert Tiny Coins",
+    "Desert Vault",
+    "Diamonds",
+    "Easter Egg",
+    "Easter Egg Legendary",
+    "Easter Egg Rare",
+    "Easter Egg Uncommon",
+    "Enchanted Forest Chest",
+    "Enchanted Forest Coins",
+    "Enchanted Forest Crate",
+    "Enchanted Forest Large Coins",
+    "Enchanted Forest Present",
+    "Enchanted Forest Safe",
+    "Enchanted Forest Small Chest",
+    "Enchanted Forest Tiny Coins",
+    "Enchanted Forest Vault",
+    "Forest Chest",
+    "Forest Coins",
+    "Forest Crate",
+    "Forest Large Coins",
+    "Forest Present",
+    "Forest Safe",
+    "Forest Small Chest",
+    "Forest Tiny Coins",
+    "Forest Vault",
+    "Giant Alien Chest",
+    "Giant Hacker Chest",
+    "Giant Ocean Chest",
+    "Giant Pixel Chest",
+    "Giant Present",
+    "Giant Pumpkin",
+    "Giant Steampunk Chest",
+    "Giant Tech Chest",
+    "Gingerbread Chest",
+    "Glacier Chest",
+    "Glacier Coins",
+    "Glacier Crate",
+    "Glacier Large Coins",
+    "Glacier Present",
+    "Glacier Safe",
+    "Glacier Small Chest",
+    "Glacier Tiny Coins",
+    "Glacier Vault",
+    "Haunted Island Coins",
+    "Haunted Island Crate",
+    "Haunted Island Haunted Chest",
+    "Haunted Island Large Coins",
+    "Haunted Island Present",
+    "Haunted Island Safe",
+    "Haunted Island Tiny Coins",
+    "Haunted Island Vault",
+    "Heaven Island Angel Chest",
+    "Heaven Island Chest",
+    "Heaven Island Coins",
+    "Heaven Island Crate",
+    "Heaven Island Large Coins",
+    "Heaven Island Present",
+    "Heaven Island Safe",
+    "Heaven Island Small Chest",
+    "Heaven Island Tiny Coins",
+    "Heaven Island Vault",
+    "Heavens Gate Grand Heaven Chest",
+    "Hell Island Chest",
+    "Hell Island Crate",
+    "Hell Island Hell Chest",
+    "Hell Island Present",
+    "Hell Island Small Chest",
+    "Mine Chest",
+    "Mine Coins",
+    "Mine Crate",
+    "Mine Large Coins",
+    "Mine Present",
+    "Mine Safe",
+    "Mine Small Chest",
+    "Mine Tiny Coins",
+    "Mine Vault",
+    "Pink Glitched Coins",
+    "Pink Glitched Large Coins",
+    "Pink Glitched Present",
+    "Pink Glitched Small Tech Cube",
+    "Pink Glitched Tech Cube",
+    "Pink Glitched Tiny Coins",
+    "Pink Glitched Vault",
+    "Pixel Alps Chest",
+    "Pixel Alps Crate",
+    "Pixel Alps Small Chest",
+    "Pixel Forest Chest",
+    "Pixel Forest Coins",
+    "Pixel Forest Crate",
+    "Pixel Forest Large Coins",
+    "Pixel Forest Present",
+    "Pixel Forest Safe",
+    "Pixel Forest Small Chest",
+    "Pixel Forest Tiny Coins",
+    "Pixel Forest Vault",
+    "Pixel Kyoto Coins",
+    "Pixel Kyoto Large Coins",
+    "Pixel Kyoto Large Present",
+    "Pixel Kyoto Present",
+    "Pixel Vault Safe",
+    "Pixel Vault Vault",
+    "Samurai Island Chest",
+    "Samurai Island Coins",
+    "Samurai Island Crate",
+    "Samurai Island Large Coins",
+    "Samurai Island Present",
+    "Samurai Island Small Chest",
+    "Samurai Island Tiny Coins",
+    "Steampunk Coins",
+    "Steampunk Large Coins",
+    "Steampunk Safe",
+    "Steampunk Tiny Coins",
+    "Steampunk Vault",
+    "Super Chest",
+    "Tech City Coins",
+    "Tech City Crate",
+    "Tech City Large Coins",
+    "Tech City Present",
+    "Tech City Safe",
+    "Tech City Small Tech Cube",
+    "Tech City Tech Cube",
+    "Tech City Tiny Coins",
+    "Tech City Vault",
+    "Tiny Diamonds",
+    "Town Chest",
+    "Town Coins",
+    "Town Crate",
+    "Town Large Coins",
+    "Town Present",
+    "Town Tiny Coins",
+    "Volcano Coins",
+    "Volcano Crate",
+    "Volcano Large Coins",
+    "Volcano Magma Chest",
+    "Volcano Present",
+    "Volcano Safe",
+    "Volcano Tiny Coins",
+    "Volcano Vault",
+    "Winter Chest",
+    "Winter Coins",
+    "Winter Crate",
+    "Winter Large Coins",
+    "Winter Present",
+    "Winter Safe",
+    "Winter Small Chest",
+    "Winter Tiny Coins",
+    "Winter Vault",
+}
+
+
+-- Alvos "bons" pra Sniper por padrao (chest/vault/safe/diamond/present/cube) — sem piles de coins
+local sniperDefaultList = {
+    -- Categorias genericas (bate em TODAS as areas: "Ancient Island Present", "Beach Present", ...)
+    "Present",
+    "Safe",
+    "Vault",
+    "Chest",
+    "Crate",
+    "Tech Cube",
+    "Small Tech Cube",
+    "Small Chest",
+    "Coins",
+    "Large Coins",
+    "Tiny Coins",
+    "Diamonds",
+    "Tiny Diamonds",
+    "Candy Canes",
+    "Easter Egg",
+    -- Especiais unicos / Giants (nome completo)
+    "Giant Alien Chest",
+    "Giant Hacker Chest",
+    "Giant Ocean Chest",
+    "Giant Pixel Chest",
+    "Giant Present",
+    "Giant Pumpkin",
+    "Giant Steampunk Chest",
+    "Giant Tech Chest",
+    "Super Chest",
+    "Ancient Island Enchanted Chest",
+    "Axolotl Deep Ocean Chest",
+    "Axolotl Deep Ocean Vault",
+    "Axolotl Deep Ocean Small Chest",
+    "Haunted Island Haunted Chest",
+    "Heaven Island Angel Chest",
+    "Heaven Island Chest",
+    "Heavens Gate Grand Heaven Chest",
+    "Hell Island Chest",
+    "Hell Island Hell Chest",
+    "Volcano Magma Chest",
+    "Enchanted Forest Chest",
+    "Gingerbread Chest",
+    "Pixel Alps Chest",
+    "Pixel Forest Chest",
+    "Samurai Island Chest",
+    "Candy Island Chest",
+    "Beach Chest",
+    "Desert Chest",
+    "Forest Chest",
+    "Glacier Chest",
+    "Mine Chest",
+    "Town Chest",
+    "Winter Chest",
+}
+
+
+-- Ordem fallback dos mundos. Quando disponivel, o script usa o worldOrder
+-- real da Directory, incluindo mundos/eventos adicionados depois do dump.
+local WORLD_ORDER = {
+    "Town", "Forest", "Beach", "Mine", "Winter", "Glacier", "Desert", "Volcano",
+    "Heaven Island", "Heavens Gate", "Hell Island", "Samurai Island",
+    "Pixel Forest", "Pixel Alps", "Pixel Kyoto", "Pixel Vault", "Candy Island",
+    "Haunted Island", "Ancient Island", "Steampunk", "Tech City", "Dark Tech",
+    "Alien Lab", "Alien Forest", "Axolotl Ocean", "Axolotl Deep Ocean",
+    "Blue Glitched", "Pink Glitched", "Enchanted Forest", "Gingerbread",
+}
+
+local function directoryWorldRank(areaName)
+    local result = nil
+    pcall(function()
+        local area = Library and Library.Directory and Library.Directory.Areas
+            and Library.Directory.Areas[areaName]
+        local worlds = Library and Library.Directory and Library.Directory.Worlds
+        local world = area and worlds and worlds[area.world]
+        if world and tonumber(world.worldOrder) then
+            result = tonumber(world.worldOrder)
+        end
+    end)
+    return result
+end
+
+local function worldRank(name)
+    name = tostring(name or "")
+    local direct = directoryWorldRank(name)
+    if direct then return direct end
+    local low = name:lower()
+    for i, w in ipairs(WORLD_ORDER) do
+        if low:find(w:lower(), 1, true) then return 10000 + i end
+    end
+    if low:find("giant") or low:find("super chest") or low:find("easter")
+        or low:find("diamond") or low:find("candy canes") then
+        return 0
+    end
+    return 20000
+end
+
+local function sortByWorld(list)
+    local t = {}
+    for _, v in ipairs(list or {}) do table.insert(t, v) end
+    table.sort(t, function(a, b)
+        local ra, rb = worldRank(a), worldRank(b)
+        if ra ~= rb then return ra < rb end
+        return tostring(a):lower() < tostring(b):lower()
+    end)
+    return t
+end
+
+-- aplica ordem de mundos (depois da func definida)
+priorityList = sortByWorld(priorityList)
+sniperDefaultList = sortByWorld(sniperDefaultList)
+
+
+
+-- ====================== DYNAMIC BREAKABLES ======================
+-- Monta lista real a partir do Directory + ServerCoins (nao fica so na lista fixa)
+local DynamicBreakables = {}
+local DynamicBreakablesSet = {}
+
+local function isProbablyAreaOrJunk(name)
+    if not name or name == "" then return true end
+    local n = tostring(name):lower()
+    -- filtra nomes de areas / mundos que vazam no dump
+    local junk = {
+        "spawn", "world", "front", "vip", "town", "forest", "beach", "mine",
+        "winter", "glacier", "desert", "volcano", "area", "island gate",
+    }
+    -- se for so uma area generica sem chest/pile/block etc, ignora
+    local hasBreakableWord = n:find("chest") or n:find("pile") or n:find("block")
+        or n:find("present") or n:find("crate") or n:find("vault") or n:find("safe")
+        or n:find("diamond") or n:find("coin") or n:find("orb") or n:find("egg")
+        or n:find("cube") or n:find("cane") or n:find("pumpkin") or n:find("relic")
+    if not hasBreakableWord then
+        for _, j in ipairs(junk) do
+            if n == j or n:find("^" .. j) then return true end
+        end
+    end
+    return false
+end
+
+local function addDynamicBreakable(name)
+    if not name then return end
+    name = tostring(name):gsub("^%s+", ""):gsub("%s+$", "")
+    if name == "" or DynamicBreakablesSet[name] then return end
+    if isProbablyAreaOrJunk(name) then return end
+    DynamicBreakablesSet[name] = true
+    table.insert(DynamicBreakables, name)
+end
+
+local function refreshDynamicBreakables()
+    DynamicBreakables = {}
+    DynamicBreakablesSet = {}
+    -- seed com priorityList (eventos / highs)
+    for _, n in ipairs(priorityList) do
+        addDynamicBreakable(n)
+    end
+    -- Directory.Coins: fonte principal, sem depender de dump externo.
+    pcall(function()
+        for name, data in pairs(Library.Directory.Coins or {}) do
+            if type(name) == "string" then addDynamicBreakable(name) end
+            if type(data) == "table" then
+                addDynamicBreakable(data.name or data.Name or data.displayName or data.n)
+                addDynamicBreakable(data.id or data.Id)
+            end
+        end
+    end)
+    -- ServerCoins vivos: inclui breakables adicionados por eventos/updates.
+    for _, coin in pairs(ServerCoins or {}) do
+        if type(coin) == "table" then
+            addDynamicBreakable(coin.n or coin.name or coin.Name or coin.displayName)
+        end
+    end
+    DynamicBreakables = sortByWorld(DynamicBreakables)
+    return DynamicBreakables
+end
+
+local function makeUniqueBreakableOptions(list, includeCategories)
+    local out, seen = {}, {}
+    if includeCategories then
+        for _, name in ipairs(sniperDefaultList) do
+            if not seen[name] then seen[name] = true; table.insert(out, name) end
+        end
+    end
+    for _, name in ipairs(list or {}) do
+        if not seen[name] then seen[name] = true; table.insert(out, name) end
+    end
+    return sortByWorld(out)
+end
+
+task.spawn(function()
+    task.wait(2)
+    refreshDynamicBreakables()
+    while task.wait(12) do
+        refreshDynamicBreakables()
+    end
+end)
+
+-- ====================== HELPERS ======================
+function petDisplayName(petIdOrName)
+    if not petIdOrName then return "" end
+    local info = Pets_Directory[tostring(petIdOrName)] or Pets_Directory[petIdOrName]
+    return tostring(info and (info.name or info.Name or info.displayName) or petIdOrName)
+end
+
+function isTitanicPet(petIdOrName)
+    local name = petDisplayName(petIdOrName):lower()
+    return name:find("titanic", 1, true) ~= nil
+end
+
+function isHugePet(petIdOrName)
+    if not petIdOrName then return false end
+    local str = petDisplayName(petIdOrName):lower()
+    if str:find("huge", 1, true) or str:find("domortuus astra", 1, true) or str:find("empyrean agony", 1, true) then
+        return true
+    end
+    return false
+end
+
+function isWebhookPet(pet)
+    if not pet or not pet.id then return false end
+    local info = Pets_Directory[tostring(pet.id)] or Pets_Directory[pet.id]
+    local rarity = tostring(info and (info.rarity or info.Rarity) or pet.rarity or "")
+    for _, wanted in ipairs(WebhookRarities or {}) do
+        local wantedName = tostring(wanted):lower()
+        if wantedName == "huge" and isHugePet(pet.id) then return true end
+        if wantedName == "titanic" and isTitanicPet(pet.id) then return true end
+        if wantedName ~= "huge" and wantedName ~= "titanic" and rarity:lower() == wantedName then return true end
+    end
+    return false
+end
+
+local function formatNumber(n)
+    local absN = math.abs(n or 0)
+    if absN >= 1e9 then
+        return string.format("%.2fB", n / 1e9)
+    elseif absN >= 1e6 then
+        return string.format("%.2fM", n / 1e6)
+    elseif absN >= 1e3 then
+        return string.format("%.2fK", n / 1e3)
+    else
+        return tostring(n or 0)
+    end
+end
+
+local function isInRange(vec3)
+    return true -- sem limite de distancia
+end
+
+local function isPetLocked(pet)
+    if not pet then return true end
+    if pet.l == true or pet.locked == true or pet.Lock == true or pet.Locked == true then
+        return true
+    end
+    if pet.l == 1 or pet.l == "1" then return true end
+    return false
+end
+
+local function isPetShiny(pet)
+    if not pet then return false end
+    return pet.s == true or pet.shiny == true or pet.Shiny == true or pet.sh == true
+end
+
+function getPetCraftVariant(pet)
+    if not pet then return nil end
+    local base
+    -- A ordem é importante: Dark Matter também pode carregar flags antigas
+    -- de variantes, então ele deve ser identificado antes de Rainbow/Golden.
+    if pet.dm == true or pet.darkMatter == true or pet.DarkMatter == true then
+        base = "Dark Matter"
+    elseif pet.r == true or pet.rainbow == true or pet.Rainbow == true then
+        base = "Rainbow"
+    elseif pet.g == true or pet.golden == true or pet.Golden == true then
+        base = "Golden"
+    else
+        base = "Normal"
+    end
+    if isPetShiny(pet) then
+        return base .. " Shiny"
+    end
+    return base
+end
+
+local function getEquippedPets()
+    local list, seen = {}, {}
+    local function add(uid)
+        if uid == nil then return end
+        uid = tostring(uid)
+        if uid ~= "" and not seen[uid] then
+            seen[uid] = true
+            table.insert(list, uid)
+        end
+    end
+    local function consume(value)
+        if type(value) ~= "table" then return end
+        for key, petData in pairs(value) do
+            if type(petData) == "table" then
+                add(petData.uid or petData.UID)
+            elseif type(petData) == "string" or type(petData) == "number" then
+                add(petData)
+            elseif petData == true and (type(key) == "string" or type(key) == "number") then
+                add(key)
+            end
+        end
+    end
+    pcall(function() consume(PetCmds.GetEquipped(Library.LocalPlayer or player)) end)
+    if #list == 0 then pcall(function() consume(PetCmds.GetEquipped()) end) end
+    if #list == 0 then
+        pcall(function()
+            local save = Library.Save.Get()
+            for _, pet in pairs((save and save.Pets) or {}) do
+                if pet and (pet.e == true or pet.e == 1 or pet.equipped == true or pet.Equipped == true) then
+                    add(pet.uid or pet.UID)
+                end
+            end
+        end)
+    end
+    return list
+end
+-- ====================== PET BLACKLIST ======================
+-- Pets salvos na blacklist ficam protegidos: nao entram em craft, delete,
+-- enchant ou nos fluxos automaticos do Index. Pets que chegarem depois
+-- continuam usaveis normalmente.
+local PetBlacklist = {} -- [uid] = true
+
+local function refreshData()
+    Data = Library.Save.Get()
+    return Data
+end
+
+local function isBlacklisted(uid)
+    return uid ~= nil and PetBlacklist[tostring(uid)] == true
+end
+
+local function isProtectedPet(pet)
+    return type(pet) == "table" and pet.uid and isBlacklisted(pet.uid)
+end
+
+local function snapshotInventoryToBlacklist()
+    refreshData()
+    local count = 0
+    local save = Data or Library.Save.Get()
+    if save and type(save.Pets) == "table" then
+        for _, pet in ipairs(save.Pets) do
+            if pet and pet.uid and not isBlacklisted(pet.uid) then
+                PetBlacklist[tostring(pet.uid)] = true
+                count = count + 1
+            end
+        end
+    end
+    return count
+end
+
+local function clearBlacklist()
+    PetBlacklist = {}
+end
+
+local function countBlacklist()
+    local n = 0
+    for _ in pairs(PetBlacklist) do n = n + 1 end
+    return n
+end
+
+-- ====================== INIT DATA ======================
+-- Giant / special chests dinamicos (inclui Ancient, Super, Vault, etc.)
+local function isSpecialChestName(name)
+    if not name then return false end
+    local n = tostring(name)
+    local lower = n:lower()
+    -- Nao entra Safe/Vault de area no dropdown de Giant
+    if lower:find("safe") and not lower:find("chest") then return false end
+    if lower:find("vault") and not (lower:find("giant") or lower:find("deep ocean")) then return false end
+    if lower:find("area") and not lower:find("chest") then return false end
+    if lower:find("giant") then return true end
+    if lower:find("super chest") then return true end
+    if lower:find("ancient") and lower:find("chest") then return true end
+    if lower:find("enchanted") and lower:find("chest") then return true end
+    if lower:find("throne") and lower:find("chest") then return true end
+    if lower:find("relic") and lower:find("chest") then return true end
+    if lower:find("heaven") and lower:find("chest") then return true end
+    if lower:find("hell") and lower:find("chest") then return true end
+    if lower:find("haunted") and lower:find("chest") then return true end
+    if lower:find("magma") and lower:find("chest") then return true end
+    if lower:find("deep ocean") and (lower:find("chest") or lower:find("vault")) then return true end
+    if lower:find("angel") and lower:find("chest") then return true end
+    return false
+end
+
+for Name, coin in pairs(Coin_Directory or {}) do
+    if isSpecialChestName(Name) then
+        if not table.find(All_Giant_Chest, Name) then
+            table.insert(All_Giant_Chest, Name)
+        end
+    end
+    if type(coin) == "table" then
+        local nm = coin.name or coin.Name or coin.displayName
+        if isSpecialChestName(nm) and not table.find(All_Giant_Chest, nm) then
+            table.insert(All_Giant_Chest, nm)
+        end
+    end
+end
+-- remove Safe/Vault genericos do dropdown Giant
+do
+    local cleaned = {}
+    for _, n in ipairs(All_Giant_Chest) do
+        local low = tostring(n):lower()
+        local isSafe = low:find("safe") and not low:find("chest")
+        local isPlainVault = low:find("vault") and not (low:find("giant") or low:find("deep ocean"))
+        if not isSafe and not isPlainVault then
+            table.insert(cleaned, n)
+        end
+    end
+    All_Giant_Chest = sortByWorld(cleaned)
+end
+
+for egg, _ in pairs(Egg_Directory) do
+    table.insert(All_Eggs_Available, egg)
+end
+table.sort(All_Eggs_Available, function(a, b)
+    return tostring(a):lower() < tostring(b):lower()
+end)
+
+-- Snapshot completo antes do webhook: somente UIDs que surgirem depois serao novos.
+refreshData()
+for _, pet in pairs(Data.Pets or {}) do
+    if pet.uid then WebhookSeenPets[tostring(pet.uid)] = true end
+    if pet.id and isHugePet(pet.id) then table.insert(All_Pets_Inventory, pet.uid) end
+end
+
+-- Areas (ordem real do jogo via worldOrder)
+do
+    local tmp = {}
+    for name, area in pairs(Library.Directory.Areas or {}) do
+        local world = Library.Directory.Worlds and Library.Directory.Worlds[area.world]
+        if world and world.worldOrder and world.worldOrder > 0 then
+            if not area.hidden and not area.isVIP then
+                local containsArea = false
+                if world.spawns then
+                    for _, v in pairs(world.spawns) do
+                        if v.settings and v.settings.area and v.settings.area == name then
+                            containsArea = true
+                            break
+                        end
+                    end
+                end
+                if area.gate or containsArea then
+                    table.insert(tmp, { name = name, order = world.worldOrder or 999 })
+                end
+            end
+        end
+    end
+    table.sort(tmp, function(a, b)
+        if a.order ~= b.order then return a.order < b.order end
+        return a.name < b.name
+    end)
+    AllGameAreas = {}
+    for _, e in ipairs(tmp) do
+        table.insert(AllGameAreas, e.name)
+    end
+end
+
+-- ====================== WEBHOOK ======================
+local function SendMessageWithEmbed(url, userId, embed)
+    if not url or url == "" then return end
+    local headers = { ["Content-Type"] = "application/json" }
+    local data = {
+        content = (userId and userId ~= "" and userId ~= "0") and ("<@" .. tostring(userId) .. ">") or nil,
+        embeds = {
+            {
+                title = embed.title,
+                description = embed.description,
+                color = embed.color or 8388736,
+                fields = embed.fields or {},
+                footer = { text = embed.footer and embed.footer.text or "PSX Mod Script" }
+            }
+        }
+    }
+    local body = HttpService:JSONEncode(data)
+    pcall(function()
+        request({
+            Url = url,
+            Method = "POST",
+            Headers = headers,
+            Body = body
+        })
+    end)
+end
+
+-- ====================== AUTO DELETE ON HATCH ======================
+local function OpenEgg(_, pets)
+    if not Library.Variables.AutoDeleteEnabled then return end
+    local save = Library.Save.Get()
+    if not (save and save.AutoDelete) then return end
+
+    local del = {}
+    for _, p in pairs(pets) do
+        if not p.uid then continue end
+        if isBlacklisted(p.uid) then continue end
+        local ok, owner = Library.PetCmds.Get(p.uid)
+        if not ok or owner ~= Library.LocalPlayer then break end
+
+        local pet = Library.Directory.Pets[tostring(p.id)]
+        if not pet then break end
+
+        local mode = save.AutoDelete[tostring(pet.rarity)]
+        if mode == 2 and not (p.g or p.r or p.dm)
+        or mode == 3 and not (p.r or p.dm)
+        or mode == 4 then
+            table.insert(del, tostring(p.uid))
+        end
+    end
+
+    if #del > 0 then
+        Library.Network.Invoke("Delete Several Pets", del)
+    end
+end
+
+pcall(function()
+    Library.Network.Fired("Open Egg"):Connect(function(a, b)
+        OpenEgg(a, b)
+    end)
+end)
+
+-- ====================== INSTANT COLLECT ======================
+local function InstantCollect(id, pos, isBoost, boostData)
+    if not InstantCollectReady or not InstantCollectEnabled then return end
+    Network.Fire("Collect Lootbag", id, pos)
+    if isBoost and boostData then
+        Library.Signal.Fire("Rewards Redeemed", {{boostData[1], boostData[2]}})
+    end
+end
+
+local OrbBatch = {}
+pcall(function()
+    Library.Network.Fired("Orb Added"):Connect(function(id, data)
+        if InstantCollectReady and InstantCollectEnabled then
+            table.insert(OrbBatch, id)
+        end
+    end)
+end)
+
+task.spawn(function()
+    while task.wait(0.25) do
+        if InstantCollectReady and InstantCollectEnabled and #OrbBatch > 0 then
+            local clone = table.clone(OrbBatch)
+            OrbBatch = {}
+            pcall(function()
+                Library.Network.Fire("Claim Orbs", clone)
+            end)
+        elseif not InstantCollectEnabled then
+            OrbBatch = {}
+        end
+    end
+end)
+
+pcall(function()
+    Network.Fired("Spawn Lootbag"):Connect(function(id, data)
+        if not InstantCollectReady or not InstantCollectEnabled then return end
+        local isBoost = (data.reward and data.reward[1] == "Boost")
+        local boostData = isBoost and {data.reward[3], data.reward[2]} or nil
+        InstantCollect(id, data.position, isBoost, boostData)
+    end)
+end)
+
+-- ====================== COINS LOADER ======================
+local function LoadAllCoinsInternal()
+    if IsFrameworkBackend then
+        ServerCoins = frameworkCoinSnapshot()
+        return
+    end
+    local response = Library.Network.Invoke("Get Coins")
+    if response then
+        ServerCoins = response
+    end
+end
+
+task.spawn(function()
+    while task.wait(2) do
+        if AutoFarmBreakables or AutoFarmBreakablesRandom
+            or AutoFarmBreakablesArea or Auto_Farm_Giant
+            or AutoFarmSniper then
+            pcall(LoadAllCoinsInternal)
+        end
+    end
+end)
+
+-- ====================== REMOVE EGG ANIMATION ======================
+local function applyRemoveEggAnimation(state)
+    pcall(function()
+        local scriptsFolder = PlayerScripts:FindFirstChild("Scripts")
+        if not scriptsFolder then return end
+        local gameFolder = scriptsFolder:FindFirstChild("Game")
+        if not gameFolder then return end
+
+        -- Method 1: Disable Open Eggs script
+        local openEggs = gameFolder:FindFirstChild("Open Eggs")
+        if openEggs then
+            openEggs.Disabled = state
+        end
+
+        -- Method 2: Hook PlayEggAnimation if exists
+        local eggFrontend = gameFolder:FindFirstChild("Egg Opening Frontend")
+        if eggFrontend then
+            local env = getsenv(eggFrontend)
+            if env and type(env.PlayEggAnimation) == "function" then
+                if state then
+                    env.PlayEggAnimation = function() end
+                end
+            end
+        end
+
+        -- Method 3: getgc scan (fallback)
+        if state then
+            for _, v in pairs(getgc(true)) do
+                if type(v) == "table" and rawget(v, "OpenEgg") and type(v.OpenEgg) == "function" then
+                    v.OpenEgg = function() end
+                end
+            end
+        end
+    end)
+end
+
+-- Sempre ativo (sem opcao na UI)
+task.spawn(function()
+    task.wait(1)
+    applyRemoveEggAnimation(true)
+end)
+
+-- ====================== GUI (Rayfield Gen2 - oficial) ======================
+-- Docs: https://docs.sirius.menu/rayfield-gen2
+pcall(function()
+    getgenv().RAYFIELD_SECURE = true
+end)
+local function runRemoteSource(source)
+    local compiler = loadstring or load
+    if type(compiler) ~= "function" then
+        error("[PSX Mod Hub] Este executor nao oferece loadstring nem load.")
+    end
+    local chunk, compileError = compiler(source)
+    if type(chunk) ~= "function" then
+        error("[PSX Mod Hub] Falha ao compilar Rayfield: " .. tostring(compileError))
+    end
+    return chunk()
+end
+
+Rayfield = runRemoteSource(game:HttpGet("https://sirius.menu/gen2"))
+window = Rayfield:CreateWindow({
+    name = "PSX Mod Hub",
+    subtitle = "Improved Edition · Gen2",
+    theme = "cobalt",
+    sidebarLayout = true,
+    showName = "PSX",
+    showIconOnly = false,
+    configuration = {
+        autoSave = true,
+        autoLoad = true,
+        fileName = "PSX_Mod_Hub_Gen2",
+    },
+})
+-- A Gen2 oficial não possui uma propriedade startMinimized. O método Hide()
+-- é a forma documentada de deixar somente o botão recolhido visível.
+StartMinimized = true
+
+-- Ordem fixa da interface: principais primeiro; as demais ficam abaixo em
+-- ordem alfabética. Os blocos de conteúdo continuam separados no arquivo.
+autoFarmTab = window:CreateTab({ name = "Auto Farm", icon = "swords" })
+Hatching_Tab = window:CreateTab({ name = "Hatch", icon = "egg" })
+Pet_Tab = window:CreateTab({ name = "Pets", icon = "cat" })
+Enchant_Tab = window:CreateTab({ name = "Enchant", icon = "sparkles" })
+Daycare_Tab = window:CreateTab({ name = "Daycare", icon = "clock-3" })
+WorldHop_Tab = window:CreateTab({ name = "World Hop", icon = "map" })
+AutoDelete_Tab = window:CreateTab({ name = "Auto Delete", icon = "trash-2" })
+Col_Tab = window:CreateTab({ name = "Collection", icon = "book-open" })
+Exp_Tab = window:CreateTab({ name = "Experimental", icon = "flask-conical" })
+Gui_Tab = window:CreateTab({ name = "GUIs", icon = "layout-grid" })
+Misc_Tab = window:CreateTab({ name = "Misc", icon = "settings" })
+
+
+-- Gen2 dropdown: single = string | multi = {string}
+local function pickDropdown(v)
+    if type(v) == "table" then
+        return v[1]
+    end
+    return v
+end
+local function listDropdown(v)
+    if type(v) == "table" then
+        return v
+    elseif v == nil or v == "" then
+        return {}
+    end
+    return { v }
+end
+
+local function notify(title, content, duration)
+    pcall(function()
+        window:Notify({
+            title = tostring(title or "PSX"),
+            content = tostring(content or ""),
+            duration = duration or 3,
+        })
+    end)
+end
+
+task.wait(0.3)
+
+-- ====================== EGG PURCHASE ======================
+-- O dump oficial usa somente: Buy Egg(eggId, amountNumber).
+-- Nunca envia booleans nem uma segunda/terceira chamada para o mesmo ciclo.
+local HatchRequestBusy = false
+local HatchAmountsCache = {}
+local HatchAmountsCacheAt = {}
+
+local function getAllowedHatchAmounts(eggName)
+    local now = os.clock()
+    if HatchAmountsCache[eggName] and now - (HatchAmountsCacheAt[eggName] or 0) < 3 then
+        return HatchAmountsCache[eggName]
+    end
+    local amounts = {}
+    local seen = {}
+    pcall(function()
+        local result = Network.Invoke("Eggs: Get Amounts", eggName)
+        if type(result) == "table" then
+            for _, value in ipairs(result) do
+                local n = tonumber(value)
+                if n and n >= 1 and not seen[n] then
+                    seen[n] = true
+                    table.insert(amounts, math.floor(n))
+                end
+            end
+        end
+    end)
+    if #amounts == 0 then
+        amounts = {1, 3, 8}
+    end
+    table.sort(amounts)
+    HatchAmountsCache[eggName] = amounts
+    HatchAmountsCacheAt[eggName] = now
+    return amounts
+end
+
+local function chooseHatchAmount(eggName, requested)
+    requested = math.max(1, math.floor(tonumber(requested) or 1))
+    local allowed = getAllowedHatchAmounts(eggName)
+    for _, amount in ipairs(allowed) do
+        if amount == requested then return amount end
+    end
+    local selected = allowed[1] or 1
+    for _, amount in ipairs(allowed) do
+        if amount <= requested then selected = amount end
+    end
+    return selected
+end
+
+local function buyEggExact(eggName, requested)
+    if not eggName or HatchRequestBusy then return false, 0 end
+    local amount = IsFrameworkBackend and ((tonumber(requested) or 1) >= 3 or frameworkHasTripleEgg())
+        or chooseHatchAmount(eggName, requested)
+    local eggId = IsFrameworkBackend and resolveFrameworkEggId(eggName) or eggName
+    HatchRequestBusy = true
+    local ok, result, err = pcall(function()
+        return Network.Invoke("Buy Egg", eggId, amount)
+    end)
+    HatchRequestBusy = false
+    if not ok then return false, amount, result end
+    if result == false then return false, amount, err end
+    return true, amount, err
+end
+-- ====================== TAB: HATCH ======================
+
+Hatching_Tab:CreateDropdown({
+    name = "Select Egg",
+    options = All_Eggs_Available,
+        multiSelect = false,
+    flag = "EggSelection",
+    callback = function(Options)
+        Selected_Egg = pickDropdown(Options)
+    end,
+})
+
+Hatching_Tab:CreateInput({
+    name = "Eggs por abertura (quantidade exata)",
+    value = "8",
+    placeholder = "1, 3 ou 8",
+    flag = "HatchAmount",
+    callback = function(Text)
+        local n = tonumber(Text)
+        if n and n >= 1 then
+            HatchAmount = math.floor(n)
+        end
+    end,
+})
+
+Hatching_Tab:CreateSlider({
+    name = "Delay do Auto Egg",
+    Range = {0.01, 0.10},
+    Increment = 0.01,
+    Suffix = "s",
+    value = 0.03,
+    flag = "HatchLoopDelay",
+    callback = function(Value)
+        HatchLoopDelay = math.max(0.01, tonumber(Value) or 0.03)
+    end,
+})
+
+Hatching_Tab:CreateToggle({
+    name = "Start Hatching",
+    value = false,
+    flag = "HatchToggle",
+    callback = function(Value)
+        AutoHatch = Value
+        if not AutoHatch then return end
+        ensureNetworkBypass()
+
+        task.spawn(function()
+            while AutoHatch do
+                task.wait(HatchLoopDelay)
+                refreshData()
+                if not Data or not Selected_Egg then
+                    task.wait(0.1)
+                    continue
+                end
+
+                -- Uma única chamada numérica por ciclo.
+                -- Isso impede que o servidor interprete booleans como outra quantidade.
+                buyEggExact(Selected_Egg, HatchAmount)
+            end
+        end)
+    end,
+})
+
+Hatching_Tab:CreateSection({ name = "Huge Webhook Notifications" })
+Hatching_Tab:CreateInput({
+    name = "Webhook URL",
+    value = "",
+    placeholder = "https://discord.com/api/webhooks/...",
+    flag = "WebhookURL",
+    callback = function(Text)
+        WebhookURL = Text
+    end,
+})
+
+Hatching_Tab:CreateInput({
+    name = "Discord UserID (para mencionar)",
+    value = "",
+    placeholder = "123456789012345678",
+    flag = "WebhookUserID",
+    callback = function(Text)
+        UserID = Text
+    end,
+})
+
+Hatching_Tab:CreateDropdown({
+    name = "Webhook: raridades notificadas",
+    options = { "Huge", "Titanic", "Exclusive", "Mythical", "Legendary", "Event", "Divine" },
+    value = { "Huge" },
+    multiSelect = true,
+    flag = "WebhookRarities",
+    callback = function(Options)
+        WebhookRarities = listDropdown(Options)
+    end,
+})
+
+Hatching_Tab:CreateToggle({
+    name = "Send Huge Pet Notifications",
+    value = false,
+    flag = "WebhookToggle",
+    callback = function(Value)
+        Send_Webhook = Value
+        if not Send_Webhook then return end
+
+        task.spawn(function()
+            while Send_Webhook do
+                task.wait(1.2)
+                refreshData()
+                if not Data or not Data.Pets then continue end
+
+                for _, pet in pairs(Data.Pets) do
+                    if not pet.id then continue end
+                    local uidKey = tostring(pet.uid or "")
+                    if isWebhookPet(pet) and uidKey ~= "" and not WebhookSeenPets[uidKey] then
+                        table.insert(Huges_Hatched, pet.uid)
+                        WebhookSeenPets[uidKey] = true
+                        if isHugePet(pet.id) or isTitanicPet(pet.id) then
+                            table.insert(All_Pets_Inventory, pet.uid)
+                        end
+
+                        local baseName = petDisplayName(pet.id)
+                        local petType = isTitanicPet(pet.id) and "Titanic"
+                            or (isHugePet(pet.id) and "Huge" or "Exclusive")
+                        local variants = {}
+                        if pet.g then table.insert(variants, "Golden") end
+                        if pet.r then table.insert(variants, "Rainbow") end
+                        if pet.dm then table.insert(variants, "Dark Matter") end
+                        if pet.hc then table.insert(variants, "Hardcore") end
+
+                        local variantStr = (#variants > 0) and (table.concat(variants, " ") .. " ") or ""
+                        local petName = variantStr .. baseName
+
+                        if WebhookURL ~= "" then
+                            local embed = {
+                                title = "🎉 " .. petType .. " detectado",
+                                description = petName,
+                                color = 8388736,
+                                fields = {
+                                    { name = "Username", value = player.Name, inline = true },
+                                    { name = "Tipo", value = petType, inline = true },
+                                    { name = "Pet ID", value = tostring(pet.id), inline = true },
+                                    { name = "Total notificados", value = tostring(#Huges_Hatched), inline = true },
+                                    { name = "Huge/Titanic no inventário", value = tostring(#All_Pets_Inventory), inline = true },
+                                    { name = "Diamonds", value = formatNumber(Data.Diamonds or 0), inline = true },
+                                },
+                                footer = { text = "PSX Mod Hub" }
+                            }
+                            SendMessageWithEmbed(WebhookURL, UserID, embed)
+                        end
+                    end
+                end
+            end
+        end)
+    end,
+})
+
+-- ====================== TAB: PETS ======================
+
+Pet_Tab:CreateSection({ name = "Acesso rápido às máquinas" })
+function openMachineGui(names)
+    local aliases = names or {}
+    local function normalize(value)
+        return tostring(value or ""):lower():gsub("[^%w]", "")
+    end
+    if listAllPlayerGuis then
+        for _, actualName in ipairs(listAllPlayerGuis()) do
+            local actual = normalize(actualName)
+            for _, alias in ipairs(aliases) do
+                local wanted = normalize(alias)
+                if actual == wanted or actual:find(wanted, 1, true) or wanted:find(actual, 1, true) then
+                    if setPlayerGuiEnabled and setPlayerGuiEnabled(actualName, true) then return true end
+                end
+            end
+        end
+    end
+    for _, guiName in ipairs(aliases) do
+        if setPlayerGuiEnabled and setPlayerGuiEnabled(guiName, true) then return true end
+    end
+    return false
+end
+Pet_Tab:CreateButton({
+    name = "Abrir Golden Machine",
+    callback = function()
+        task.defer(function() openMachineGui({"Golden", "Golden Machine", "Gold Machine"}) end)
+    end,
+})
+Pet_Tab:CreateButton({
+    name = "Abrir Rainbow Machine",
+    callback = function()
+        task.defer(function() openMachineGui({"Rainbow", "Rainbow Machine"}) end)
+    end,
+})
+Pet_Tab:CreateButton({
+    name = "Abrir Dark Matter Machine",
+    callback = function()
+        task.defer(function() openMachineGui({"Dark Matter", "Dark Matter Machine"}) end)
+    end,
+})
+
+Pet_Tab:CreateSection({ name = "Craft Amounts (quantos pets por craft)" })
+Pet_Tab:CreateInput({
+    name = "Gold - Pets needed",
+    value = "6",
+    placeholder = "6",
+    flag = "GoldPetsNeeded",
+    callback = function(Text)
+        local n = tonumber(Text)
+        if n and n >= 1 then
+            GoldPetsNeeded = math.floor(n)
+        end
+    end,
+})
+
+Pet_Tab:CreateInput({
+    name = "Rainbow - Pets needed",
+    value = "6",
+    placeholder = "6",
+    flag = "RainbowPetsNeeded",
+    callback = function(Text)
+        local n = tonumber(Text)
+        if n and n >= 1 then
+            RainbowPetsNeeded = math.floor(n)
+        end
+    end,
+})
+
+Pet_Tab:CreateInput({
+    name = "Dark Matter - Pets needed",
+    value = "1",
+    placeholder = "1",
+    flag = "DarkMatterPetsNeeded",
+    callback = function(Text)
+        local n = tonumber(Text)
+        if n and n >= 1 then
+            DarkMatterPetsNeeded = math.floor(n)
+        end
+    end,
+})
+
+Pet_Tab:CreateSection({ name = "Auto Convert" })
+Pet_Tab:CreateToggle({
+    name = "Auto Make Gold",
+    value = false,
+    flag = "AutoConvertGold",
+    callback = function(Value)
+        Auto_Convert_Gold = Value
+        if not Auto_Convert_Gold then return end
+
+        task.spawn(function()
+            while Auto_Convert_Gold do
+                refreshData()
+                task.wait(0.4)
+
+                local needed = GoldPetsNeeded
+                -- agrupa por id + shiny (nunca mistura shiny com normal)
+                local groups = {}
+                for _, pet in pairs(Data.Pets or {}) do
+                    if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id)
+                        or isPetMarkedForDeletion(pet) then continue end
+                    if not pet.r and not pet.g and not pet.dm then
+                        local key = tostring(pet.id) .. (isPetShiny(pet) and "|S" or "|N")
+                        groups[key] = groups[key] or {}
+                        table.insert(groups[key], pet)
+                    end
+                end
+
+                for _, pets in pairs(groups) do
+                    while #pets >= needed do
+                        local petsToConvert = {}
+                        for i = 1, needed do
+                            table.insert(petsToConvert, pets[i].uid)
+                        end
+                        pcall(function()
+                            Network.Invoke("Use Golden Machine", petsToConvert)
+                        end)
+                        for i = needed, 1, -1 do
+                            table.remove(pets, i)
+                        end
+                        task.wait(0.3)
+                    end
+                end
+            end
+        end)
+    end,
+})
+
+Pet_Tab:CreateToggle({
+    name = "Auto Make Rainbow",
+    value = false,
+    flag = "AutoConvertRainbow",
+    callback = function(Value)
+        Auto_Convert_Rainbow = Value
+        if not Auto_Convert_Rainbow then return end
+
+        task.spawn(function()
+            while Auto_Convert_Rainbow do
+                refreshData()
+                task.wait(0.4)
+
+                local needed = RainbowPetsNeeded
+                local groups = {}
+                for _, pet in pairs(Data.Pets or {}) do
+                    if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id)
+                        or isPetMarkedForDeletion(pet) then continue end
+                    if pet.g and not pet.r and not pet.dm then
+                        local key = tostring(pet.id) .. (isPetShiny(pet) and "|S" or "|N")
+                        groups[key] = groups[key] or {}
+                        table.insert(groups[key], pet)
+                    end
+                end
+
+                for _, pets in pairs(groups) do
+                    while #pets >= needed do
+                        local petsToConvert = {}
+                        for i = 1, needed do
+                            table.insert(petsToConvert, pets[i].uid)
+                        end
+                        pcall(function()
+                            Network.Invoke("Use Rainbow Machine", petsToConvert)
+                        end)
+                        for i = needed, 1, -1 do
+                            table.remove(pets, i)
+                        end
+                        task.wait(0.3)
+                    end
+                end
+            end
+        end)
+    end,
+})
+
+Pet_Tab:CreateToggle({
+    name = "Auto Make Dark Matter",
+    value = false,
+    flag = "AutoConvertDarkMatter",
+    callback = function(Value)
+        Auto_Convert_Dark_Matter = Value
+        if not Auto_Convert_Dark_Matter then return end
+
+        task.spawn(function()
+            while Auto_Convert_Dark_Matter do
+                refreshData()
+                task.wait(0.4)
+
+                local needed = math.max(1, DarkMatterPetsNeeded)
+                local groups = {}
+                for _, pet in pairs(Data.Pets or {}) do
+                    if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id)
+                        or isPetMarkedForDeletion(pet) then continue end
+                    if pet.r and not pet.g and not pet.dm then
+                        local key = tostring(pet.id) .. (isPetShiny(pet) and "|S" or "|N")
+                        groups[key] = groups[key] or {}
+                        table.insert(groups[key], pet)
+                    end
+                end
+
+                for _, pets in pairs(groups) do
+                    while #pets >= needed and Auto_Convert_Dark_Matter do
+                        local petsToConvert = {}
+                        for i = 1, needed do
+                            table.insert(petsToConvert, pets[i].uid)
+                        end
+                        pcall(function()
+                            Network.Invoke("Convert To Dark Matter", petsToConvert)
+                        end)
+                        for i = needed, 1, -1 do
+                            table.remove(pets, i)
+                        end
+                        task.wait(0.3)
+                    end
+                end
+            end
+        end)
+    end,
+})
+
+Pet_Tab:CreateToggle({
+    name = "Auto Skip Dark Matter Craft",
+    value = false,
+    flag = "AutoSkipDarkMatter",
+    callback = function(Value)
+        Auto_Skip_Dark_Matter = Value
+        if not Auto_Skip_Dark_Matter then return end
+
+        task.spawn(function()
+            while Auto_Skip_Dark_Matter do
+                refreshData()
+                -- Dump: Prompt Dark Matter Skip usa a KEY do DarkMatterQueue (slot), nao o uid do pet
+                local queue = Data and Data.DarkMatterQueue
+                if type(queue) == "table" then
+                    for slotId, _ in pairs(queue) do
+                        if not Auto_Skip_Dark_Matter then break end
+                        pcall(function()
+                            Network.Invoke("Prompt Dark Matter Skip", slotId)
+                        end)
+                        task.wait(0.2)
+                    end
+                end
+                task.wait(1)
+            end
+        end)
+    end,
+})
+
+
+Pet_Tab:CreateSection({ name = "Auto Lock" })
+Pet_Tab:CreateToggle({
+    name = "Auto Lock Huges",
+    value = false,
+    flag = "AutoLockHuges",
+    callback = function(Value)
+        AutoLockHuges = Value
+        if not AutoLockHuges then return end
+
+        task.spawn(function()
+            while AutoLockHuges do
+                task.wait(1.5)
+                refreshData()
+                for _, pet in pairs(Data.Pets or {}) do
+                    if pet.id and isHugePet(pet.id) and not pet.l then
+                        pcall(function()
+                            Network.Invoke("Lock Pet", pet.uid)
+                        end)
+                        task.wait(0.1)
+                    end
+                end
+            end
+        end)
+    end,
+})
+
+Pet_Tab:CreateSection({ name = "Auto Equip" })
+local AutoEquipBest = false
+Pet_Tab:CreateToggle({
+    name = "Auto Equip Best",
+    value = false,
+    flag = "AutoEquipBest",
+    callback = function(Value)
+        AutoEquipBest = Value
+        if not AutoEquipBest then return end
+        -- Dump Inventory.txt oficial:
+        -- Network.Invoke("Equip Best Pets")
+        -- PetCmds.HasBestEquipped() / HasBestEquipped(player)
+        task.spawn(function()
+            local function isBest()
+                local ok, res = pcall(function()
+                    if PetCmds.HasBestEquipped then
+                        -- dump: HasBestEquipped(player) OU sem arg em algumas builds
+                        local a = PetCmds.HasBestEquipped(Library.LocalPlayer or player)
+                        if a ~= nil then return a end
+                        return PetCmds.HasBestEquipped()
+                    end
+                    return false
+                end)
+                return ok and res == true
+            end
+            local function doEquip()
+                if isBest() then return end
+                pcall(function()
+                    Network.Invoke("Equip Best Pets")
+                end)
+            end
+            doEquip()
+            -- reage a mudanca de pets (hatch/craft/trade)
+            local conn
+            pcall(function()
+                conn = Library.Signal.Fired("Stat Changed"):Connect(function(stat)
+                    if not AutoEquipBest then return end
+                    if stat == "Pets" or stat == "MaxEquipped" or stat == "InfPetsEnabled" then
+                        task.defer(doEquip)
+                    end
+                end)
+            end)
+            while AutoEquipBest do
+                doEquip()
+                task.wait(0.75)
+            end
+            pcall(function()
+                if conn then conn:Disconnect() end
+            end)
+        end)
+    end,
+})
+
+Pet_Tab:CreateSection({ name = "Blacklist de Pets" })
+Pet_Tab:CreateSection({ name = "Blacklist: protege o inventario atual | novos ficam usaveis" })
+Pet_Tab:CreateButton({
+    name = "Salvar inventario atual na Blacklist",
+    callback = function()
+        local n = snapshotInventoryToBlacklist()
+        pcall(function()
+            notify("Blacklist", n .. " novos pets protegidos", 4)
+        end)
+    end,
+})
+Pet_Tab:CreateButton({
+    name = "Limpar Blacklist",
+    callback = function()
+        clearBlacklist()
+        pcall(function()
+            notify("Blacklist", "Limpa", 3)
+        end)
+    end,
+})
+Pet_Tab:CreateButton({
+    name = "Ver quantos na Blacklist",
+    callback = function()
+        local n = countBlacklist()
+        pcall(function()
+            notify("Blacklist", tostring(n) .. " pets", 3)
+        end)
+    end,
+})
+
+
+
+-- Auto Claim Dark Matter em background (sempre on)
+task.spawn(function()
+    while true do
+        pcall(function()
+            local save = Library.Save.Get()
+            local queue = save and save.DarkMatterQueue
+            if type(queue) == "table" then
+                for slotId, _ in pairs(queue) do
+                    pcall(function()
+                        Network.Invoke("Redeem Dark Matter Pet", slotId)
+                    end)
+                    task.wait(0.15)
+                end
+            end
+        end)
+        task.wait(3)
+    end
+end)
+
+
+-- Background: Rank / VIP / Free Gifts (logica oficial dos dumps)
+local AutoFreeGifts = true
+local FreeGiftPollDelay = 0.5
+local function searchArray(arr, value)
+    if type(arr) ~= "table" then return false end
+    if Library.Functions and Library.Functions.SearchArray then
+        local ok, res = pcall(function()
+            return Library.Functions.SearchArray(arr, value)
+        end)
+        if ok then return res and true or false end
+    end
+    for _, v in ipairs(arr) do
+        if v == value then return true end
+    end
+    return false
+end
+
+local function claimFreeGiftsOfficial()
+    local save = Library.Save.Get()
+    if not save then return end
+    local dir = Library.Directory and Library.Directory.FreeGifts
+    if type(dir) ~= "table" then return end
+    local redeemed = save.FreeGiftsRedeemed or {}
+    local giftTime = tonumber(save.FreeGiftsTime) or 0
+    -- Dump FreeGifts: ipairs index + waitTime <= FreeGiftsTime e nao esta em FreeGiftsRedeemed
+    for i, gift in ipairs(dir) do
+        if not AutoFreeGifts then break end
+        local already = searchArray(redeemed, i)
+        local waitTime = type(gift) == "table" and tonumber(gift.waitTime) or nil
+        if not already and waitTime and giftTime >= waitTime then
+            pcall(function()
+                Network.Invoke("Redeem Free Gift", i)
+            end)
+            task.wait(0.05)
+        end
+    end
+end
+
+task.spawn(function()
+    local lastRankVip = 0
+    while true do
+        -- Rank/VIP continuam limitados para nao gerar chamadas repetidas.
+        if os.clock() - lastRankVip >= 6 then
+            pcall(function() Network.Invoke("Redeem Rank Rewards") end)
+            pcall(function() Network.Invoke("Redeem VIP Rewards") end)
+            lastRankVip = os.clock()
+        end
+        -- Apenas Free Gifts usa o intervalo rapido configuravel.
+        if AutoFreeGifts then
+            pcall(claimFreeGiftsOfficial)
+        end
+        task.wait(FreeGiftPollDelay)
+    end
+end)
+
+-- ====================== TAB: AUTO FARM ======================
+-- ====================== TAB: AUTO DELETE ======================
+AutoDelete_Tab:CreateSection({ name = "Excluir por raridade" })
+
+AutoDelete_Tab:CreateDropdown({
+    name = "Auto Delete Rarity",
+    options = {"Basic", "Epic", "Rare", "Legendary", "Event"},
+    value = {},
+    multiSelect = true,
+    flag = "AutoDeleteRarity",
+    callback = function(Options)
+        Auto_Delete_Rarity = listDropdown(Options)
+    end,
+})
+
+AutoDeleteByName = false
+SelectedDeletePetNames = {}
+DeletePetNameSet = {}
+DeletePetNameOptions = {}
+ExclusivePetIdToName = {}
+AutoDeleteByEnchant = false
+SelectedEnchantDeletePet = ""
+SelectedEnchantDeleteTitle = ""
+SelectedEnchantDeleteCrafts = {}
+EnchantDeletePetOptions = {}
+EnchantDeleteTitleOptions = {}
+EnchantDeleteCraftOptions = {
+    "Normal", "Normal Shiny",
+    "Golden", "Golden Shiny",
+    "Rainbow", "Rainbow Shiny",
+    "Dark Matter", "Dark Matter Shiny",
+}
+
+local function collectExclusivePetNames(node, hint, depth)
+    if type(node) ~= "table" or (depth or 0) > 7 then return end
+    local petData = node.PetData or node.petData
+    if type(petData) == "table" then
+        local petId = petData.id or petData.Id or petData.petId or petData.PetId or petData[2]
+        if petId and hint and tostring(hint) ~= "PetData" then
+            ExclusivePetIdToName[tostring(petId)] = tostring(hint)
+        end
+    end
+    for key, value in pairs(node) do
+        if type(value) == "table" then
+            local nextHint = hint
+            if type(key) == "string" and key ~= "PetData" and key ~= "petData" and key ~= "extraData" then
+                nextHint = key
+            end
+            collectExclusivePetNames(value, nextHint, (depth or 0) + 1)
+        end
+    end
+end
+
+pcall(function()
+    collectExclusivePetNames(Library.Directory and Library.Directory.ExclusivePets, nil, 0)
+end)
+
+local function buildDeletePetNameOptions()
+    local names, seen = {}, {}
+    local directory = Pets_Directory
+    if type(directory) ~= "table" then
+        directory = Library.Directory and Library.Directory.Pets or {}
+    end
+    for _, info in pairs(directory or {}) do
+        if type(info) == "table" then
+            local name = info.name or info.Name or info.displayName or info.DisplayName
+            if name and tostring(name) ~= "" and not seen[tostring(name)] then
+                seen[tostring(name)] = true
+                table.insert(names, tostring(name))
+            end
+        end
+    end
+    for _, name in pairs(ExclusivePetIdToName) do
+        if name and name ~= "" and not seen[tostring(name)] then
+            seen[tostring(name)] = true
+            table.insert(names, tostring(name))
+        end
+    end
+    table.sort(names, function(a, b) return a:lower() < b:lower() end)
+    DeletePetNameSet = seen
+    DeletePetNameOptions = names
+    return names
+end
+
+pcall(function()
+AutoDelete_Tab:CreateDropdown({
+    name = "Pets para excluir (multi)",
+    options = buildDeletePetNameOptions(),
+        value = {},
+        multiSelect = true,
+        flag = "AutoDeletePetNames",
+        callback = function(Options)
+            SelectedDeletePetNames = listDropdown(Options)
+        end,
+    })
+end)
+
+-- Filtro independente: exclui somente o pet escolhido quando ele NAO possui
+-- exatamente o enchant selecionado. Nao compartilha estado com os outros
+-- dropdowns de Auto Delete ou da aba Enchant.
+function buildEnchantDeleteTitles()
+    local titles, seen = {}, {}
+    pcall(function()
+        for _, power in pairs(Library.Directory and Library.Directory.Powers or {}) do
+            if type(power) == "table" and type(power.tiers) == "table" then
+                for _, tier in ipairs(power.tiers) do
+                    local title = tier and (tier.title or tier.Title)
+                    if title and not seen[tostring(title)] then
+                        seen[tostring(title)] = true
+                        table.insert(titles, tostring(title))
+                    end
+                end
+            end
+        end
+    end)
+    if #titles == 0 then
+        titles = {"Cartoon Coins I", "Cartoon Coins II", "Cartoon Coins III", "Cartoon Coins IV", "Cartoon Coins V"}
+    end
+    table.sort(titles, function(a, b) return a:lower() < b:lower() end)
+    EnchantDeleteTitleOptions = titles
+    return titles
+end
+
+function autoDeleteEnchantTitleMatches(pet, desiredTitle)
+    if not pet or not desiredTitle or tostring(desiredTitle) == "" then return false end
+    local powers = pet.powers or pet.Powers or pet.enchants or pet.Enchants
+    if type(powers) ~= "table" then return false end
+    local wanted = tostring(desiredTitle):lower()
+    for _, power in pairs(powers) do
+        local title
+        pcall(function()
+            local powerId = power[1] or power.id or power.Id or power.power or power.Power
+            local tierId = power[2] or power.tier or power.Tier or power.level or power.Level
+            local directoryPowers = Library.Directory and Library.Directory.Powers
+            local definition = directoryPowers and (directoryPowers[powerId] or directoryPowers[tostring(powerId)])
+            if definition and definition.tiers then
+                local tier = definition.tiers[tonumber(tierId) or tierId]
+                title = tier and (tier.title or tier.Title)
+            end
+            title = title or power.title or power.Title or power.name or power.Name
+        end)
+        if title and tostring(title):lower() == wanted then return true end
+    end
+    return false
+end
+
+function autoDeleteEnchantPetNameMatches(pet)
+    if not pet or not SelectedEnchantDeletePet or SelectedEnchantDeletePet == "" then return false end
+    local selected = tostring(SelectedEnchantDeletePet):lower()
+    local candidates = {
+        petDisplayName(pet.id),
+        pet.name or pet.Name,
+        pet.displayName or pet.DisplayName,
+        ExclusivePetIdToName[tostring(pet.id)],
+    }
+    for _, candidate in ipairs(candidates) do
+        if candidate and tostring(candidate):lower() == selected then return true end
+    end
+    return false
+end
+
+function autoDeleteEnchantCraftMatches(pet)
+    if not pet or type(SelectedEnchantDeleteCrafts) ~= "table" or #SelectedEnchantDeleteCrafts == 0 then return false end
+    local craft = tostring(getPetCraftVariant(pet) or ""):lower()
+    for _, selectedCraft in ipairs(SelectedEnchantDeleteCrafts) do
+        if craft == tostring(selectedCraft):lower() then return true end
+    end
+    return false
+end
+
+AutoDelete_Tab:CreateSection({ name = "Experimental: excluir pet sem enchant exato" })
+AutoDelete_Tab:CreateDropdown({
+    name = "Pet alvo (somente este pet)",
+    options = buildDeletePetNameOptions(),
+    value = {},
+    multiSelect = false,
+    flag = "AutoDeleteEnchantPet",
+    callback = function(Option)
+        SelectedEnchantDeletePet = pickDropdown(Option) or ""
+    end,
+})
+AutoDelete_Tab:CreateDropdown({
+    name = "Enchant permitido (exato)",
+    options = buildEnchantDeleteTitles(),
+    value = {},
+    multiSelect = false,
+    flag = "AutoDeleteEnchantTitle",
+    callback = function(Option)
+        SelectedEnchantDeleteTitle = pickDropdown(Option) or ""
+    end,
+})
+AutoDelete_Tab:CreateDropdown({
+    name = "Variações de craft para excluir (multi)",
+    options = EnchantDeleteCraftOptions,
+    value = {},
+    multiSelect = true,
+    flag = "AutoDeleteEnchantCraft",
+    callback = function(Option)
+        SelectedEnchantDeleteCrafts = listDropdown(Option)
+    end,
+})
+AutoDelete_Tab:CreateInput({
+    name = "Enchant permitido manual (opcional)",
+    value = "",
+    placeholder = "Ex: Cartoon Coins V",
+    flag = "AutoDeleteEnchantManual",
+    callback = function(Text)
+        if Text and tostring(Text) ~= "" then
+            SelectedEnchantDeleteTitle = tostring(Text)
+        end
+    end,
+})
+AutoDelete_Tab:CreateToggle({
+    name = "Auto Delete: pet sem enchant exato",
+    value = false,
+    flag = "AutoDeleteByEnchant",
+    callback = function(Value)
+        AutoDeleteByEnchant = Value
+        if not AutoDeleteByEnchant then return end
+        task.spawn(function()
+            while AutoDeleteByEnchant do
+                task.wait(0.35)
+                refreshData()
+                if SelectedEnchantDeletePet ~= "" and SelectedEnchantDeleteTitle ~= ""
+                    and type(SelectedEnchantDeleteCrafts) == "table"
+                    and #SelectedEnchantDeleteCrafts > 0 then
+                    local toDelete = {}
+                    for _, petData in pairs((Data and Data.Pets) or {}) do
+                        if petData and petData.uid
+                            and autoDeleteEnchantPetNameMatches(petData)
+                            and autoDeleteEnchantCraftMatches(petData)
+                            and not autoDeleteEnchantTitleMatches(petData, SelectedEnchantDeleteTitle)
+                            and not isBlacklisted(petData.uid)
+                            and not isPetLocked(petData) then
+                            table.insert(toDelete, petData.uid)
+                        end
+                    end
+                    if #toDelete > 0 then
+                        pcall(function() Network.Invoke("Delete Several Pets", toDelete) end)
+                    end
+                end
+            end
+        end)
+    end,
+})
+
+AutoDelete_Tab:CreateSection({ name = "Ativar exclusao" })
+AutoDelete_Tab:CreateToggle({
+    name = "Auto Delete por nome",
+    value = false,
+    flag = "AutoDeleteByName",
+    callback = function(Value)
+        AutoDeleteByName = Value
+        if not AutoDeleteByName then return end
+        task.spawn(function()
+            while AutoDeleteByName do
+                task.wait(0.35)
+                refreshData()
+                local wanted = {}
+                for _, name in ipairs(SelectedDeletePetNames or {}) do
+                    wanted[string.lower(tostring(name))] = true
+                end
+                if next(wanted) then
+                    local toDelete = {}
+                    for _, petData in pairs((Data and Data.Pets) or {}) do
+                        -- A lista e explicita, mas Locked e Blacklist nunca podem ser apagados.
+                        -- Exclusive/Huge podem ser apagados se o nome estiver selecionado.
+                        if petData and petData.uid
+                            and not isBlacklisted(petData.uid)
+                            and not isPetLocked(petData) then
+                            local info = Pets_Directory[petData.id] or Pets_Directory[tostring(petData.id)]
+                            local namesToCheck = {
+                                info and (info.name or info.Name or info.displayName or info.DisplayName),
+                                petData.name or petData.Name or petData.displayName or petData.DisplayName,
+                                ExclusivePetIdToName[tostring(petData.id)],
+                            }
+                            local matches = false
+                            for _, candidate in ipairs(namesToCheck) do
+                                if candidate and wanted[string.lower(tostring(candidate))] then
+                                    matches = true
+                                    break
+                                end
+                            end
+                            if matches then
+                                table.insert(toDelete, petData.uid)
+                            end
+                        end
+                    end
+                    if #toDelete > 0 then
+                        pcall(function() Network.Invoke("Delete Several Pets", toDelete) end)
+                    end
+                end
+            end
+        end)
+    end,
+})
+
+AutoDelete_Tab:CreateToggle({
+    name = "Auto Delete por raridade",
+    value = false,
+    flag = "AutoDeleteRarityEnabled",
+    callback = function(Value)
+        AutoDelete = Value
+        if not AutoDelete then return end
+        task.spawn(function()
+            while AutoDelete do
+                task.wait(0.35)
+                refreshData()
+                local toDelete = {}
+                for _, petData in pairs((Data and Data.Pets) or {}) do
+                    local info = petData and (Pets_Directory[petData.id] or Pets_Directory[tostring(petData.id)])
+                    if petData and info and not isBlacklisted(petData.uid)
+                        and not isHugePet(petData.id) and not isPetLocked(petData) then
+                        local rarity = info.rarity or info.Rarity
+                        if table.find(Auto_Delete_Rarity, rarity) then
+                            table.insert(toDelete, petData.uid)
+                        end
+                    end
+                end
+                if #toDelete > 0 then
+                    pcall(function() Network.Invoke("Delete Several Pets", toDelete) end)
+                end
+            end
+        end)
+    end,
+})
+
+AutoDeleteByCraft = false
+SelectedDeleteCrafts = {}
+DeleteCraftOptions = {
+    "Normal", "Normal Shiny",
+    "Golden", "Golden Shiny",
+    "Rainbow", "Rainbow Shiny",
+    "Dark Matter", "Dark Matter Shiny",
+}
+
+AutoDelete_Tab:CreateSection({ name = "Excluir por Craft / Variante" })
+AutoDelete_Tab:CreateDropdown({
+    name = "Crafts para excluir (variante exata)",
+    options = DeleteCraftOptions,
+    value = {},
+    multiSelect = true,
+    flag = "AutoDeleteCrafts",
+    callback = function(Options)
+        SelectedDeleteCrafts = listDropdown(Options)
+    end,
+})
+
+AutoDelete_Tab:CreateToggle({
+    name = "Auto Delete por Craft",
+    value = false,
+    flag = "AutoDeleteByCraft",
+    callback = function(Value)
+        AutoDeleteByCraft = Value
+        if not AutoDeleteByCraft then return end
+        task.spawn(function()
+            while AutoDeleteByCraft do
+                task.wait(0.35)
+                refreshData()
+                local wanted = {}
+                for _, craftName in ipairs(SelectedDeleteCrafts or {}) do
+                    wanted[string.lower(tostring(craftName))] = true
+                end
+                if next(wanted) then
+                    local toDelete = {}
+                    for _, petData in pairs((Data and Data.Pets) or {}) do
+                        -- A comparação é exata. Ex.: Dark Matter não casa com
+                        -- Dark Matter Shiny, e Golden não casa com Golden Shiny.
+                        if petData and petData.uid
+                            and not isBlacklisted(petData.uid)
+                            and not isPetLocked(petData) then
+                            local craft = getPetCraftVariant(petData)
+                            if craft and wanted[string.lower(craft)] then
+                                table.insert(toDelete, petData.uid)
+                            end
+                        end
+                    end
+                    if #toDelete > 0 then
+                        pcall(function() Network.Invoke("Delete Several Pets", toDelete) end)
+                    end
+                end
+            end
+        end)
+    end,
+})
+
+function isPetMarkedForDeletion(pet)
+    if not pet or not pet.uid then return false end
+    if isBlacklisted(pet.uid) or isPetLocked(pet) then return false end
+
+    local petName = petDisplayName(pet.id)
+    if AutoDeleteByName and #SelectedDeletePetNames > 0 then
+        for _, selectedName in ipairs(SelectedDeletePetNames) do
+            local wanted = tostring(selectedName):lower()
+            if petName:lower() == wanted
+                or tostring(ExclusivePetIdToName[tostring(pet.id)] or ""):lower() == wanted then
+                return true
+            end
+        end
+    end
+
+    if AutoDeleteByCraft and #SelectedDeleteCrafts > 0 then
+        local craft = getPetCraftVariant(pet)
+        if craft then
+            for _, selectedCraft in ipairs(SelectedDeleteCrafts) do
+                if tostring(selectedCraft):lower() == craft:lower() then return true end
+            end
+        end
+    end
+
+    local rarity = tostring(pet.rarity or "")
+    local info = Pets_Directory[tostring(pet.id)] or Pets_Directory[pet.id]
+    rarity = tostring(info and (info.rarity or info.Rarity) or rarity)
+    if AutoDelete and table.find(Auto_Delete_Rarity or {}, rarity) and not isHugePet(pet.id) then
+        return true
+    end
+
+    local save = Library and Library.Save and Library.Save.Get and Library.Save.Get()
+    local rules = save and save.AutoDelete
+    local mode = rules and rules[rarity]
+    if mode == 2 then return not (pet.g or pet.r or pet.dm) end
+    if mode == 3 then return not (pet.r or pet.dm) end
+    if mode == 4 then return true end
+    return false
+end
+
+local function farmCoinHealth(coin)
+    if type(coin) ~= "table" then return 0 end
+    return tonumber(coin.h or coin.hp or coin.health or coin.Health or coin.m or coin.maxHealth) or 0
+end
+
+local function farmCoinName(coin)
+    return tostring(coin and (coin.n or coin.name or coin.Name) or "")
+end
+
+local function matchesFarmPriority(name, selected)
+    if not selected or #selected == 0 then return true end
+    local lowerName = tostring(name or ""):lower()
+    for _, wanted in ipairs(selected) do
+        local lowerWanted = tostring(wanted):lower()
+        if lowerName == lowerWanted or lowerName:find(lowerWanted, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+function collectGlobalPriorityTargets(origin)
+    local targets = {}
+    if not GlobalPriorityTargets or #GlobalPriorityTargets == 0 then return targets end
+    for id, coin in pairs(ServerCoins or {}) do
+        if coin and coin.p and matchesFarmPriority(farmCoinName(coin), GlobalPriorityTargets) then
+            table.insert(targets, {
+                id = id,
+                p = coin.p,
+                name = farmCoinName(coin),
+                health = farmCoinHealth(coin),
+                distance = origin and (coin.p - origin).Magnitude or 0,
+            })
+        end
+    end
+    table.sort(targets, function(a, b) return a.distance < b.distance end)
+    while #targets > math.max(1, MAX_BREAKABLES or 1) do table.remove(targets) end
+    return targets
+end
+
+local function collectAreaFarmTargets(areaName, method, selected, origin)
+    local targets = {}
+    for id, coin in pairs(ServerCoins or {}) do
+        if coin and coin.p and coin.a == areaName then
+            local name = farmCoinName(coin)
+            if method ~= "Priority" or matchesFarmPriority(name, selected) then
+                table.insert(targets, {
+                    id = id,
+                    p = coin.p,
+                    name = name,
+                    health = farmCoinHealth(coin),
+                    distance = origin and (coin.p - origin).Magnitude or 0,
+                })
+            end
+        end
+    end
+    if method == "More Health" then
+        table.sort(targets, function(a, b) return a.health > b.health end)
+    elseif method == "Less Health" then
+        table.sort(targets, function(a, b) return a.health < b.health end)
+    elseif method == "Random" then
+        for i = #targets, 2, -1 do
+            local j = math.random(1, i)
+            targets[i], targets[j] = targets[j], targets[i]
+        end
+    else
+        table.sort(targets, function(a, b) return a.distance < b.distance end)
+    end
+    while #targets > math.max(1, MAX_BREAKABLES or 1) do
+        table.remove(targets)
+    end
+    return targets
+end
+
+local function assignFarmPets(pets, targets)
+    local assigned = {}
+    if not pets or #pets == 0 or not targets or #targets == 0 then return assigned end
+    if PetAssignMode == "OnePerBreakable" then
+        for i = 1, math.min(#pets, #targets) do
+            assigned[targets[i].id] = { pets[i] }
+        end
+    else
+        for i, petUID in ipairs(pets) do
+            local target = targets[((i - 1) % #targets) + 1]
+            assigned[target.id] = assigned[target.id] or {}
+            table.insert(assigned[target.id], petUID)
+        end
+    end
+    return assigned
+end
+
+local function fireFarmAssignments(assigned)
+    for targetId, pets in pairs(assigned or {}) do
+        task.spawn(function()
+            pcall(function() Network.Invoke("Join Coin", targetId, pets) end)
+            for _, petUID in ipairs(pets) do
+                pcall(function()
+                    Network.Fire("Change Pet Target", petUID, "Coin", targetId)
+                    farmCoinCompat(targetId, petUID)
+                end)
+            end
+        end)
+    end
+end
+
+-- Auto Farm tab created in the ordered tab block near the window setup.
+
+autoFarmTab:CreateSlider({
+    name = "Max Breakables",
+    Range = {1, 40},
+    Increment = 1,
+    Suffix = "Breakables",
+    value = MAX_BREAKABLES,
+    flag = "MaxBreakables",
+    callback = function(Value)
+        MAX_BREAKABLES = Value
+    end,
+})
+
+autoFarmTab:CreateSlider({
+    name = "Nearest: distância máxima",
+    Range = {25, 500},
+    Increment = 25,
+    Suffix = " studs",
+    value = NearestFarmRange,
+    flag = "NearestFarmRange",
+    callback = function(Value)
+        NearestFarmRange = math.max(25, tonumber(Value) or 200)
+    end,
+})
+autoFarmTab:CreateToggle({
+    name = "Auto Farm Breakables (Nearest)",
+    value = false,
+    flag = "AutoFarmNearest",
+    callback = function(Value)
+        AutoFarmBreakables = Value
+        if not AutoFarmBreakables then return end
+        ensureNetworkBypass()
+
+        task.spawn(function()
+            while AutoFarmBreakables do
+                if not HumanoidRootPart or not HumanoidRootPart.Parent then
+                    task.wait(0.5)
+                    continue
+                end
+
+                local equippedPets = getEquippedPets()
+                if #equippedPets == 0 then
+                    task.wait(0.4)
+                    continue
+                end
+
+                local validTargets = collectGlobalPriorityTargets(HumanoidRootPart.Position)
+                if #validTargets == 0 then
+                    for id, coin in pairs(ServerCoins) do
+                        if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= NearestFarmRange then
+                            table.insert(validTargets, {
+                                id = id,
+                                p = coin.p,
+                                distance = (coin.p - HumanoidRootPart.Position).Magnitude
+                            })
+                        end
+                    end
+                end
+
+                table.sort(validTargets, function(a, b)
+                    return a.distance < b.distance
+                end)
+
+                local targetLimit = math.min(#validTargets, MAX_BREAKABLES)
+                if targetLimit > 0 then
+                    local byTarget = {}
+                    for i, petUID in ipairs(equippedPets) do
+                        local target = validTargets[((i - 1) % targetLimit) + 1]
+                        if target then
+                            byTarget[target.id] = byTarget[target.id] or {}
+                            table.insert(byTarget[target.id], petUID)
+                        end
+                    end
+                    for tid, pets in pairs(byTarget) do
+                        task.spawn(function()
+                            pcall(function()
+                                Network.Invoke("Join Coin", tid, pets)
+                            end)
+                            for _, petUID in ipairs(pets) do
+                                pcall(function()
+                                    Network.Fire("Change Pet Target", petUID, "Coin", tid)
+                                    farmCoinCompat(tid, petUID)
+                                end)
+                            end
+                        end)
+                    end
+                end
+
+                task.wait(FarmSpeed or 0.15)
+            end
+        end)
+    end,
+})
+
+autoFarmTab:CreateSlider({
+    name = "Random: distância máxima",
+    Range = {25, 500},
+    Increment = 25,
+    Suffix = " studs",
+    value = RandomFarmRange,
+    flag = "RandomFarmRange",
+    callback = function(Value)
+        RandomFarmRange = math.max(25, tonumber(Value) or 200)
+    end,
+})
+autoFarmTab:CreateToggle({
+    name = "Auto Farm Breakables (Random)",
+    value = false,
+    flag = "AutoFarmRandom",
+    callback = function(Value)
+        AutoFarmBreakablesRandom = Value
+        if not AutoFarmBreakablesRandom then return end
+        ensureNetworkBypass()
+
+        task.spawn(function()
+            while AutoFarmBreakablesRandom do
+                if not HumanoidRootPart or not HumanoidRootPart.Parent then
+                    task.wait(0.5)
+                    continue
+                end
+
+                local equippedPets = getEquippedPets()
+                if #equippedPets == 0 then
+                    task.wait(0.4)
+                    continue
+                end
+
+                local validTargets = collectGlobalPriorityTargets(HumanoidRootPart.Position)
+                if #validTargets == 0 then
+                    for id, coin in pairs(ServerCoins) do
+                        if coin.p and (coin.p - HumanoidRootPart.Position).Magnitude <= RandomFarmRange then
+                            table.insert(validTargets, { id = id, p = coin.p })
+                        end
+                    end
+                end
+
+                if #validTargets > 0 then
+                    -- respeita Max Breakables
+                    while #validTargets > MAX_BREAKABLES do
+                        table.remove(validTargets, math.random(1, #validTargets))
+                    end
+                    local byTarget = {}
+                    for _, petUID in ipairs(equippedPets) do
+                        local target = validTargets[math.random(1, #validTargets)]
+                        byTarget[target.id] = byTarget[target.id] or {}
+                        table.insert(byTarget[target.id], petUID)
+                    end
+                    for tid, pets in pairs(byTarget) do
+                        task.spawn(function()
+                            pcall(function()
+                                Network.Invoke("Join Coin", tid, pets)
+                            end)
+                            for _, petUID in ipairs(pets) do
+                                pcall(function()
+                                    Network.Fire("Change Pet Target", petUID, "Coin", tid)
+                                    farmCoinCompat(tid, petUID)
+                                end)
+                            end
+                        end)
+                    end
+                end
+
+                task.wait(FarmSpeed or 0.15)
+            end
+        end)
+    end,
+})
+
+autoFarmTab:CreateSection({ name = "Area Mode" })
+autoFarmTab:CreateDropdown({
+    name = "Select Area to Farm",
+    options = AllGameAreas,
+        multiSelect = false,
+    flag = "AreaToFarm",
+    callback = function(Options)
+        AreaToFarm = pickDropdown(Options)
+    end,
+})
+
+autoFarmTab:CreateSlider({
+    name = "Farm Speed (delay ciclo)",
+    Range = {0.05, 1.00},
+    Increment = 0.05,
+    Suffix = "s",
+    value = FarmSpeed,
+    flag = "FarmSpeed",
+    callback = function(Value)
+        FarmSpeed = math.max(0.05, tonumber(Value) or 0.15)
+    end,
+})
+
+autoFarmTab:CreateDropdown({
+    name = "Area Farm Method",
+    options = {"Nearest", "Random", "Priority", "More Health", "Less Health"},
+    value = {"Nearest"},
+    multiSelect = false,
+    flag = "AreaFarmMethod",
+    callback = function(Options)
+        AreaFarmMethod = pickDropdown(Options) or "Nearest"
+    end,
+})
+
+autoFarmTab:CreateDropdown({
+    name = "Area Priority Breakables",
+    options = makeUniqueBreakableOptions(DynamicBreakables, true),
+    value = {},
+    multiSelect = true,
+    flag = "AreaPriorityTargets",
+    callback = function(Options)
+        AreaPriorityTargets = listDropdown(Options)
+    end,
+})
+
+globalPriorityDropdown = autoFarmTab:CreateDropdown({
+    name = "Priority Global (ignora área)",
+    options = sniperDefaultList,
+    value = {},
+    multiSelect = true,
+    flag = "GlobalPriorityTargets",
+    callback = function(Options)
+        GlobalPriorityTargets = listDropdown(Options)
+    end,
+})
+
+autoFarmTab:CreateDropdown({
+    name = "Pet Assign Mode",
+    options = {"Spread (divide todos)", "1 pet por breakable"},
+    value = {"Spread (divide todos)"},
+    multiSelect = false,
+    flag = "PetAssignMode",
+    callback = function(Options)
+        local selected = pickDropdown(Options) or "Spread"
+        PetAssignMode = tostring(selected):find("1 pet", 1, true) and "OnePerBreakable" or "Spread"
+    end,
+})
+
+autoFarmTab:CreateToggle({
+    name = "Sticky ate quebrar",
+    value = true,
+    flag = "AreaStickyUntilBreak",
+    callback = function(Value)
+        AreaStickyUntilBreak = Value
+    end,
+})
+
+autoFarmTab:CreateToggle({
+    name = "Auto Farm Area Mode",
+    value = false,
+    flag = "AutoFarmArea",
+    callback = function(Value)
+        AutoFarmBreakablesArea = Value
+        if not AutoFarmBreakablesArea then return end
+        ensureNetworkBypass()
+        task.spawn(function()
+            while AutoFarmBreakablesArea do
+                if not HumanoidRootPart or not HumanoidRootPart.Parent then
+                    task.wait(0.5)
+                    continue
+                end
+                if not AreaToFarm then
+                    task.wait(0.5)
+                    continue
+                end
+
+                local equippedPets = getEquippedPets()
+                if #equippedPets == 0 then
+                    task.wait(0.4)
+                    continue
+                end
+                -- Caminho original da LibraryOld. Não usa o adaptador de
+                -- snapshot Framework nem Farm Coin atrasado.
+                local validTargets = collectGlobalPriorityTargets(HumanoidRootPart.Position)
+                if #validTargets == 0 then
+                    for id, coin in pairs(ServerCoins or {}) do
+                        if coin and coin.p and coin.a == AreaToFarm then
+                            table.insert(validTargets, { id = id, p = coin.p })
+                        end
+                    end
+                end
+                if #validTargets > 0 then
+                    while #validTargets > math.max(1, MAX_BREAKABLES or 1) do
+                        table.remove(validTargets, math.random(1, #validTargets))
+                    end
+                    local byTarget = {}
+                    for _, petUID in ipairs(equippedPets) do
+                        local target = validTargets[math.random(1, #validTargets)]
+                        byTarget[target.id] = byTarget[target.id] or {}
+                        table.insert(byTarget[target.id], petUID)
+                    end
+                    for targetId, pets in pairs(byTarget) do
+                        task.spawn(function()
+                            pcall(function() Network.Invoke("Join Coin", targetId, pets) end)
+                            for _, petUID in ipairs(pets) do
+                                pcall(function()
+                                    Network.Fire("Change Pet Target", petUID, "Coin", targetId)
+                                    Network.Fire("Farm Coin", targetId, petUID)
+                                end)
+                            end
+                        end)
+                    end
+                end
+                task.wait(0.15)
+            end
+        end)
+    end,
+})
+
+autoFarmTab:CreateSection({ name = "Giant Chest" })
+giantDropdown = autoFarmTab:CreateDropdown({
+    name = "Select Giant Chest",
+    options = All_Giant_Chest,
+        multiSelect = false,
+    flag = "GiantChestSelect",
+    callback = function(Options)
+        Giant_Chest_Selected = pickDropdown(Options)
+    end,
+})
+
+autoFarmTab:CreateToggle({
+    name = "Auto Farm Giant Chest",
+    value = false,
+    flag = "AutoFarmGiant",
+    callback = function(Value)
+        Auto_Farm_Giant = Value
+        if not Auto_Farm_Giant or not Giant_Chest_Selected then return end
+
+        task.spawn(function()
+            local lastChestId = nil
+            local lastPetCount = 0
+            local lastAssignTick = 0
+
+            while Auto_Farm_Giant do
+                task.wait(0.25)
+                if not HumanoidRootPart or not HumanoidRootPart.Parent then
+                    continue
+                end
+
+                local all_Pets = getEquippedPets()
+                if #all_Pets == 0 then
+                    continue
+                end
+
+                local breakableID, chestPos, nearestDistance = nil, nil, math.huge
+                local priorityTargets = collectGlobalPriorityTargets(HumanoidRootPart.Position)
+                if #priorityTargets > 0 then
+                    breakableID = priorityTargets[1].id
+                    chestPos = priorityTargets[1].p
+                    nearestDistance = priorityTargets[1].distance
+                else
+                    local sel = tostring(Giant_Chest_Selected or ""):lower()
+                    for id, coin in pairs(ServerCoins) do
+                        if coin.p and coin.n then
+                            local cn = tostring(coin.n):lower()
+                            local distance = (coin.p - HumanoidRootPart.Position).Magnitude
+                            if cn == sel and distance < nearestDistance then
+                                breakableID = id
+                                chestPos = coin.p
+                                nearestDistance = distance
+                            end
+                        end
+                    end
+                end
+
+                -- Chest nao existe → espera respawn
+                if not breakableID or not chestPos then
+                    lastChestId = nil
+                    lastPetCount = 0
+                    continue
+                end
+
+                -- Sempre reenvia os pets (evita parar de farmar)
+                pcall(function()
+                    Network.Invoke("Join Coin", breakableID, all_Pets)
+                end)
+                for _, pet in ipairs(all_Pets) do
+                    task.spawn(function()
+                        pcall(function()
+                            Network.Fire("Change Pet Target", pet, "Coin", breakableID)
+                            farmCoinCompat(breakableID, pet)
+                        end)
+                    end)
+                end
+
+                lastChestId = breakableID
+                lastPetCount = #all_Pets
+                lastAssignTick = tick()
+            end
+        end)
+    end,
+})
+
+autoFarmTab:CreateButton({
+    name = "Refresh Breakables (Sniper/Giant)",
+    callback = function()
+        local list, sniperOpts, giantOpts = refreshBreakableDropdowns(false)
+        pcall(function()
+            notify("Breakables", "Sniper " .. #sniperOpts .. " | Giant " .. #giantOpts, 3)
+        end)
+    end,
+})
+
+-- ====================== SNIPER FARM ======================
+autoFarmTab:CreateSection({ name = "Sniper Farm" })
+sniperTargetsDropdown = autoFarmTab:CreateDropdown({
+    name = "Sniper Targets",
+    options = sniperDefaultList,
+    value = {},
+    multiSelect = true,
+    flag = "SniperTargets",
+    callback = function(Options)
+        SniperTargets = listDropdown(Options)
+    end,
+})
+
+refreshBreakableDropdowns = function(showNotify)
+    local list = refreshDynamicBreakables()
+    if #list == 0 then list = priorityList end
+    local sniperOpts = makeUniqueBreakableOptions(list, true)
+    local giantOpts = {}
+    for _, name in ipairs(list) do
+        if isSpecialChestName(name) then table.insert(giantOpts, name) end
+    end
+    if #giantOpts == 0 then giantOpts = All_Giant_Chest end
+
+    pcall(function()
+        if teleportDropdown and teleportDropdown.Refresh then teleportDropdown:Refresh(list) end
+        if sniperTargetsDropdown and sniperTargetsDropdown.Refresh then sniperTargetsDropdown:Refresh(sniperOpts) end
+        if globalPriorityDropdown and globalPriorityDropdown.Refresh then globalPriorityDropdown:Refresh(sniperOpts) end
+        if giantDropdown and giantDropdown.Refresh then giantDropdown:Refresh(giantOpts) end
+    end)
+    if showNotify then notify("Breakables", "Detectados: " .. #list, 3) end
+    return list, sniperOpts, giantOpts
+end
+
+-- ====================== WORLD HOP OLD / SNIPER ======================
+WorldHopOld = WorldHopOld or {
+    Enabled = false,
+    Delay = 5,
+    SpawnDelay = 3,
+    LoadTimeout = 12,
+    RejoinAfterLoop = false,
+    RejoinDelay = 5,
+    LoopsBeforeRejoin = 2,
+    VipLink = "https://www.roblox.com/share?code=a72c2acbb1625b499d535a7183f11851&type=Server",
+    Worlds = { "Spawn World" },
+    WorldKeys = {},
+}
+
+local function buildWorldHopOptions()
+    local result, keys = {}, {}
+    local worlds = Library and Library.Directory and Library.Directory.Worlds
+    if type(worlds) == "table" then
+        for key, info in pairs(worlds) do
+            if type(info) == "table" and not info.hidden and info.isVIP ~= true then
+                local display = tostring(info.display or info.displayName or info.name or key)
+                table.insert(result, display)
+                keys[display] = tostring(key)
+            end
+        end
+    end
+    if #result == 0 then
+        result = {
+            "Spawn World", "Fantasy World", "Tech World", "Axolotl Ocean",
+            "Pixel World", "Cat World", "Doodle World", "Kawaii World",
+            "Limbo World", "Void World",
+        }
+    end
+    table.sort(result, function(a, b) return worldRank(a) < worldRank(b) end)
+    WorldHopOld.WorldKeys = keys
+    return result
+end
+
+local function resolveWorldHopKey(display)
+    display = tostring(display or "")
+    if WorldHopOld.WorldKeys[display] then return WorldHopOld.WorldKeys[display] end
+    local worlds = Library and Library.Directory and Library.Directory.Worlds
+    if type(worlds) == "table" then
+        for key, info in pairs(worlds) do
+            local shown = type(info) == "table" and (info.display or info.displayName or info.name)
+            if tostring(key) == display or tostring(shown or "") == display then
+                return tostring(key)
+            end
+        end
+    end
+    local fallback = display:gsub(" World$", "")
+    return fallback == "Spawn" and "Spawn" or fallback
+end
+
+local function worldHopTargetMatches(coin)
+    if not coin or not coin.p or not coin.n or #SniperTargets == 0 then return false end
+    return matchesFarmPriority(coin.n, SniperTargets)
+end
+
+local function worldHopCountTargets()
+    local count = 0
+    for _, coin in pairs(ServerCoins or {}) do
+        if worldHopTargetMatches(coin) then count = count + 1 end
+    end
+    return count
+end
+
+local function worldHopTravel(worldName)
+    local worldKey = resolveWorldHopKey(worldName)
+    local worldCmds = WorldCmdsOld
+    if type(worldCmds) == "table" and type(worldCmds.Load) == "function" then
+        local ok = pcall(function() worldCmds.Load(worldKey) end)
+        return ok, worldKey
+    end
+    -- Fallback compatível com versões Old que ainda expõem somente o remote.
+    local ok = pcall(function() Network.Fire("Request World", worldKey) end)
+    return ok, worldKey
+end
+
+local function worldHopWaitForLoad(worldKey)
+    local started = tick()
+    while WorldHopOld.Enabled and tick() - started < (WorldHopOld.LoadTimeout or 12) do
+        local loaded = false
+        pcall(function()
+            if WorldCmdsOld and WorldCmdsOld.HasLoaded then
+                loaded = WorldCmdsOld.HasLoaded() == true
+            end
+        end)
+        local current = nil
+        pcall(function()
+            if WorldCmdsOld and WorldCmdsOld.Get then current = WorldCmdsOld.Get() end
+        end)
+        if loaded and (not worldKey or tostring(current) == tostring(worldKey)) then
+            -- O mapa já existe, mas os coins chegam depois. Não testar a
+            -- ausência antes deste intervalo, senão o hop troca de mundo
+            -- enquanto os breakables ainda estão spawnando.
+            task.wait(math.max(1, tonumber(WorldHopOld.SpawnDelay) or 3))
+            pcall(LoadAllCoinsInternal)
+            return true
+        end
+        task.wait(0.35)
+    end
+    return false
+end
+
+local function worldHopFarmSelected()
+    local pets = getEquippedPets()
+    local targets = {}
+    for id, coin in pairs(ServerCoins or {}) do
+        if worldHopTargetMatches(coin) then table.insert(targets, { id = id, p = coin.p }) end
+    end
+    while #targets > math.max(1, MAX_BREAKABLES or 1) do table.remove(targets) end
+    if #pets == 0 or #targets == 0 then return 0 end
+    local byTarget = {}
+    for i, petUID in ipairs(pets) do
+        local target = targets[((i - 1) % #targets) + 1]
+        byTarget[target.id] = byTarget[target.id] or {}
+        table.insert(byTarget[target.id], petUID)
+    end
+    for targetId, assigned in pairs(byTarget) do
+        pcall(function() Network.Invoke("Join Coin", targetId, assigned) end)
+        for _, petUID in ipairs(assigned) do
+            pcall(function()
+                Network.Fire("Change Pet Target", petUID, "Coin", targetId)
+                Network.Fire("Farm Coin", targetId, petUID)
+            end)
+        end
+    end
+    return #targets
+end
+
+local function worldHopConfirmNoRespawn()
+    -- Um breakable pode reaparecer alguns segundos depois do último ser
+    -- destruído. Confirma três snapshots vazios separados por um intervalo.
+    task.wait(math.max(1, tonumber(WorldHopOld.SpawnDelay) or 3))
+    local emptyChecks = 0
+    for _ = 1, 3 do
+        if not WorldHopOld.Enabled then return false end
+        pcall(LoadAllCoinsInternal)
+        if worldHopCountTargets() > 0 then return false end
+        emptyChecks = emptyChecks + 1
+        task.wait(0.75)
+    end
+    return emptyChecks >= 3
+end
+
+local function worldHopRejoinVip()
+    local text = tostring(WorldHopOld.VipLink or "")
+    local code = text:match("[?&]code=([%w%-]+)") or text:match("^([%w%-]+)$")
+    if not code then return false end
+    return pcall(function()
+        game:GetService("TeleportService"):TeleportToPrivateServer(game.PlaceId, code, { player })
+    end)
+end
+
+function WorldHopOld.Run()
+    if WorldHopOld.Running then return end
+    WorldHopOld.Running = true
+    task.spawn(function()
+        local completedLoops = 0
+        while WorldHopOld.Enabled do
+            if #SniperTargets == 0 then
+                task.wait(0.5)
+            else
+                for _, worldName in ipairs(WorldHopOld.Worlds) do
+                    if not WorldHopOld.Enabled then break end
+                    local travelled, worldKey = worldHopTravel(worldName)
+                    if not travelled or not worldHopWaitForLoad(worldKey) then
+                        task.wait(1)
+                        continue
+                    end
+                    local hadTargets = false
+                    while WorldHopOld.Enabled do
+                        pcall(LoadAllCoinsInternal)
+                        local countBeforeFarm = worldHopCountTargets()
+                        if countBeforeFarm > 0 then hadTargets = true end
+                        local count = worldHopFarmSelected()
+                        if count == 0 then
+                            if hadTargets then
+                                if worldHopConfirmNoRespawn() then break end
+                            else
+                                -- O mundo já teve tempo de spawn em
+                                -- worldHopWaitForLoad; uma segunda leitura
+                                -- evita trocar durante uma atualização curta.
+                                task.wait(1.5)
+                                pcall(LoadAllCoinsInternal)
+                                if worldHopCountTargets() == 0 then break end
+                            end
+                        end
+                        task.wait(FarmSpeed or 0.15)
+                    end
+                    task.wait(math.max(0, tonumber(WorldHopOld.Delay) or 5))
+                end
+                completedLoops = completedLoops + 1
+                local loopLimit = math.max(1, math.floor(tonumber(WorldHopOld.LoopsBeforeRejoin) or 2))
+                if WorldHopOld.Enabled and WorldHopOld.RejoinAfterLoop and completedLoops >= loopLimit then
+                    worldHopRejoinVip()
+                    task.wait(math.max(2, tonumber(WorldHopOld.RejoinDelay) or 5))
+                    completedLoops = 0
+                end
+            end
+        end
+        WorldHopOld.Running = false
+    end)
+end
+
+WorldHop_Tab:CreateSlider({
+    name = "World Hop: espera entre mundos",
+    Range = {1, 15},
+    Increment = 1,
+    Suffix = "s",
+    value = 5,
+    flag = "OldWorldHopDelay",
+    callback = function(Value)
+        WorldHopOld.Delay = math.max(1, tonumber(Value) or 5)
+    end,
+})
+WorldHop_Tab:CreateSlider({
+    name = "World Hop: espera spawn dos breakables",
+    Range = {1, 10},
+    Increment = 1,
+    Suffix = "s",
+    value = 3,
+    flag = "OldWorldHopSpawnDelay",
+    callback = function(Value)
+        WorldHopOld.SpawnDelay = math.max(1, tonumber(Value) or 3)
+    end,
+})
+WorldHop_Tab:CreateInput({
+    name = "World Hop: link do servidor VIP",
+    value = WorldHopOld.VipLink,
+    placeholder = "Link share do servidor privado",
+    flag = "OldWorldHopVipLink",
+    callback = function(Text)
+        WorldHopOld.VipLink = tostring(Text or "")
+    end,
+})
+WorldHop_Tab:CreateSlider({
+    name = "World Hop: espera antes do rejoin",
+    Range = {2, 30},
+    Increment = 1,
+    Suffix = "s",
+    value = 5,
+    flag = "OldWorldHopRejoinDelay",
+    callback = function(Value)
+        WorldHopOld.RejoinDelay = math.max(2, tonumber(Value) or 5)
+    end,
+})
+WorldHop_Tab:CreateSlider({
+    name = "World Hop: loops antes do rejoin",
+    Range = {1, 10},
+    Increment = 1,
+    Suffix = "loop(s)",
+    value = 2,
+    flag = "OldWorldHopLoopsBeforeRejoin",
+    callback = function(Value)
+        WorldHopOld.LoopsBeforeRejoin = math.max(1, math.floor(tonumber(Value) or 2))
+    end,
+})
+WorldHop_Tab:CreateToggle({
+    name = "World Hop: rejoin VIP após completar mundos",
+    value = false,
+    flag = "OldWorldHopRejoin",
+    callback = function(Value)
+        WorldHopOld.RejoinAfterLoop = Value
+    end,
+})
+worldHopWorldDropdown = WorldHop_Tab:CreateDropdown({
+    name = "World Hop: mundos permitidos",
+    options = buildWorldHopOptions(),
+    value = { "Spawn World" },
+    multiSelect = true,
+    flag = "OldWorldHopWorlds",
+    callback = function(Options)
+        WorldHopOld.Worlds = listDropdown(Options)
+    end,
+})
+WorldHop_Tab:CreateToggle({
+    name = "World Hop pelos alvos do Sniper (Old)",
+    value = false,
+    flag = "OldWorldHop",
+    callback = function(Value)
+        WorldHopOld.Enabled = Value
+        if Value then
+            ensureNetworkBypass()
+            WorldHopOld.Run()
+        end
+    end,
+})
+
+-- ====================== TAB: DAYCARE ======================
+Daycare_Tab:CreateSection({ name = "Daycare automático" })
+DaycarePetDropdown = Daycare_Tab:CreateDropdown({
+    name = "Pets permitidos no Daycare (multi)",
+    options = buildDeletePetNameOptions(),
+    value = {},
+    multiSelect = true,
+    flag = "DaycarePetNames",
+    callback = function(Options)
+        DaycareState.PetNames = listDropdown(Options)
+    end,
+})
+Daycare_Tab:CreateSlider({
+    name = "Intervalo de verificação do Daycare",
+    Range = {5, 60},
+    Increment = 1,
+    Suffix = "s",
+    value = 15,
+    flag = "DaycareCheckDelay",
+    callback = function(Value)
+        DaycareState.CheckDelay = math.max(5, tonumber(Value) or 15)
+    end,
+})
+Daycare_Tab:CreateButton({
+    name = "Atualizar lista de pets do Daycare",
+    callback = function()
+        pcall(function()
+            if DaycarePetDropdown and DaycarePetDropdown.Refresh then
+                DaycarePetDropdown:Refresh(buildDeletePetNameOptions())
+            end
+        end)
+    end,
+})
+
+function daycareWaitForWorld(worldKey)
+    local started = os.clock()
+    while os.clock() - started < 20 do
+        local loaded, current = false, nil
+        pcall(function()
+            if WorldCmdsOld and WorldCmdsOld.HasLoaded then loaded = WorldCmdsOld.HasLoaded() == true end
+            if WorldCmdsOld and WorldCmdsOld.Get then current = WorldCmdsOld.Get() end
+        end)
+        if loaded and (not worldKey or tostring(current) == tostring(worldKey)) then
+            task.wait(1)
+            return true
+        end
+        task.wait(0.35)
+    end
+    return false
+end
+
+function daycareRemainingTime(save, entry)
+    local remaining
+    pcall(function()
+        local fn = Library.Shared and Library.Shared.DaycareComputeRemainingTime
+        if type(fn) == "function" then remaining = fn(save, entry) end
+    end)
+    return math.max(0, tonumber(remaining) or 21600)
+end
+
+function daycareHasReadyQueue(save)
+    local queue = save and save.DaycareQueue
+    if type(queue) ~= "table" then return false end
+    for _, entry in ipairs(queue) do
+        if type(entry) == "table" and daycareRemainingTime(save, entry) <= 0 then return true end
+    end
+    return false
+end
+
+function daycareSelectedPetUIDs(save)
+    local selected, seen = {}, {}
+    if not save or type(save.Pets) ~= "table" then return selected end
+    for _, wantedName in ipairs(DaycareState.PetNames or {}) do
+        local wanted = tostring(wantedName):lower()
+        for _, pet in ipairs(save.Pets) do
+            if pet and pet.uid and not seen[tostring(pet.uid)]
+                and not isBlacklisted(pet.uid) and not isPetLocked(pet)
+                and tostring(petDisplayName(pet.id)):lower() == wanted then
+                seen[tostring(pet.uid)] = true
+                table.insert(selected, pet.uid)
+            end
+        end
+    end
+    local maxSlots = 0
+    pcall(function()
+        maxSlots = Library.Shared.DaycareComputeSlotsForTier(save.DaycareTier)
+    end)
+    if maxSlots <= 0 then
+        maxSlots = 10 + math.max(0, tonumber(save.DaycareTier) or 0) * 10
+    end
+    local queue = type(save.DaycareQueue) == "table" and save.DaycareQueue or {}
+    local remaining = math.max(0, maxSlots - #queue)
+    while #selected > remaining do table.remove(selected) end
+    return selected
+end
+
+function daycareTravelAndEnroll()
+    local savedWorld, savedCFrame
+    pcall(function()
+        savedWorld = WorldCmdsOld and WorldCmdsOld.Get and WorldCmdsOld.Get()
+        if HumanoidRootPart and HumanoidRootPart.Parent then savedCFrame = HumanoidRootPart.CFrame end
+    end)
+    local okTravel, spawnKey = worldHopTravel("Spawn World")
+    if not okTravel or not daycareWaitForWorld(spawnKey) then return false end
+    pcall(function()
+        if HumanoidRootPart and HumanoidRootPart.Parent then
+            HumanoidRootPart.CFrame = CFrame.new(DaycareState.Position)
+        end
+    end)
+    task.wait(0.8)
+    refreshData()
+    local uids = daycareSelectedPetUIDs(Data)
+    if #uids > 0 then
+        pcall(function() Network.Invoke("Daycare: Enroll", uids) end)
+        task.wait(0.8)
+    end
+    if savedWorld then
+        local returnOk, returnKey = worldHopTravel(savedWorld)
+        if returnOk and daycareWaitForWorld(returnKey) and savedCFrame then
+            pcall(function() HumanoidRootPart.CFrame = savedCFrame end)
+        end
+    end
+    return #uids > 0
+end
+
+function daycareRunCycle()
+    refreshData()
+    if daycareHasReadyQueue(Data) then
+        pcall(function() Network.Invoke("Daycare: Claim", nil) end)
+        task.wait(1)
+        refreshData()
+    end
+    local queue = Data and Data.DaycareQueue
+    if type(queue) == "table" and #queue > 0 then return end
+    if #daycareSelectedPetUIDs(Data) > 0 then daycareTravelAndEnroll() end
+end
+
+Daycare_Tab:CreateToggle({
+    name = "Auto Daycare (claim + colocar pets)",
+    value = false,
+    flag = "AutoDaycare",
+    callback = function(Value)
+        DaycareState.Enabled = Value
+        if not Value then
+            DaycareState.Status = "idle"
+            return
+        end
+        task.spawn(function()
+            while DaycareState.Enabled do
+                pcall(daycareRunCycle)
+                task.wait(math.max(5, tonumber(DaycareState.CheckDelay) or 15))
+            end
+        end)
+    end,
+})
+
+-- Atualiza sozinho apos o servidor popular Get Coins; o botao manual continua disponivel.
+task.spawn(function()
+    task.wait(3)
+    while task.wait(12) do
+        if Auto_Teleport or AutoFarmSniper or Auto_Farm_Giant then
+            refreshBreakableDropdowns(false)
+        end
+    end
+end)
+
+autoFarmTab:CreateDropdown({
+    name = "Sniper Mode",
+    options = {"Multi", "Single"},
+    value = {"Multi"},
+    multiSelect = false,
+    flag = "SniperMode",
+    callback = function(Options)
+        SniperMode = pickDropdown(Options) or "Multi"
+    end,
+})
+
+autoFarmTab:CreateToggle({
+    name = "Auto Farm Sniper",
+    value = false,
+    flag = "AutoFarmSniper",
+    callback = function(Value)
+        AutoFarmSniper = Value
+        if not AutoFarmSniper then return end
+
+        task.spawn(function()
+            while AutoFarmSniper do
+                if not HumanoidRootPart or not HumanoidRootPart.Parent then
+                    task.wait(0.5)
+                    continue
+                end
+
+                local equippedPets = getEquippedPets()
+                if #equippedPets == 0 or (#SniperTargets == 0 and #GlobalPriorityTargets == 0) then
+                    task.wait(0.4)
+                    continue
+                end
+
+                local matched = collectGlobalPriorityTargets(HumanoidRootPart.Position)
+                if #matched == 0 then
+                    for id, coin in pairs(ServerCoins) do
+                        if coin.p and coin.n then
+                            local n = string.lower(tostring(coin.n))
+                            for _, prio in ipairs(SniperTargets) do
+                                if n:find(string.lower(prio), 1, true) then
+                                    table.insert(matched, { id = id, p = coin.p, n = coin.n })
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+
+                if #matched == 0 then
+                    task.wait(0.35)
+                    continue
+                end
+
+                -- respeita Max Breakables
+                if #matched > MAX_BREAKABLES then
+                    table.sort(matched, function(a, b)
+                        return (a.p - HumanoidRootPart.Position).Magnitude < (b.p - HumanoidRootPart.Position).Magnitude
+                    end)
+                    local trimmed = {}
+                    for i = 1, MAX_BREAKABLES do
+                        trimmed[i] = matched[i]
+                    end
+                    matched = trimmed
+                end
+
+                if SniperMode == "Single" then
+                    -- Todos os pets no primeiro match (mais perto)
+                    table.sort(matched, function(a, b)
+                        return (a.p - HumanoidRootPart.Position).Magnitude < (b.p - HumanoidRootPart.Position).Magnitude
+                    end)
+                    local t = matched[1]
+                    pcall(function()
+                        Network.Invoke("Join Coin", t.id, equippedPets)
+                    end)
+                    for _, petUID in ipairs(equippedPets) do
+                        pcall(function()
+                            Network.Fire("Change Pet Target", petUID, "Coin", t.id)
+                            farmCoinCompat(t.id, petUID)
+                        end)
+                    end
+                else
+                    -- Multi: distribui pets entre todos os matches
+                    local byTarget = {}
+                    for i, petUID in ipairs(equippedPets) do
+                        local t = matched[((i - 1) % #matched) + 1]
+                        byTarget[t.id] = byTarget[t.id] or {}
+                        table.insert(byTarget[t.id], petUID)
+                    end
+                    for tid, pets in pairs(byTarget) do
+                        task.spawn(function()
+                            pcall(function()
+                                Network.Invoke("Join Coin", tid, pets)
+                            end)
+                            for _, petUID in ipairs(pets) do
+                                pcall(function()
+                                    Network.Fire("Change Pet Target", petUID, "Coin", tid)
+                                    farmCoinCompat(tid, petUID)
+                                end)
+                            end
+                        end)
+                    end
+                end
+
+                task.wait(0.15)
+            end
+        end)
+    end,
+})
+
+-- primeira sincronizacao depois que todos os dropdowns existem
+task.defer(function()
+    task.wait(1)
+    pcall(function() refreshBreakableDropdowns(false) end)
+end)
+
+-- ====================== TAB: GUIs (PlayerGui) ======================
+Gui_Tab:CreateSection({ name = "Abrir GUIs do PlayerGui (nao desativa nada automaticamente)" })
+
+function setPlayerGuiEnabled(name, state)
+    -- Protecao importante: a aba GUIs nunca desativa interfaces.
+    -- O Rayfield pode chamar callbacks com false ao carregar a configuracao;
+    -- esse caso deve ser ignorado para nao quebrar o jogo.
+    if state ~= true then
+        return false
+    end
+    local lp = Players.LocalPlayer
+    if not lp then return false end
+    local pg = lp:FindFirstChild("PlayerGui") or PlayerGui
+    if not pg then return false end
+    local gui = pg:FindFirstChild(name)
+    if gui then
+        pcall(function()
+            if gui:IsA("ScreenGui") or gui:IsA("BillboardGui") or gui:IsA("GuiMain") then
+                gui.Enabled = state
+            elseif gui:IsA("LayerCollector") then
+                gui.Enabled = state
+            else
+                -- alguns sao Folders; tenta Enabled mesmo assim
+                gui.Enabled = state
+            end
+        end)
+        return true
+    end
+    local libraryGuiOpened = false
+    pcall(function()
+        if Library.GUI and Library.GUI[name] and Library.GUI[name].Gui then
+            Library.GUI[name].Gui.Enabled = state
+            libraryGuiOpened = true
+        end
+    end)
+    if libraryGuiOpened then return true end
+    for _, child in ipairs(pg:GetChildren()) do
+        if child.Name:lower() == tostring(name):lower() then
+            pcall(function() child.Enabled = state end)
+            return true
+        end
+    end
+    return false
+end
+
+function listAllPlayerGuis()
+    local names = {}
+    local pg = Players.LocalPlayer and Players.LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then return names end
+    for _, child in ipairs(pg:GetChildren()) do
+        -- lista ScreenGui / LayerCollector e tambem frames raiz comuns
+        if child:IsA("ScreenGui") or child:IsA("BillboardGui") or child:IsA("LayerCollector") then
+            table.insert(names, child.Name)
+        elseif child:IsA("Folder") or child:IsA("GuiObject") then
+            -- ainda inclui se tiver Enabled (muitos hubs usam)
+            local ok = pcall(function()
+                local _ = child.Enabled
+            end)
+            if ok then
+                table.insert(names, child.Name)
+            end
+        end
+    end
+    table.sort(names)
+    return names
+end
+
+-- popula toggles com todos os GUIs atuais
+local guiToggleBuilt = {}
+local function rebuildGuiToggles()
+    local names = listAllPlayerGuis()
+    for _, n in ipairs(names) do
+        if guiToggleBuilt[n] then continue end
+        guiToggleBuilt[n] = true
+        local guiName = n
+        Gui_Tab:CreateToggle({
+            name = "GUI: " .. guiName,
+            -- Novas GUIs ficam fechadas por padrão. O callback só abre quando
+            -- o usuário liga o toggle; nunca desliga uma GUI automaticamente.
+            value = false,
+            flag = "GUI_" .. guiName,
+            callback = function(Value)
+                if Value == true then
+                    setPlayerGuiEnabled(guiName, true)
+                end
+            end,
+        })
+    end
+end
+
+Gui_Tab:CreateButton({
+    name = "Refresh lista de GUIs",
+    callback = function()
+        rebuildGuiToggles()
+        pcall(function()
+            notify("GUIs", "Lista atualizada", 3)
+        end)
+    end,
+})
+
+Gui_Tab:CreateInput({
+    name = "Abrir GUI por nome",
+    value = "",
+    placeholder = "ex: ServerBoosts",
+    flag = "OpenGuiByName",
+    callback = function(Text)
+        if Text and Text ~= "" then
+            setPlayerGuiEnabled(Text, true)
+        end
+    end,
+})
+
+-- monta na carga
+task.defer(rebuildGuiToggles)
+
+-- ====================== TAB: ENCHANT ======================
+Enchant_Tab:CreateSection({ name = "Auto Enchant - somente pets equipados" })
+
+local AutoEnchant = false
+local SelectedEnchantTitles = {}
+local enchantOptions = {}
+pcall(function()
+    for _, power in pairs(Library.Directory.Powers or {}) do
+        if power.canDrop and power.tiers then
+            for _, tier in ipairs(power.tiers) do
+                if tier.title then table.insert(enchantOptions, tier.title) end
+            end
+        end
+    end
+    table.sort(enchantOptions)
+end)
+if #enchantOptions == 0 then
+    enchantOptions = {
+        "Strength", "Strength II", "Strength III", "Strength IV", "Strength V",
+        "Diamonds", "Diamonds II", "Diamonds III", "Coins", "Coins II",
+        "Chest Breaker", "Teamwork", "Super Teamwork", "Magnet", "Royalty",
+    }
+end
+
+Enchant_Tab:CreateDropdown({
+    name = "Enchants desejados",
+    options = enchantOptions,
+    value = {},
+    multiSelect = true,
+    flag = "EnchantTargets",
+    callback = function(Options)
+        SelectedEnchantTitles = listDropdown(Options)
+    end,
+})
+
+Enchant_Tab:CreateInput({
+    name = "Enchant manual (ex: Magnet)",
+    value = "",
+    placeholder = "Super Teamwork / Magnet / Strength V",
+    flag = "EnchantManual",
+    callback = function(Text)
+        if Text and Text ~= "" and not table.find(SelectedEnchantTitles, Text) then
+            table.insert(SelectedEnchantTitles, Text)
+        end
+    end,
+})
+
+local function petHasDesiredEnchant(uid)
+    if #SelectedEnchantTitles == 0 then return false end
+    local pet = nil
+    pcall(function() pet = Library.PetCmds.Get(uid) end)
+    if not pet then return false end
+    local powers = pet.powers or pet.Powers or pet.enchants or pet.Enchants
+    if type(powers) ~= "table" then return false end
+    for _, pow in pairs(powers) do
+        local title = nil
+        pcall(function()
+            local powerId = pow[1] or pow.id or pow.Id or pow.power or pow.Power
+            local tierIdx = pow[2] or pow.tier or pow.Tier or pow.level or pow.Level
+            local def = Library.Directory.Powers and (Library.Directory.Powers[powerId] or Library.Directory.Powers[tostring(powerId)])
+            if def and def.tiers then
+                local tier = def.tiers[tonumber(tierIdx) or tierIdx]
+                title = (tier and tier.title) or def.title
+            end
+            title = title or pow.title or pow.Title or pow.name or pow.Name
+        end)
+        if title then
+            for _, want in ipairs(SelectedEnchantTitles) do
+                local t = string.lower(tostring(title))
+                local w = string.lower(tostring(want))
+                if t == w or t:find(w, 1, true) then return true end
+            end
+        end
+    end
+    return false
+end
+
+Enchant_Tab:CreateSection({ name = "Iniciar" })
+Enchant_Tab:CreateToggle({
+    name = "Auto Enchant (pets equipados)",
+    value = false,
+    flag = "AutoEnchantEquipped",
+    callback = function(Value)
+        AutoEnchant = Value
+        if not AutoEnchant then return end
+        if #SelectedEnchantTitles == 0 then
+            notify("Auto Enchant", "Selecione um enchant desejado ou use o campo manual.", 5)
+        end
+        task.spawn(function()
+            while AutoEnchant do
+                if #SelectedEnchantTitles == 0 then
+                    task.wait(0.35)
+                else
+                    -- Arquitetura antiga: o jogo recebe uma lista e o modo automatico.
+                    -- A blacklist nao participa deste fluxo; somente os equipados entram.
+                    local equipped = getEquippedPets()
+                    local pending = {}
+                    for _, uid in ipairs(equipped or {}) do
+                        if not petHasDesiredEnchant(uid) then
+                            table.insert(pending, uid)
+                        end
+                    end
+                    if #pending == 0 then
+                        task.wait(0.35)
+                    else
+                        local okInvoke = false
+                        pcall(function()
+                            local result = Network.Invoke("Enchant Pets", pending, true)
+                            okInvoke = result ~= false
+                        end)
+                        -- O servidor atualiza os poderes logo apos o batch.
+                        -- Aguarda o suficiente para reler o pet, sem o intervalo grande oficial.
+                        task.wait(okInvoke and 0.75 or 0.35)
+                    end
+                end
+            end
+        end)
+    end,
+})
+
+-- ====================== TAB: COLLECTION / INDEX ======================
+Col_Tab:CreateSection({ name = "Pet Collection" })
+
+local CollectionVariant = "Dark Matter"
+local variantToNum = { ["Normal"] = 1, ["Golden"] = 2, ["Rainbow"] = 3, ["Dark Matter"] = 4 }
+local MissingPetNames = {}
+local MissingNameToId = {}
+local SelectedMissingPet = nil
+local missingDropdownHandle = nil
+
+local function buildMissingNames(variantName)
+    local vNum = variantToNum[variantName] or 4
+    local names = {}
+    MissingNameToId = {}
+    refreshData()
+    local collection = Data and Data.Collection or {}
+    local owned = {}
+    for _, key in ipairs(collection) do
+        owned[tostring(key)] = true
+    end
+    local all = {}
+    pcall(function()
+        all = Library.Shared.GetAllCollectablePets() or {}
+    end)
+    local seen = {}
+    for _, entry in ipairs(all) do
+        local want =
+            (vNum == 1 and not entry.isGolden and not entry.isRainbow and not entry.isDarkMatter)
+            or (vNum == 2 and entry.isGolden)
+            or (vNum == 3 and entry.isRainbow)
+            or (vNum == 4 and entry.isDarkMatter)
+        if want then
+            local key = tostring(entry.petId) .. "-" .. vNum
+            if not owned[key] then
+                local petName = tostring(entry.petId)
+                pcall(function()
+                    local dir = Library.Directory.Pets[entry.petId] or Library.Directory.Pets[tostring(entry.petId)]
+                    if dir and dir.name then petName = dir.name end
+                end)
+                if not seen[petName] then
+                    seen[petName] = true
+                    table.insert(names, petName)
+                    MissingNameToId[petName] = entry.petId
+                end
+            end
+        end
+    end
+    table.sort(names)
+    MissingPetNames = names
+    return names
+end
+
+Col_Tab:CreateDropdown({
+    name = "Variante",
+    options = {"Normal", "Golden", "Rainbow", "Dark Matter"},
+    value = {"Dark Matter"},
+    multiSelect = false,
+    flag = "CollectionVariant",
+    callback = function(Options)
+        CollectionVariant = pickDropdown(Options) or "Dark Matter"
+        SelectedMissingPet = nil
+    end,
+})
+
+missingDropdownHandle = Col_Tab:CreateDropdown({
+    name = "Pets faltando (nome)",
+    options = {"(clique Refresh)"},
+        multiSelect = false,
+    flag = "MissingPetsDropdown",
+    callback = function(Options)
+        SelectedMissingPet = pickDropdown(Options)
+    end,
+})
+
+Col_Tab:CreateButton({
+    name = "Refresh lista faltando",
+    callback = function()
+        local names = buildMissingNames(CollectionVariant)
+        if #names == 0 then
+            names = {"(nenhum faltando)"}
+        end
+        -- Rayfield Gen2: tenta Set / Refresh no handle
+        pcall(function()
+            if missingDropdownHandle and missingDropdownHandle.Set then
+                missingDropdownHandle:Set({ options = names })
+            end
+        end)
+        pcall(function()
+            if missingDropdownHandle and missingDropdownHandle.Refresh then
+                missingDropdownHandle:Refresh(names)
+            end
+        end)
+        pcall(function()
+            notify("Collection", tostring(#MissingPetNames) .. " faltando em " .. CollectionVariant, 4)
+        end)
+    end,
+})
+
+
+-- Auto Index v2: 1 egg, barato→caro, progressao de variantes, craft/delete proprios
+local AutoIndex = false
+local IndexRarities = {"Basic", "Rare", "Epic", "Legendary", "Mythical"}
+local IndexBlacklist = {}
+local IndexWorlds = {"Spawn World"}
+local EggPetCache = nil
+local IndexLoggedMissing = {}
+
+local IndexWorldEggMap = {
+    ["Spawn World"] = {
+        "Cracked Egg", "Spotted Egg", "Wood Egg", "Grass Egg", "Beachball Egg", "Coconut Egg",
+        "Rock Egg", "Geode Egg", "Snow Egg", "Ice Egg", "Icicle Egg", "Yeti Egg",
+        "Cactus Egg", "Spiked Egg", "Obsidian Egg", "Magma Egg", "Dominus Egg",
+    },
+    ["Fantasy World"] = {
+        "Enchanted Egg", "Relic Egg", "Samurai Egg", "Rainbow Egg", "Haunted Egg",
+        "Hell Egg", "Heaven Egg", "Empyrean Egg",
+    },
+    ["Tech World"] = {
+        "Metal Egg", "Tech Egg", "Titanium Egg", "Dark Tech Egg", "Steampunk Egg",
+        "Mechanical Egg", "Lab Egg", "Chemical Egg", "Alien Egg", "Martian Egg",
+        "Planet Egg", "Glitch Egg", "Hacker Egg",
+    },
+    ["Axolotl Ocean"] = { "Axolotl Egg", "Shiny Axolotl Egg" },
+    ["Pixel World"] = { "Pixel Egg", "Pixel Kyoto Egg", "Pixel Alps Egg", "Pixel Vault Egg" },
+    ["Cat World"] = { "Cat Egg", "Cat Backyard Egg", "Cat Taiga Egg", "Cat Kingdom Egg" },
+    ["Doodle World"] = { "Doodle Egg", "Doodle Peaks Egg", "Doodle Farm Egg", "Doodle Oasis Egg" },
+    ["Kawaii World"] = { "Kawaii Egg", "Kawaii Tokyo Egg", "Kawaii Village Egg" },
+}
+
+local variantToNum = { ["Normal"] = 1, ["Golden"] = 2, ["Rainbow"] = 3, ["Dark Matter"] = 4 }
+
+local function requiredVariantNums(targetVariant)
+    local maxV = variantToNum[targetVariant] or 1
+    local t = {}
+    for i = 1, maxV do t[i] = i end
+    return t
+end
+
+local function collectionSet()
+    refreshData()
+    local owned = {}
+    local col = (Data and Data.Collection) or {}
+    for _, key in ipairs(col) do
+        owned[tostring(key)] = true
+    end
+    return owned
+end
+
+local function hasCollection(owned, petId, vNum)
+    return owned[tostring(petId) .. "-" .. tostring(vNum)] == true
+end
+
+local function getEggDrops(eggName)
+    local ids = {}
+    local seen = {}
+    pcall(function()
+        local dir = Library.Directory.Eggs or {}
+        local eggData = dir[eggName]
+        if not eggData then return end
+        local drops = eggData.drops
+        if type(drops) == "string" and dir[drops] then
+            drops = dir[drops].drops
+        end
+        if type(drops) == "table" then
+            for _, entry in ipairs(drops) do
+                local pid = type(entry) == "table" and (entry[1] or entry.id or entry.petId) or entry
+                if pid and not seen[tostring(pid)] then
+                    -- pula Secret no index automatico (odds ??)
+                    local pet = Library.Directory.Pets[tostring(pid)]
+                    if pet and pet.rarity == "Secret" then
+                        continue
+                    end
+                    seen[tostring(pid)] = true
+                    table.insert(ids, tostring(pid))
+                end
+            end
+        end
+    end)
+    return ids
+end
+
+local function getEggCost(eggName)
+    local cost = math.huge
+    pcall(function()
+        if Library.Economy and Library.Economy.EggCost then
+            cost = tonumber(Library.Economy.EggCost(eggName, Library.Directory.Eggs[eggName])) or cost
+        end
+    end)
+    pcall(function()
+        local ed = Library.Directory.Eggs[eggName]
+        if ed then
+            cost = tonumber(ed.cost or ed.price or ed.Price or cost) or cost
+        end
+    end)
+    if cost == math.huge then cost = 999999999 end
+    return cost
+end
+
+local function petRarityAllowed(petId)
+    if #IndexRarities == 0 then return true end
+    local ok = false
+    pcall(function()
+        local dir = Library.Directory.Pets[tostring(petId)]
+        if not dir then ok = true return end
+        local r = tostring(dir.rarity or "")
+        -- Basic ~ Common
+        for _, allowed in ipairs(IndexRarities) do
+            local a = tostring(allowed)
+            if r:lower() == a:lower() then ok = true return end
+            if a:lower() == "basic" and (r:lower() == "common" or r:lower() == "basic") then ok = true return end
+        end
+    end)
+    return ok
+end
+
+local function isBlacklistedPet(petId)
+    local name = tostring(petId)
+    pcall(function()
+        local dir = Library.Directory.Pets[tostring(petId)]
+        if dir and dir.name then name = dir.name end
+    end)
+    local n = string.lower(name)
+    for _, b in ipairs(IndexBlacklist) do
+        if n:find(string.lower(tostring(b)), 1, true) then return true end
+    end
+    return false
+end
+
+local function eggNormalsDone(eggName, maxV)
+    -- true se TODOS os pets relevantes ja tem normal no index
+    -- e ainda falta alguma variante > 1
+    if maxV <= 1 then return false end
+    local drops = getEggDrops(eggName)
+    if #drops == 0 then return false end
+    local owned = collectionSet()
+    local anyNeedHigher = false
+    for _, pid in ipairs(drops) do
+        if isBlacklistedPet(pid) or not petRarityAllowed(pid) then continue end
+        if not hasCollection(owned, pid, 1) then
+            return false -- ainda falta normal
+        end
+        for v = 2, maxV do
+            if not hasCollection(owned, pid, v) then
+                anyNeedHigher = true
+            end
+        end
+    end
+    return anyNeedHigher
+end
+
+local function eggsForSelectedWorlds()
+    local list = {}
+    local seen = {}
+    local maxV = variantToNum[CollectionVariant] or 1
+    for _, world in ipairs(IndexWorlds) do
+        local bases = IndexWorldEggMap[world] or {}
+        for _, base in ipairs(bases) do
+            local normalName = base
+            local goldenName = "Golden " .. base
+            -- se normal ja completo e precisa gold+, prefere so Golden egg
+            local preferGolden = eggNormalsDone(normalName, maxV)
+            local candidates = {}
+            if preferGolden then
+                candidates = { goldenName, normalName } -- golden primeiro
+            elseif maxV == 1 then
+                candidates = { normalName } -- so normal
+            else
+                candidates = { normalName, goldenName }
+            end
+            for _, name in ipairs(candidates) do
+                if not seen[name] then
+                    seen[name] = true
+                    table.insert(list, name)
+                end
+            end
+        end
+    end
+    table.sort(list, function(a, b)
+        -- golden preferido sobe na prioridade se normals done
+        local aGold = string.lower(a):find("golden", 1, true) ~= nil
+        local bGold = string.lower(b):find("golden", 1, true) ~= nil
+        local aBase = a:gsub("^Golden ", "")
+        local bBase = b:gsub("^Golden ", "")
+        if aBase == bBase and aGold ~= bGold then
+            -- se normals do base estao done, golden antes
+            if eggNormalsDone(aBase, maxV) then
+                return aGold -- golden first
+            end
+        end
+        return getEggCost(a) < getEggCost(b)
+    end)
+    return list
+end
+
+local function indexDeleteUids(uids)
+    if not uids or #uids == 0 then return end
+    -- safety: nunca manda locked
+    local safe = {}
+    refreshData()
+    local byUid = {}
+    for _, pet in pairs(Data.Pets or {}) do
+        if pet.uid then byUid[pet.uid] = pet end
+    end
+    for _, uid in ipairs(uids) do
+        local pet = byUid[uid]
+        if pet and not isBlacklisted(pet.uid)
+            and not isPetLocked(pet) and not isHugePet(pet.id) then
+            table.insert(safe, uid)
+        end
+    end
+    if #safe == 0 then return end
+    pcall(function()
+        Network.Invoke("Delete Several Pets", safe)
+    end)
+end
+
+-- Craft Index: NAO usa normal→gold (prefere Golden Egg)
+-- so gold→rainbow e rainbow→DM, shiny com shiny
+local function indexCraftOnce()
+    refreshData()
+    local owned = collectionSet()
+    local maxV = variantToNum[CollectionVariant] or 1
+    local neededRain = math.max(1, RainbowPetsNeeded or 6)
+    local neededDM = math.max(1, DarkMatterPetsNeeded or 1)
+
+    local groups = {} -- key = id|S/N -> { gold={}, rainbow={} }
+    for _, pet in pairs(Data.Pets or {}) do
+        if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id)
+            or isPetMarkedForDeletion(pet) then continue end
+        local key = tostring(pet.id) .. (isPetShiny(pet) and "|S" or "|N")
+        groups[key] = groups[key] or { id = pet.id, gold = {}, rainbow = {} }
+        if pet.dm then
+            -- ok
+        elseif pet.r then
+            table.insert(groups[key].rainbow, pet.uid)
+        elseif pet.g then
+            table.insert(groups[key].gold, pet.uid)
+        end
+        -- normals ignorados pro craft (Golden Egg e o caminho)
+    end
+
+    for _, g in pairs(groups) do
+        local petId = g.id
+        if isBlacklistedPet(petId) or not petRarityAllowed(petId) then continue end
+        if maxV >= 3 and not hasCollection(owned, petId, 3) then
+            while #g.gold >= neededRain do
+                local batch = {}
+                for i = 1, neededRain do table.insert(batch, table.remove(g.gold, 1)) end
+                pcall(function() Network.Invoke("Use Rainbow Machine", batch) end)
+                task.wait(0.35)
+                refreshData()
+                owned = collectionSet()
+                if hasCollection(owned, petId, 3) then break end
+            end
+        end
+        if maxV >= 4 and not hasCollection(owned, petId, 4) then
+            while #g.rainbow >= neededDM do
+                local batch = {}
+                for i = 1, neededDM do table.insert(batch, table.remove(g.rainbow, 1)) end
+                pcall(function() Network.Invoke("Convert To Dark Matter", batch) end)
+                task.wait(0.4)
+                pcall(function()
+                    local save = Library.Save.Get()
+                    if save and type(save.DarkMatterQueue) == "table" then
+                        for slotId, _ in pairs(save.DarkMatterQueue) do
+                            pcall(function() Network.Invoke("Redeem Dark Matter Pet", slotId) end)
+                            pcall(function() Network.Invoke("Prompt Dark Matter Skip", slotId) end)
+                        end
+                    end
+                end)
+                refreshData()
+                owned = collectionSet()
+                if hasCollection(owned, petId, 4) then break end
+            end
+        end
+    end
+end
+
+-- Delete: se ja tem a variante ALVO no index → apaga todas as versoes do pet (menos locked)
+-- se ainda falta alvo: guarda gold/rainbow pra craft (normals nao importam)
+local function indexCleanupEggPets(petIds, maxV)
+    refreshData()
+    local owned = collectionSet()
+    local neededRain = math.max(1, RainbowPetsNeeded or 6)
+    local neededDM = math.max(1, DarkMatterPetsNeeded or 1)
+
+    local eggSet = {}
+    for _, id in ipairs(petIds) do eggSet[tostring(id)] = true end
+
+    local keepGold, keepRain = {}, {} -- pid -> qty
+    for pid, _ in pairs(eggSet) do
+        if hasCollection(owned, pid, maxV) then
+            keepGold[pid] = 0
+            keepRain[pid] = 0
+        else
+            keepGold[pid] = 0
+            keepRain[pid] = 0
+            if maxV >= 3 and not hasCollection(owned, pid, 3) then
+                keepGold[pid] = neededRain
+            end
+            if maxV >= 4 and not hasCollection(owned, pid, 4) then
+                keepRain[pid] = neededDM
+                if not hasCollection(owned, pid, 3) then
+                    keepGold[pid] = math.max(keepGold[pid], neededRain)
+                end
+            end
+        end
+    end
+
+    local goldBuckets, rainBuckets = {}, {}
+    local toDelete = {}
+    for _, pet in pairs(Data.Pets or {}) do
+        if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id) then continue end
+        local pid = tostring(pet.id)
+        if not eggSet[pid] then continue end
+
+        if hasCollection(owned, pid, maxV) then
+            -- alvo ja no index: deleta normal/gold/rainbow/dm desse pet
+            table.insert(toDelete, pet.uid)
+        elseif pet.dm then
+            -- DM ainda nao contou no index? mantem
+        elseif pet.r then
+            rainBuckets[pid] = rainBuckets[pid] or {}
+            table.insert(rainBuckets[pid], pet.uid)
+        elseif pet.g then
+            goldBuckets[pid] = goldBuckets[pid] or {}
+            table.insert(goldBuckets[pid], pet.uid)
+        else
+            -- normal: sempre pode deletar (Golden Egg e o caminho)
+            table.insert(toDelete, pet.uid)
+        end
+    end
+
+    for pid, list in pairs(goldBuckets) do
+        local reserve = keepGold[pid] or 0
+        for i = reserve + 1, #list do
+            table.insert(toDelete, list[i])
+        end
+    end
+    for pid, list in pairs(rainBuckets) do
+        local reserve = keepRain[pid] or 0
+        for i = reserve + 1, #list do
+            table.insert(toDelete, list[i])
+        end
+    end
+
+    if #toDelete > 0 then
+        indexDeleteUids(toDelete)
+    end
+end
+
+local function eggNeedsWork(eggName, maxV)
+    local drops = getEggDrops(eggName)
+    if #drops == 0 then return false, drops end
+    local owned = collectionSet()
+    for _, pid in ipairs(drops) do
+        if isBlacklistedPet(pid) or not petRarityAllowed(pid) then continue end
+        for v = 1, maxV do
+            if not hasCollection(owned, pid, v) then
+                return true, drops
+            end
+        end
+    end
+    return false, drops
+end
+
+local function buyIndexEgg(eggName)
+    return buyEggExact(eggName, HatchAmount)
+end
+
+Col_Tab:CreateDropdown({
+    name = "Mundos (Index)",
+    options = {"Spawn World", "Fantasy World", "Tech World", "Axolotl Ocean", "Pixel World", "Cat World", "Doodle World", "Kawaii World"},
+    value = {"Spawn World"},
+    multiSelect = true,
+    flag = "IndexWorlds",
+    callback = function(Options)
+        local list = {}
+        if type(Options) == "table" then
+            for _, v in pairs(Options) do
+                if type(v) == "string" and v ~= "" then table.insert(list, v) end
+            end
+        elseif type(Options) == "string" and Options ~= "" then
+            table.insert(list, Options)
+        end
+        IndexWorlds = list
+    end,
+})
+
+Col_Tab:CreateDropdown({
+    name = "Raridades (Index)",
+    options = {"Basic", "Rare", "Epic", "Legendary", "Mythical", "Exclusive", "Event", "Secret"},
+    value = {"Basic", "Rare", "Epic", "Legendary", "Mythical"},
+    multiSelect = true,
+    flag = "IndexRarities",
+    callback = function(Options)
+        IndexRarities = {}
+        if type(Options) == "table" then
+            for _, v in pairs(Options) do
+                if type(v) == "string" then table.insert(IndexRarities, v) end
+            end
+        end
+    end,
+})
+
+Col_Tab:CreateInput({
+    name = "Blacklist pets (virgula)",
+    value = "",
+    placeholder = "Dog, Cat...",
+    flag = "IndexBlacklist",
+    callback = function(Text)
+        IndexBlacklist = {}
+        if Text and Text ~= "" then
+            for part in string.gmatch(Text, "[^,]+") do
+                local s = part:match("^%s*(.-)%s*$")
+                if s and s ~= "" then table.insert(IndexBlacklist, s) end
+            end
+        end
+    end,
+})
+
+Col_Tab:CreateToggle({
+    name = "Auto Index (smart)",
+    value = false,
+    flag = "AutoIndex",
+    callback = function(Value)
+        AutoIndex = Value
+        if not AutoIndex then return end
+        task.spawn(function()
+            while AutoIndex do
+                local maxV = variantToNum[CollectionVariant] or 1
+                local eggs = eggsForSelectedWorlds()
+                local progressed = false
+                for _, eggName in ipairs(eggs) do
+                    if not AutoIndex then break end
+                    -- Normal only: nao abre Golden egg
+                    if maxV == 1 and string.lower(eggName):find("golden", 1, true) then
+                        continue
+                    end
+                    -- Se normals do base ja estao no index e falta gold+, pula egg normal e usa Golden
+                    local baseName = eggName:gsub("^Golden ", "")
+                    local isGoldenEgg = string.lower(eggName):find("golden", 1, true) ~= nil
+                    if maxV >= 2 and not isGoldenEgg and eggNormalsDone(baseName, maxV) then
+                        continue
+                    end
+                    local needs, drops = eggNeedsWork(eggName, maxV)
+                    if not needs then
+                        -- egg completo: limpa inventario residual desse egg
+                        if #drops > 0 then
+                            indexCleanupEggPets(drops, maxV)
+                        end
+                        continue
+                    end
+                    progressed = true
+                    -- fica NESSE egg ate completar a variante setada (Normal→…→DM)
+                    local safety = 0
+                    while AutoIndex and safety < 800 do
+                        safety = safety + 1
+                        needs, drops = eggNeedsWork(eggName, maxV)
+                        if not needs then
+                            indexCleanupEggPets(drops, maxV)
+                            break
+                        end
+                        buyIndexEgg(eggName) -- usa HatchAmount da aba Hatching
+                        task.wait(0.35)
+                        indexCraftOnce()
+                        indexCleanupEggPets(drops, maxV)
+                        task.wait(0.2)
+                    end
+                end
+                if not progressed then
+                    task.wait(6)
+                else
+                    task.wait(1)
+                end
+            end
+        end)
+    end,
+})
+
+Col_Tab:CreateToggle({
+    name = "Auto Redeem Collection Tier",
+    value = false,
+    flag = "AutoRedeemCollection",
+    callback = function(Value)
+        getgenv()._PSX_AutoRedeemCollection = Value
+        if not Value then return end
+        task.spawn(function()
+            while getgenv()._PSX_AutoRedeemCollection do
+                pcall(function()
+                    Network.Invoke("Redeem Pet Collection")
+                end)
+                task.wait(5)
+            end
+        end)
+    end,
+})
+
+-- ====================== TAB: EXPERIMENTAL ======================
+function Balloon.CodeFromText(text)
+    text = tostring(text or "")
+    return text:match("[?&]code=([%w%-]+)") or text:match("^([%w%-]+)$")
+end
+
+Balloon.WorldOptions = {
+    "Spawn World", "Fantasy World", "Tech World", "Axolotl Ocean",
+    "Pixel World", "Cat World", "Doodle World", "Kawaii World",
+    "Limbo World", "Void World",
+}
+
+function Balloon.List()
+    local result = {}
+    for id, coin in pairs(ServerCoins or {}) do
+        local name = tostring(coin and (coin.n or coin.name or coin.Name) or "")
+        if coin and coin.p and name:lower():find("balloon", 1, true) then
+            table.insert(result, { id = id, position = coin.p })
+        end
+    end
+    return result
+end
+
+function Balloon.FarmOnce()
+    local pets = getEquippedPets()
+    local balloons = Balloon.List()
+    if #pets == 0 or #balloons == 0 then return #balloons end
+    local maxTargets = math.min(#balloons, MAX_BREAKABLES or 8)
+    for index, petUID in ipairs(pets) do
+        local target = balloons[((index - 1) % maxTargets) + 1]
+        if target then
+            pcall(function()
+                Network.Invoke("Join Coin", target.id, { petUID })
+                Network.Fire("Change Pet Target", petUID, "Coin", target.id)
+                farmCoinCompat(target.id, petUID)
+            end)
+        end
+    end
+    return #balloons
+end
+
+function Balloon.TravelToWorld(worldName)
+    worldName = tostring(worldName or "")
+    if worldName == "" or worldName == "Spawn World" then return true end
+    local command = "Travel to the " .. worldName
+    local ok = pcall(function()
+        Network.Invoke(command)
+    end)
+    if not ok then
+        ok = pcall(function()
+            Network.Fire(command)
+        end)
+    end
+    return ok
+end
+
+function Balloon.RejoinVip()
+    local code = Balloon.CodeFromText(Balloon.VipLink)
+    if not code then
+        Balloon.Status = "VIP code invalido"
+        return false
+    end
+    local ok = pcall(function()
+        game:GetService("TeleportService"):TeleportToPrivateServer(game.PlaceId, code, { player })
+    end)
+    Balloon.Status = ok and "rejoining VIP" or "falha no rejoin"
+    return ok
+end
+
+function Balloon.Run()
+    task.spawn(function()
+        while Balloon.AutoFarm do
+            local worlds = Balloon.SelectedWorlds
+            if not worlds or #worlds == 0 then
+                Balloon.Status = "selecione mundos"
+                task.wait(1)
+            else
+                for _, worldName in ipairs(worlds) do
+                    if not Balloon.AutoFarm then break end
+                    Balloon.Status = "indo para " .. tostring(worldName)
+                    Balloon.TravelToWorld(worldName)
+                    task.wait(Balloon.WorldDelay)
+                    pcall(LoadAllCoinsInternal)
+                    while Balloon.AutoFarm and #Balloon.List() > 0 do
+                        Balloon.Status = "farmando " .. tostring(worldName)
+                        Balloon.FarmOnce()
+                        task.wait(FarmSpeed or 0.15)
+                        pcall(LoadAllCoinsInternal)
+                    end
+                    task.wait(Balloon.WorldDelay)
+                end
+                if Balloon.AutoFarm and Balloon.ResetVipAfterLoop then
+                    Balloon.Status = "reset VIP"
+                    Balloon.RejoinVip()
+                    task.wait(Balloon.RejoinDelay)
+                end
+            end
+        end
+        Balloon.Status = "idle"
+    end)
+end
+
+-- ====================== TAB: EXPERIMENTAL ======================
+Exp_Tab:CreateSection({ name = "Remotes / Util" })
+
+
+-- Enchant (dump oficial)
+
+-- Server boosts: detecta a lista real da build (nao depende de quantidade fixa).
+AutoServerBoosts = false
+function getServerBoostNames()
+    local names, seen = {}, {}
+    local function add(v)
+        if type(v) ~= "string" or v == "" or seen[v] then return end
+        seen[v] = true; table.insert(names, v)
+    end
+    pcall(function()
+        local info = Library.Shared and Library.Shared.ServerBoostsInfo
+        if type(info) == "table" then
+            for k, v in pairs(info) do
+                if type(k) == "string" then add(k) end
+                if type(v) == "string" then add(v) end
+                if type(v) == "table" then add(v.name or v.Name or v.id or v.Id) end
+            end
+        end
+    end)
+    -- fallback desta build: tres boosters de servidor conhecidos.
+    if #names == 0 then
+        for _, n in ipairs({"Triple Coins", "Triple Damage", "Super Lucky"}) do add(n) end
+    end
+    table.sort(names)
+    return names
+end
+
+function activeBoostSet(active)
+    local set = {}
+    if type(active) ~= "table" then return set end
+    for k, v in pairs(active) do
+        if type(k) == "string" then set[k:lower()] = true end
+        if type(v) == "string" then set[v:lower()] = true end
+        if type(v) == "table" then
+            local n = v.name or v.Name or v.id or v.Id or v.boost or v.Boost
+            if n then set[tostring(n):lower()] = true end
+        end
+    end
+    return set
+end
+
+function activateMissingServerBoosts()
+    local names = getServerBoostNames()
+    local active = {}
+    pcall(function()
+        if Library.ServerBoosts and Library.ServerBoosts.GetActiveBoosts then
+            active = activeBoostSet(Library.ServerBoosts.GetActiveBoosts() or {})
+        end
+    end)
+    local attempted = 0
+    for _, name in ipairs(names) do
+        if not active[name:lower()] then
+            attempted = attempted + 1
+            local fired = pcall(function()
+                Network.Fire("Activate Server Boost", name)
+            end)
+            if not fired then
+                pcall(function()
+                    Network.Invoke("Activate Server Boost", name)
+                end)
+            end
+            task.wait(0.15)
+        end
+    end
+    return #names, attempted
+end
+
+Exp_Tab:CreateToggle({
+    name = "Auto Server Boosts (detectados)",
+    value = false,
+    flag = "AutoServerBoosts",
+    callback = function(Value)
+        AutoServerBoosts = Value
+        if not AutoServerBoosts then return end
+        task.spawn(function()
+            while AutoServerBoosts do
+                pcall(activateMissingServerBoosts)
+                task.wait(8)
+            end
+        end)
+    end,
+})
+
+Exp_Tab:CreateButton({
+    name = "Refresh / ativar Server Boosts agora",
+    callback = function()
+        local total, attempted = activateMissingServerBoosts()
+        notify("Server Boosts", tostring(total) .. " detectados | " .. tostring(attempted) .. " ativacoes", 4)
+    end,
+})
+
+-- Boost pessoal
+Exp_Tab:CreateButton({
+    name = "Activate Personal Boosts",
+    callback = function()
+        local names = getServerBoostNames()
+        for _, n in ipairs(names) do
+            pcall(function() Network.Fire("Activate Boost", n) end)
+        end
+    end,
+})
+
+Exp_Tab:CreateButton({
+    name = "Atualizar breakables detectados",
+    callback = function()
+        local list = refreshBreakableDropdowns(true)
+    end,
+})
+
+Exp_Tab:CreateButton({
+    name = "Diagnostico: mundo/boosts ativos",
+    callback = function()
+        local active = {}
+        pcall(function()
+            if Library.ServerBoosts and Library.ServerBoosts.GetActiveBoosts then
+                active = Library.ServerBoosts.GetActiveBoosts() or {}
+            end
+        end)
+        notify("Diagnostico", "Resultado enviado ao console", 3)
+    end,
+})
+
+-- Massive Diamonds (pack / stock com Coins)
+AutoBuyMassiveDiamonds = false
+AutoBuyMassiveLoopRunning = false
+Exp_Tab:CreateToggle({
+    name = "Auto Buy Massive Diamonds (loop 0.5s)",
+    value = false,
+    flag = "AutoBuyMassiveDiamonds",
+    callback = function(Value)
+        AutoBuyMassiveDiamonds = Value
+        if not AutoBuyMassiveDiamonds or AutoBuyMassiveLoopRunning then return end
+        AutoBuyMassiveLoopRunning = true
+        task.spawn(function()
+            while AutoBuyMassiveDiamonds do
+                -- Fluxo F2P confirmado no dump da loja. Os outros nomes
+                -- genericos podiam prender a coroutine e impedir o segundo ciclo.
+                pcall(function()
+                    Network.Invoke("Purchase Currency", "Massive Diamonds")
+                end)
+                task.wait(0.5)
+            end
+            AutoBuyMassiveLoopRunning = false
+        end)
+    end,
+})
+
+AntiAFK = true
+Exp_Tab:CreateToggle({
+    name = "Anti AFK",
+    value = true,
+    flag = "AntiAFK",
+    callback = function(Value)
+        AntiAFK = Value
+    end,
+})
+pcall(function()
+    local vu = game:GetService("VirtualUser")
+    AntiAFKConnection = player.Idled:Connect(function()
+        if not AntiAFK then return end
+        pcall(function()
+            vu:CaptureController()
+            vu:ClickButton2(Vector2.new(0, 0))
+        end)
+    end)
+end)
+task.spawn(function()
+    while task.wait(60) do
+        if AntiAFK then
+            pcall(function()
+                local vu = game:GetService("VirtualUser")
+                vu:CaptureController()
+                vu:ClickButton2(Vector2.new(0, 0))
+            end)
+        end
+    end
+end)
+
+Exp_Tab:CreateToggle({
+    name = "FPS Boost (particles off)",
+    value = false,
+    flag = "FPSBoost",
+    callback = function(Value)
+        pcall(function()
+            applyParticleState(Value)
+            settings().Rendering.QualityLevel = Value and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic
+        end)
+    end,
+})
+
+Exp_Tab:CreateToggle({
+    name = "Remove Coin Explosion + Debris FX",
+    value = false,
+    flag = "RemoveCoinExplosionFX",
+    callback = function(Value)
+        task.defer(function()
+            applyCoinExplosionFXState(Value)
+        end)
+    end,
+})
+
+function applyCoinExplosionFXState(disabled)
+    RemoveCoinExplosionFX = disabled == true
+
+    pcall(function()
+        local particles = Library and Library.Assets and Library.Assets.Particles
+        local asset = particles and particles:FindFirstChild("Coin Explode")
+        local damageAsset = particles and particles:FindFirstChild("Coin Damage")
+        local bonusAsset = particles and particles:FindFirstChild("Coin Bonus")
+        local specialParticles = particles and particles:FindFirstChild("Coin Special Bonuses")
+        local other = Library and Library.Assets and Library.Assets.Other
+        local specialOther = other and other:FindFirstChild("Coin Special Bonuses")
+
+        if RemoveCoinExplosionFX then
+            if asset and not CoinExplodeBackup then
+                CoinExplodeBackup = asset:Clone()
+                CoinExplodeParent = asset.Parent
+                asset:Destroy()
+                local empty = Instance.new("Folder")
+                empty.Name = "Coin Explode"
+                empty.Parent = CoinExplodeParent
+            end
+            if damageAsset and not CoinDamageBackup then
+                CoinDamageBackup = damageAsset:Clone()
+                CoinDamageParent = damageAsset.Parent
+                damageAsset:Destroy()
+                local emptyDamage = Instance.new("Folder")
+                emptyDamage.Name = "Coin Damage"
+                emptyDamage.Parent = CoinDamageParent
+            end
+            if bonusAsset and not CoinBonusBackup then
+                CoinBonusBackup = bonusAsset:Clone()
+                CoinBonusParent = bonusAsset.Parent
+                bonusAsset:Destroy()
+                local emptyBonus = Instance.new("Folder")
+                emptyBonus.Name = "Coin Bonus"
+                emptyBonus.Parent = CoinBonusParent
+            end
+            if specialParticles and not CoinSpecialParticlesBackup then
+                CoinSpecialParticlesBackup = specialParticles:Clone()
+                CoinSpecialParticlesParent = specialParticles.Parent
+                specialParticles:Destroy()
+                local emptySpecialParticles = Instance.new("Folder")
+                emptySpecialParticles.Name = "Coin Special Bonuses"
+                emptySpecialParticles.Parent = CoinSpecialParticlesParent
+            end
+            if specialOther and not CoinSpecialOtherBackup then
+                CoinSpecialOtherBackup = specialOther:Clone()
+                CoinSpecialOtherParent = specialOther.Parent
+                specialOther:Destroy()
+                local emptySpecialOther = Instance.new("Folder")
+                emptySpecialOther.Name = "Coin Special Bonuses"
+                emptySpecialOther.Parent = CoinSpecialOtherParent
+            end
+        elseif CoinExplodeBackup and CoinExplodeParent then
+            local current = CoinExplodeParent:FindFirstChild("Coin Explode")
+            if current then current:Destroy() end
+            CoinExplodeBackup:Clone().Parent = CoinExplodeParent
+            if CoinDamageBackup and CoinDamageParent then
+                local currentDamage = CoinDamageParent:FindFirstChild("Coin Damage")
+                if currentDamage then currentDamage:Destroy() end
+                CoinDamageBackup:Clone().Parent = CoinDamageParent
+            end
+            if CoinBonusBackup and CoinBonusParent then
+                local currentBonus = CoinBonusParent:FindFirstChild("Coin Bonus")
+                if currentBonus then currentBonus:Destroy() end
+                CoinBonusBackup:Clone().Parent = CoinBonusParent
+            end
+            if CoinSpecialParticlesBackup and CoinSpecialParticlesParent then
+                local currentSpecialParticles = CoinSpecialParticlesParent:FindFirstChild("Coin Special Bonuses")
+                if currentSpecialParticles then currentSpecialParticles:Destroy() end
+                CoinSpecialParticlesBackup:Clone().Parent = CoinSpecialParticlesParent
+            end
+            if CoinSpecialOtherBackup and CoinSpecialOtherParent then
+                local currentSpecialOther = CoinSpecialOtherParent:FindFirstChild("Coin Special Bonuses")
+                if currentSpecialOther then currentSpecialOther:Destroy() end
+                CoinSpecialOtherBackup:Clone().Parent = CoinSpecialOtherParent
+            end
+        end
+    end)
+
+    pcall(function()
+        if CoinParticleConnection then
+            CoinParticleConnection:Disconnect()
+            CoinParticleConnection = nil
+        end
+
+        if not RemoveCoinExplosionFX then return end
+
+        local function hideCoinParticle(obj)
+            if not obj then return end
+            local objectName = tostring(obj.Name)
+            if objectName == "Coin Particle" or objectName == "Bonus Particle" then
+                pcall(function()
+                    if obj:IsA("BasePart") then
+                        obj.LocalTransparencyModifier = 1
+                        obj.Transparency = 1
+                        obj.CanCollide = false
+                        obj.CanTouch = false
+                        obj.CanQuery = false
+                        obj.CastShadow = false
+                        obj.AssemblyLinearVelocity = Vector3.zero
+                        obj.AssemblyAngularVelocity = Vector3.zero
+                    end
+                    for _, child in ipairs(obj:GetDescendants()) do
+                        if child:IsA("ParticleEmitter") or child:IsA("Beam") or child:IsA("Trail") then
+                            child.Enabled = false
+                        end
+                    end
+                end)
+            elseif objectName:find("SpecialBonusParticle", 1, true) then
+                pcall(function() obj.Enabled = false end)
+            elseif objectName:find("SpecialBonusText", 1, true) then
+                pcall(function() obj.Visible = false end)
+            elseif objectName == "BonusReward" then
+                pcall(function()
+                    if obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then obj.Enabled = false end
+                end)
+            elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                pcall(function()
+                    if tostring(obj.Text):upper():find("BONUS", 1, true) then obj.Visible = false end
+                end)
+            end
+        end
+
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            hideCoinParticle(obj)
+        end
+
+        CoinParticleConnection = Workspace.DescendantAdded:Connect(function(obj)
+            if RemoveCoinExplosionFX then hideCoinParticle(obj) end
+        end)
+    end)
+end
+
+function applyBreakablesVisualState(hidden)
+    pcall(function()
+        local things = Workspace:FindFirstChild("__THINGS")
+        local coins = things and things:FindFirstChild("Coins")
+        if not coins then return end
+        for _, obj in ipairs(coins:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.LocalTransparencyModifier = hidden and 1 or 0
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+                obj.Enabled = not hidden
+            end
+        end
+    end)
+end
+
+function applyParticleState(disabled)
+    pcall(function()
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+                if ParticleStates[obj] == nil then ParticleStates[obj] = obj.Enabled end
+                obj.Enabled = disabled and false or ParticleStates[obj]
+            end
+        end
+    end)
+end
+
+function applyMapState(hidden)
+    pcall(function()
+        local map = Workspace:FindFirstChild("__MAP")
+        if not map then return end
+        for _, obj in ipairs(map:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                if MapTransparencyStates[obj] == nil then
+                    MapTransparencyStates[obj] = obj.Transparency
+                end
+                -- Mantém CanCollide intacto: o mapa pode ficar invisível,
+                -- mas o player não cai no void ao sair do hoverboard.
+                obj.Transparency = hidden and 1 or MapTransparencyStates[obj]
+            elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                if MapTransparencyStates[obj] == nil then
+                    MapTransparencyStates[obj] = obj.Transparency
+                end
+                obj.Transparency = hidden and 1 or MapTransparencyStates[obj]
+            end
+        end
+    end)
+end
+
+task.spawn(function()
+    while task.wait(1) do
+        if RemoveBreakables then applyBreakablesVisualState(true) end
+        if RemoveMap then applyMapState(true) end
+    end
+end)
+
+-- ====================== TAB: MISC ======================
+
+Misc_Tab:CreateSection({ name = "Collect & Claims" })
+Misc_Tab:CreateToggle({
+    name = "Instant Collect Lootbags & Orbs",
+    value = true,
+    flag = "InstantCollect",
+    callback = function(Value)
+        InstantCollectWanted = Value
+        InstantCollectEnabled = InstantCollectReady and Value
+        if not Value then
+            OrbBatch = {}
+        end
+    end,
+})
+Misc_Tab:CreateSlider({
+    name = "Free Gifts: intervalo",
+    Range = {0.10, 2.00},
+    Increment = 0.10,
+    Suffix = "s",
+    value = 0.50,
+    flag = "FreeGiftPollDelay",
+    callback = function(Value)
+        FreeGiftPollDelay = math.max(0.1, tonumber(Value) or 0.5)
+    end,
+})
+Misc_Tab:CreateToggle({
+    name = "Auto Free Gifts",
+    value = true,
+    flag = "AutoFreeGifts",
+    callback = function(Value)
+        AutoFreeGifts = Value
+    end,
+})
+
+
+Misc_Tab:CreateSection({ name = "Performance / Lag Remover" })
+Misc_Tab:CreateToggle({
+    name = "Remove Breakables Visual",
+    value = false,
+    flag = "RemoveBreakablesVisual",
+    callback = function(Value)
+        RemoveBreakables = Value
+        -- Esconde apenas as instâncias visuais locais. ServerCoins continua
+        -- intacto, então todos os modos de farm continuam funcionando.
+        applyBreakablesVisualState(Value)
+    end,
+})
+
+Misc_Tab:CreateToggle({
+    name = "Remove Map (FPS Boost)",
+    value = false,
+    flag = "RemoveMap",
+    callback = function(Value)
+        RemoveMap = Value
+        applyMapState(Value)
+    end,
+})
+
+Misc_Tab:CreateToggle({
+    name = "Low Rendering Mode",
+    value = false,
+    flag = "RenderingMode",
+    callback = function(Value)
+        Rendering_Mode = Value
+        pcall(function()
+            settings().Rendering.QualityLevel = Value and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic
+        end)
+        applyParticleState(Value)
+    end,
+})
+
+Misc_Tab:CreateSection({ name = "Info" })
+pcall(function()
+    Misc_Tab:CreateSection({ name = "PSX Mod Hub - Improved | Giant Chest inteligente" })
+end)
+
+task.spawn(function()
+    task.wait(5)
+    InstantCollectReady = true
+    InstantCollectEnabled = InstantCollectWanted
+end)
+
+print("[PSX Mod Hub] Loaded successfully! Library: " .. tostring(LibraryPath) .. " | score=" .. tostring(LibraryScore))
+if StartMinimized then
+    task.defer(function()
+        task.wait(0.15)
+        pcall(function()
+            if window and window.Hide then window:Hide() end
+        end)
+    end)
+end
