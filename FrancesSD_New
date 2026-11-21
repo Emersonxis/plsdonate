@@ -4363,13 +4363,15 @@ local function indexCleanupEggPets(petIds, maxV)
     end
 end
 
-local function eggNeedsWork(eggName, maxV)
+local function eggNeedsWork(eggName, maxV, goldenOnly)
     local drops = getEggDrops(eggName)
     if #drops == 0 then return false, drops end
     local owned = collectionSet()
+    local firstVariant = goldenOnly and 2 or 1
+    if firstVariant > maxV then return false, drops end
     for _, pid in ipairs(drops) do
         if isBlacklistedPet(pid) or not petRarityAllowed(pid) then continue end
-        for v = 1, maxV do
+        for v = firstVariant, maxV do
             if not hasCollection(owned, pid, v) then
                 return true, drops
             end
@@ -4378,19 +4380,22 @@ local function eggNeedsWork(eggName, maxV)
     return false, drops
 end
 
-local function collectionTargetText(eggName, maxV)
+local function collectionTargetText(eggName, maxV, goldenOnly)
     local drops = getEggDrops(eggName)
     local owned = collectionSet()
+    local firstVariant = goldenOnly and 2 or 1
+    local pending = {}
     for _, pid in ipairs(drops) do
         if not isBlacklistedPet(pid) and petRarityAllowed(pid) then
-            for v = 1, maxV do
+            for v = firstVariant, maxV do
                 if not hasCollection(owned, pid, v) then
-                    return collectionPetName(pid) .. " | " .. collectionVariantName(v)
+                    table.insert(pending, collectionPetName(pid) .. " - " .. collectionVariantName(v))
                 end
             end
         end
     end
-    return "Nenhum pet pendente neste egg"
+    if #pending == 0 then return "Nenhum pet pendente neste egg" end
+    return "Faltando: " .. table.concat(pending, ", ")
 end
 
 local function buyIndexEgg(eggName)
@@ -4561,7 +4566,7 @@ Col_Tab:CreateToggle({
                     if maxV >= 2 and not isGoldenEgg and eggNormalVariantDone(baseName) then
                         continue
                     end
-                    local needs, drops = eggNeedsWork(eggName, maxV)
+                    local needs, drops = eggNeedsWork(eggName, maxV, isGoldenEgg)
                     if not needs then
                         -- egg completo: limpa inventario residual desse egg
                         if #drops > 0 then
@@ -4570,7 +4575,7 @@ Col_Tab:CreateToggle({
                         continue
                     end
                     progressed = true
-                    setCollectionStatus(collectionTargetText(eggName, maxV)
+                    setCollectionStatus(collectionTargetText(eggName, maxV, isGoldenEgg)
                         .. " | Egg: " .. tostring(eggName))
                     -- Vai ao egg e permanece nele ate completar todos os pets/variantes.
                     -- Nao ha limite artificial de ciclos: o usuario pode desligar o Auto Index.
@@ -4578,12 +4583,12 @@ Col_Tab:CreateToggle({
                         collectionTravelToEgg(eggName)
                     end
                     while AutoIndex and runVersion == CollectionConfigVersion do
-                        needs, drops = eggNeedsWork(eggName, maxV)
+                        needs, drops = eggNeedsWork(eggName, maxV, isGoldenEgg)
                         if not needs then
                             indexCleanupEggPets(drops, maxV)
                             break
                         end
-                        setCollectionStatus(collectionTargetText(eggName, maxV)
+                        setCollectionStatus(collectionTargetText(eggName, maxV, isGoldenEgg)
                             .. " | Egg: " .. tostring(eggName))
                         if CollectionTeleportToEgg then
                             collectionTravelToEgg(eggName)
