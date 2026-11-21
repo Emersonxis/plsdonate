@@ -178,6 +178,7 @@ end
 local function resolveFrameworkEggId(selected)
     if not IsFrameworkBackend then return selected end
     local selectedText = tostring(selected or "")
+    local eggDirectory = (Library and Library.Directory and Library.Directory.Eggs) or {}
     local ok, eggs = pcall(function()
         return FrameworkWorldCmds and FrameworkWorldCmds.GetAllEggs and FrameworkWorldCmds.GetAllEggs()
     end)
@@ -185,7 +186,7 @@ local function resolveFrameworkEggId(selected)
         for _, egg in ipairs(eggs) do
             local id = egg and egg.GetAttribute and egg:GetAttribute("ID")
             if id then
-                local info = Egg_Directory[tostring(id)] or Egg_Directory[id]
+                local info = eggDirectory[tostring(id)] or eggDirectory[id]
                 local display = type(info) == "table" and (info.displayName or info.name)
                 if tostring(id) == selectedText or tostring(display or "") == selectedText
                     or (egg.Name and egg.Name == selectedText) then
@@ -194,7 +195,7 @@ local function resolveFrameworkEggId(selected)
             end
         end
     end
-    local direct = Egg_Directory[selectedText]
+    local direct = eggDirectory[selectedText]
     if type(direct) == "table" and direct.id then return direct.id end
     return selected
 end
