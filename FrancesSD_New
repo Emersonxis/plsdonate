@@ -179,24 +179,39 @@ local function resolveFrameworkEggId(selected)
     if not IsFrameworkBackend then return selected end
     local selectedText = tostring(selected or "")
     local eggDirectory = (Library and Library.Directory and Library.Directory.Eggs) or {}
-    local ok, eggs = pcall(function()
-        return FrameworkWorldCmds and FrameworkWorldCmds.GetAllEggs and FrameworkWorldCmds.GetAllEggs()
-    end)
-    if ok and type(eggs) == "table" then
-        for _, egg in ipairs(eggs) do
-            local id = egg and egg.GetAttribute and egg:GetAttribute("ID")
+    -- Neste Framework, Directory.Eggs e indexado pelo proprio ID.
+    -- Os registros normalmente nao possuem um campo .id.
+    if eggDirectory[selectedText] ~= nil then
+        return selectedText
+    end
+
+    -- Fallback para quando a UI retornar displayName/name em vez da chave.
+    for id, info in pairs(eggDirectory) do
+        if type(info) == "table" then
+            local display = info.displayName or info.name or info.Name
+            if tostring(display or "") == selectedText then
+                return id
+            end
+        end
+    end
+
+    -- Ultimo fallback: o ovo fisico possui o atributo ID. GetAllEggs e
+    -- funcao local do script Eggs, portanto nao pode ser chamado via WorldCmds.
+    local roots = { Workspace, PlayerGui }
+    for _, root in ipairs(roots) do
+        local descendants = root and root:GetDescendants() or {}
+        for _, egg in ipairs(descendants) do
+            local id = egg:GetAttribute("ID")
             if id then
                 local info = eggDirectory[tostring(id)] or eggDirectory[id]
                 local display = type(info) == "table" and (info.displayName or info.name)
                 if tostring(id) == selectedText or tostring(display or "") == selectedText
-                    or (egg.Name and egg.Name == selectedText) then
+                    or tostring(egg.Name or "") == selectedText then
                     return id
                 end
             end
         end
     end
-    local direct = eggDirectory[selectedText]
-    if type(direct) == "table" and direct.id then return direct.id end
     return selected
 end
 
@@ -1260,11 +1275,10 @@ local function applyRemoveEggAnimation(state)
         local gameFolder = scriptsFolder:FindFirstChild("Game")
         if not gameFolder then return end
 
-        -- Method 1: Disable Open Eggs script
+        -- O script Open Eggs tambem registra Network.Fired("Open Egg").
+        -- Nunca o desative no Framework, pois isso interrompe o fluxo nativo.
         local openEggs = gameFolder:FindFirstChild("Open Eggs")
-        if openEggs then
-            openEggs.Disabled = state
-        end
+        if openEggs and openEggs.Disabled then openEggs.Disabled = false end
 
         -- Method 2: Hook PlayEggAnimation if exists
         local eggFrontend = gameFolder:FindFirstChild("Egg Opening Frontend")
