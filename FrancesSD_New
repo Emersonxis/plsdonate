@@ -3882,6 +3882,19 @@ local MissingPetNames = {}
 local MissingNameToId = {}
 local SelectedMissingPet = nil
 local missingDropdownHandle = nil
+local CollectionConfigVersion = 0
+local CollectionStatusParagraph = nil
+
+local function setCollectionStatus(text)
+    pcall(function()
+        if CollectionStatusParagraph and CollectionStatusParagraph.Set then
+            CollectionStatusParagraph:Set({
+                Title = "Collection em andamento",
+                Content = tostring(text or "Aguardando...")
+            })
+        end
+    end)
+end
 
 local function buildMissingNames(variantName)
     local vNum = variantToNum[variantName] or 4
@@ -3934,6 +3947,8 @@ Col_Tab:CreateDropdown({
     callback = function(Options)
         CollectionVariant = pickDropdown(Options) or "Dark Matter"
         SelectedMissingPet = nil
+        CollectionConfigVersion = CollectionConfigVersion + 1
+        setCollectionStatus("Configuração alterada: " .. tostring(CollectionVariant))
     end,
 })
 
@@ -4026,6 +4041,19 @@ local function hasCollection(owned, petId, vNum)
     return owned[tostring(petId) .. "-" .. tostring(vNum)] == true
 end
 
+local function collectionPetName(petId)
+    local name = tostring(petId)
+    pcall(function()
+        local info = Library.Directory.Pets[tostring(petId)] or Library.Directory.Pets[petId]
+        if info and info.name then name = tostring(info.name) end
+    end)
+    return name
+end
+
+local function collectionVariantName(vNum)
+    return ({ [1] = "Normal", [2] = "Golden", [3] = "Rainbow", [4] = "Dark Matter" })[vNum] or tostring(vNum)
+end
+
 local function getEggDrops(eggName)
     local ids = {}
     local seen = {}
@@ -4100,6 +4128,19 @@ local function isBlacklistedPet(petId)
         if n:find(string.lower(tostring(b)), 1, true) then return true end
     end
     return false
+end
+
+local function eggNormalVariantDone(eggName)
+    local drops = getEggDrops(eggName)
+    if #drops == 0 then return false end
+    local owned = collectionSet()
+    for _, pid in ipairs(drops) do
+        if not isBlacklistedPet(pid) and petRarityAllowed(pid)
+            and not hasCollection(owned, pid, 1) then
+            return false
+        end
+    end
+    return true
 end
 
 local function eggNormalsDone(eggName, maxV)
@@ -4340,6 +4381,21 @@ local function eggNeedsWork(eggName, maxV)
     return false, drops
 end
 
+local function collectionTargetText(eggName, maxV)
+    local drops = getEggDrops(eggName)
+    local owned = collectionSet()
+    for _, pid in ipairs(drops) do
+        if not isBlacklistedPet(pid) and petRarityAllowed(pid) then
+            for v = 1, maxV do
+                if not hasCollection(owned, pid, v) then
+                    return collectionPetName(pid) .. " | " .. collectionVariantName(v)
+                end
+            end
+        end
+    end
+    return "Nenhum pet pendente neste egg"
+end
+
 local function buyIndexEgg(eggName)
     return buyEggExact(eggName, HatchAmount)
 end
@@ -4402,6 +4458,13 @@ local function collectionTravelToEgg(eggName)
         end
     end
     if not part then return false end
+    local closeEnough = false
+    pcall(function()
+        if HumanoidRootPart and HumanoidRootPart.Parent then
+            closeEnough = (HumanoidRootPart.Position - part.Position).Magnitude <= 24
+        end
+    end)
+    if closeEnough then return true end
     pcall(function()
         if HumanoidRootPart and HumanoidRootPart.Parent then
             HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 3.5, 0)
@@ -4409,6 +4472,11 @@ local function collectionTravelToEgg(eggName)
     end)
     return true
 end
+
+CollectionStatusParagraph = Col_Tab:CreateParagraph({
+    Title = "Collection em andamento",
+    Content = "Aguardando Auto Collection..."
+})
 
 Col_Tab:CreateDropdown({
     name = "Mundos (Index)",
@@ -4426,6 +4494,7 @@ Col_Tab:CreateDropdown({
             table.insert(list, Options)
         end
         IndexWorlds = list
+        CollectionConfigVersion = CollectionConfigVersion + 1
     end,
 })
 
@@ -4484,6 +4553,7 @@ Col_Tab:CreateToggle({
                 local progressed = false
                 for _, eggName in ipairs(eggs) do
                     if not AutoIndex then break end
+                    local runVersion = CollectionConfigVersion
                     -- Normal only: nao abre Golden egg
                     if maxV == 1 and string.lower(eggName):find("golden", 1, true) then
                         continue
@@ -4491,7 +4561,7 @@ Col_Tab:CreateToggle({
                     -- Se normals do base ja estao no index e falta gold+, pula egg normal e usa Golden
                     local baseName = eggName:gsub("^Golden ", "")
                     local isGoldenEgg = string.lower(eggName):find("golden", 1, true) ~= nil
-                    if maxV >= 2 and not isGoldenEgg and eggNormalsDone(baseName, maxV) then
+                    if maxV >= 2 and not isGoldenEgg and eggNormalVariantDone(baseName) then
                         continue
                     end
                     local needs, drops = eggNeedsWork(eggName, maxV)
@@ -4503,17 +4573,21 @@ Col_Tab:CreateToggle({
                         continue
                     end
                     progressed = true
+                    setCollectionStatus(collectionTargetText(eggName, maxV)
+                        .. " | Egg: " .. tostring(eggName))
                     -- Vai ao egg e permanece nele ate completar todos os pets/variantes.
                     -- Nao ha limite artificial de ciclos: o usuario pode desligar o Auto Index.
                     if CollectionTeleportToEgg then
                         collectionTravelToEgg(eggName)
                     end
-                    while AutoIndex do
+                    while AutoIndex and runVersion == CollectionConfigVersion do
                         needs, drops = eggNeedsWork(eggName, maxV)
                         if not needs then
                             indexCleanupEggPets(drops, maxV)
                             break
                         end
+                        setCollectionStatus(collectionTargetText(eggName, maxV)
+                            .. " | Egg: " .. tostring(eggName))
                         if CollectionTeleportToEgg then
                             collectionTravelToEgg(eggName)
                         end
