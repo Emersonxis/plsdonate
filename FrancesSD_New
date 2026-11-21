@@ -4470,7 +4470,10 @@ local function collectionTravelToEgg(eggName)
     return true
 end
 
-CollectionStatusParagraph = Col_Tab:CreateLabel("Collection: Aguardando Auto Collection...")
+CollectionStatusParagraph = Col_Tab:CreateText({
+    name = "Collection em andamento",
+    text = "Aguardando Auto Collection...",
+})
 
 Col_Tab:CreateDropdown({
     name = "Mundos (Index)",
