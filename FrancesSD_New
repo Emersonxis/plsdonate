@@ -3767,7 +3767,8 @@ Enchant_Tab:CreateInput({
 local function petHasDesiredEnchant(uid)
     if #SelectedEnchantTitles == 0 then return false end
     local pet = nil
-    pcall(function() pet = Library.PetCmds.Get(uid) end)
+    pcall(function() pet = PetCmds.Get(uid) end)
+    if not pet then pcall(function() pet = Library.PetCmds.Get(uid) end) end
     if not pet then return false end
     local powers = pet.powers or pet.Powers or pet.enchants or pet.Enchants
     if type(powers) ~= "table" then return false end
@@ -3787,11 +3788,35 @@ local function petHasDesiredEnchant(uid)
             for _, want in ipairs(SelectedEnchantTitles) do
                 local t = string.lower(tostring(title))
                 local w = string.lower(tostring(want))
-                if t == w or t:find(w, 1, true) then return true end
+                if t == w then return true end
             end
         end
     end
     return false
+end
+
+local function getEnchantPet(uid)
+    local pet
+    pcall(function() pet = PetCmds.Get(uid) end)
+    if not pet then pcall(function() pet = Library.PetCmds.Get(uid) end) end
+    return pet
+end
+
+local function isEnchantEligiblePet(uid)
+    local pet = getEnchantPet(uid)
+    if type(pet) ~= "table" then return false end
+    local info = Library.Directory.Pets
+        and (Library.Directory.Pets[tostring(pet.id)] or Library.Directory.Pets[pet.id])
+    if type(info) ~= "table" then return false end
+    local rarity = string.lower(tostring(info.rarity or info.Rarity or ""))
+    if rarity == "mythical" or rarity == "exclusive" or rarity == "event"
+        or rarity == "secret" or rarity == "admin abuse" then
+        return false
+    end
+    if info.huge == true or info.Huge == true or info.titanic == true or info.Titanic == true then
+        return false
+    end
+    return true
 end
 
 Enchant_Tab:CreateSection({ name = "Iniciar" })
@@ -3815,7 +3840,7 @@ Enchant_Tab:CreateToggle({
                     local equipped = getEquippedPets()
                     local pending = {}
                     for _, uid in ipairs(equipped or {}) do
-                        if not petHasDesiredEnchant(uid) then
+                        if isEnchantEligiblePet(uid) and not petHasDesiredEnchant(uid) then
                             table.insert(pending, uid)
                         end
                     end
@@ -3837,7 +3862,7 @@ Enchant_Tab:CreateToggle({
                                 okInvoke = result ~= false
                             end)
                             if not okInvoke then okAll = false end
-                            if last < #pending then task.wait(0.25) end
+                            if last < #pending then task.wait(0.05) end
                         end
                         -- O servidor atualiza os poderes logo apos cada lote.
                         task.wait(okAll and 0.75 or 0.35)
