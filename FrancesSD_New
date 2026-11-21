@@ -3888,10 +3888,7 @@ local CollectionStatusParagraph = nil
 local function setCollectionStatus(text)
     pcall(function()
         if CollectionStatusParagraph and CollectionStatusParagraph.Set then
-            CollectionStatusParagraph:Set({
-                Title = "Collection em andamento",
-                Content = tostring(text or "Aguardando...")
-            })
+            CollectionStatusParagraph:Set("Collection: " .. tostring(text or "Aguardando..."))
         end
     end)
 end
@@ -4473,10 +4470,7 @@ local function collectionTravelToEgg(eggName)
     return true
 end
 
-CollectionStatusParagraph = Col_Tab:CreateParagraph({
-    Title = "Collection em andamento",
-    Content = "Aguardando Auto Collection..."
-})
+CollectionStatusParagraph = Col_Tab:CreateLabel("Collection: Aguardando Auto Collection...")
 
 Col_Tab:CreateDropdown({
     name = "Mundos (Index)",
