@@ -4080,6 +4080,15 @@ local function getEggDrops(eggName)
     return ids
 end
 
+local function isGoldenEgg(eggName)
+    local golden = string.lower(tostring(eggName or "")):find("golden", 1, true) ~= nil
+    pcall(function()
+        local info = Library.Directory.Eggs[tostring(eggName)] or Library.Directory.Eggs[eggName]
+        if type(info) == "table" and info.isGolden == true then golden = true end
+    end)
+    return golden
+end
+
 local function getEggCost(eggName)
     local cost = math.huge
     pcall(function()
@@ -4562,11 +4571,18 @@ Col_Tab:CreateToggle({
                     end
                     -- Se normals do base ja estao no index e falta gold+, pula egg normal e usa Golden
                     local baseName = eggName:gsub("^Golden ", "")
-                    local isGoldenEgg = string.lower(eggName):find("golden", 1, true) ~= nil
-                    if maxV >= 2 and not isGoldenEgg and eggNormalVariantDone(baseName) then
-                        continue
+                    local goldenEgg = isGoldenEgg(eggName)
+                    if maxV >= 2 then
+                        if goldenEgg then
+                            -- Golden somente depois de todos os Normais do mesmo egg.
+                            if not eggNormalVariantDone(baseName) then continue end
+                        else
+                            -- Normal somente para completar a variante Normal.
+                            local normalNeeds = eggNeedsWork(eggName, 1, false)
+                            if not normalNeeds then continue end
+                        end
                     end
-                    local needs, drops = eggNeedsWork(eggName, maxV, isGoldenEgg)
+                    local needs, drops = eggNeedsWork(eggName, maxV, goldenEgg)
                     if not needs then
                         -- egg completo: limpa inventario residual desse egg
                         if #drops > 0 then
@@ -4575,7 +4591,7 @@ Col_Tab:CreateToggle({
                         continue
                     end
                     progressed = true
-                    setCollectionStatus(collectionTargetText(eggName, maxV, isGoldenEgg)
+                    setCollectionStatus(collectionTargetText(eggName, maxV, goldenEgg)
                         .. " | Egg: " .. tostring(eggName))
                     -- Vai ao egg e permanece nele ate completar todos os pets/variantes.
                     -- Nao ha limite artificial de ciclos: o usuario pode desligar o Auto Index.
@@ -4583,12 +4599,12 @@ Col_Tab:CreateToggle({
                         collectionTravelToEgg(eggName)
                     end
                     while AutoIndex and runVersion == CollectionConfigVersion do
-                        needs, drops = eggNeedsWork(eggName, maxV, isGoldenEgg)
+                        needs, drops = eggNeedsWork(eggName, maxV, goldenEgg)
                         if not needs then
                             indexCleanupEggPets(drops, maxV)
                             break
                         end
-                        setCollectionStatus(collectionTargetText(eggName, maxV, isGoldenEgg)
+                        setCollectionStatus(collectionTargetText(eggName, maxV, goldenEgg)
                             .. " | Egg: " .. tostring(eggName))
                         if CollectionTeleportToEgg then
                             collectionTravelToEgg(eggName)
