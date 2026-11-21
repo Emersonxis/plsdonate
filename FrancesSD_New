@@ -3974,6 +3974,7 @@ Col_Tab:CreateButton({
 
 -- Auto Index v2: 1 egg, barato→caro, progressao de variantes, craft/delete proprios
 local AutoIndex = false
+local CollectionTeleportToEgg = true
 local IndexRarities = {"Basic", "Rare", "Epic", "Legendary", "Mythical"}
 local IndexBlacklist = {}
 local IndexWorlds = {"Spawn World"}
@@ -4343,6 +4344,72 @@ local function buyIndexEgg(eggName)
     return buyEggExact(eggName, HatchAmount)
 end
 
+local function findCollectionEgg(eggName)
+    local wantedId = tostring(resolveFrameworkEggId(eggName) or eggName)
+    local wantedName = string.lower(tostring(eggName or ""))
+    local foundPart
+    pcall(function()
+        for _, instance in ipairs(Workspace:GetDescendants()) do
+            local id = instance:GetAttribute("ID")
+            if id and tostring(id) == wantedId or not id and string.lower(tostring(instance.Name or "")) == wantedName then
+                local center = instance:FindFirstChild("Center")
+                if center and center:IsA("BasePart") then foundPart = center return end
+                if instance:IsA("Model") and instance.PrimaryPart then foundPart = instance.PrimaryPart return end
+                if instance:IsA("BasePart") then foundPart = instance return end
+            end
+        end
+    end)
+    return foundPart
+end
+
+local function collectionWorldLoaded(worldKey)
+    local loaded, current = false, nil
+    pcall(function()
+        local cmds = FrameworkWorldCmds or WorldCmdsOld
+        if cmds and cmds.HasLoaded then loaded = cmds.HasLoaded() == true end
+        if cmds and cmds.Get then current = cmds.Get() end
+    end)
+    return loaded and (not worldKey or tostring(current) == tostring(worldKey))
+end
+
+local function collectionTravelToEgg(eggName)
+    if not CollectionTeleportToEgg then return true end
+    local part = findCollectionEgg(eggName)
+    if not part then
+        local candidates, seen = {}, {}
+        for _, world in ipairs(IndexWorlds or {}) do
+            if not seen[world] then seen[world] = true table.insert(candidates, world) end
+        end
+        for world in pairs(IndexWorldEggMap) do
+            if not seen[world] then seen[world] = true table.insert(candidates, world) end
+        end
+        for _, world in ipairs(candidates) do
+            if not AutoIndex then return false end
+            local ok, worldKey = worldHopTravel(world)
+            if ok then
+                local started = os.clock()
+                while AutoIndex and os.clock() - started < 20 and not collectionWorldLoaded(worldKey) do
+                    task.wait(0.25)
+                end
+                local waitStart = os.clock()
+                while AutoIndex and os.clock() - waitStart < 20 do
+                    part = findCollectionEgg(eggName)
+                    if part then break end
+                    task.wait(0.25)
+                end
+                if part then break end
+            end
+        end
+    end
+    if not part then return false end
+    pcall(function()
+        if HumanoidRootPart and HumanoidRootPart.Parent then
+            HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 3.5, 0)
+        end
+    end)
+    return true
+end
+
 Col_Tab:CreateDropdown({
     name = "Mundos (Index)",
     options = {"Spawn World", "Fantasy World", "Tech World", "Axolotl Ocean", "Pixel World", "Cat World", "Doodle World", "Kawaii World"},
@@ -4395,6 +4462,15 @@ Col_Tab:CreateInput({
 })
 
 Col_Tab:CreateToggle({
+    name = "Teleportar até o egg da Collection",
+    value = true,
+    flag = "CollectionTeleportToEgg",
+    callback = function(Value)
+        CollectionTeleportToEgg = Value == true
+    end,
+})
+
+Col_Tab:CreateToggle({
     name = "Auto Index (smart)",
     value = false,
     flag = "AutoIndex",
@@ -4427,14 +4503,19 @@ Col_Tab:CreateToggle({
                         continue
                     end
                     progressed = true
-                    -- fica NESSE egg ate completar a variante setada (Normal→…→DM)
-                    local safety = 0
-                    while AutoIndex and safety < 800 do
-                        safety = safety + 1
+                    -- Vai ao egg e permanece nele ate completar todos os pets/variantes.
+                    -- Nao ha limite artificial de ciclos: o usuario pode desligar o Auto Index.
+                    if CollectionTeleportToEgg then
+                        collectionTravelToEgg(eggName)
+                    end
+                    while AutoIndex do
                         needs, drops = eggNeedsWork(eggName, maxV)
                         if not needs then
                             indexCleanupEggPets(drops, maxV)
                             break
+                        end
+                        if CollectionTeleportToEgg then
+                            collectionTravelToEgg(eggName)
                         end
                         buyIndexEgg(eggName) -- usa HatchAmount da aba Hatching
                         task.wait(0.35)
