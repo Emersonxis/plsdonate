@@ -4411,15 +4411,38 @@ end
 local function indexCleanupEggPets(petIds, maxV)
     refreshData()
     local owned = collectionSet()
+    local queueReserved = darkMatterQueueReservations()
     local neededRain = math.max(1, RainbowPetsNeeded or 6)
     local neededDM = math.max(1, DarkMatterPetsNeeded or 1)
+
+    local function targetFinished(pid)
+        if maxV < 4 then return hasCollection(owned, pid, maxV) end
+        -- Slot pendente nao e um Dark Matter concluido.
+        if queueReserved[tostring(pid)] then
+            for _, pet in pairs(Data.Pets or {}) do
+                if pet and tostring(pet.id) == tostring(pid) and pet.dm
+                    and not isBlacklisted(pet.uid) then
+                    return true
+                end
+            end
+            return false
+        end
+        if hasCollection(owned, pid, 4) then return true end
+        for _, pet in pairs(Data.Pets or {}) do
+            if pet and tostring(pet.id) == tostring(pid) and pet.dm
+                and not isBlacklisted(pet.uid) then
+                return true
+            end
+        end
+        return false
+    end
 
     local eggSet = {}
     for _, id in ipairs(petIds) do eggSet[tostring(id)] = true end
 
     local keepGold, keepRain = {}, {} -- pid -> qty
     for pid, _ in pairs(eggSet) do
-        if hasCollection(owned, pid, maxV) then
+        if targetFinished(pid) then
             keepGold[pid] = 0
             keepRain[pid] = 0
         else
@@ -4433,7 +4456,7 @@ local function indexCleanupEggPets(petIds, maxV)
                     rainbowOwned = rainbowOwned + 1
                 end
             end
-            if maxV >= 4 and not hasCollection(owned, pid, 4) then
+            if maxV >= 4 and not targetFinished(pid) then
                 -- Dark Matter precisa de N Rainbow, e cada Rainbow precisa
                 -- de M Golden. Reserva a cadeia inteira, nao apenas um lote.
                 local rainbowMissing = math.max(0, neededDM - rainbowOwned)
@@ -4452,7 +4475,7 @@ local function indexCleanupEggPets(petIds, maxV)
         local pid = tostring(pet.id)
         if not eggSet[pid] then continue end
 
-        if hasCollection(owned, pid, maxV) then
+        if targetFinished(pid) then
             -- alvo ja no index: deleta normal/gold/rainbow/dm desse pet
             table.insert(toDelete, pet.uid)
         elseif pet.dm then
@@ -4473,7 +4496,7 @@ local function indexCleanupEggPets(petIds, maxV)
         -- Enquanto o Dark Matter ainda nao esta concluido, todo Golden deste
         -- pet continua sendo material de craft. Nao descartar parcialmente a
         -- cadeia quando a maquina esta cheia ou processando slots.
-        if maxV >= 4 and not hasCollection(owned, pid, 4) then
+        if maxV >= 4 and not targetFinished(pid) then
             continue
         end
         local reserve = keepGold[pid] or 0
@@ -4484,7 +4507,7 @@ local function indexCleanupEggPets(petIds, maxV)
     for pid, list in pairs(rainBuckets) do
         -- O mesmo vale para Rainbow: so podem ser limpos depois que o DM
         -- correspondente estiver efetivamente concluido.
-        if maxV >= 4 and not hasCollection(owned, pid, 4) then
+        if maxV >= 4 and not targetFinished(pid) then
             continue
         end
         local reserve = keepRain[pid] or 0
