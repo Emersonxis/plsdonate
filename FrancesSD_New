@@ -163,6 +163,24 @@ local FrameworkWorldCmds = IsFrameworkBackend and Library.WorldCmds or nil
 local FrameworkThings = IsFrameworkBackend and Library.Things or nil
 local FrameworkSave = IsFrameworkBackend and Library.Save or nil
 
+local function instanceCoinHealth(instance)
+    if not instance then return 0 end
+    local names = {"Health", "health", "HP", "hp", "MaxHealth", "maxHealth", "CoinHealth"}
+    for _, name in ipairs(names) do
+        local value = tonumber(instance:GetAttribute(name))
+        if value then return value end
+    end
+    for _, child in ipairs(instance:GetChildren()) do
+        local childName = tostring(child.Name):lower()
+        if (childName == "health" or childName == "hp" or childName == "maxhealth")
+            and (child:IsA("NumberValue") or child:IsA("IntValue")) then
+            local value = tonumber(child.Value)
+            if value then return value end
+        end
+    end
+    return 0
+end
+
 local function frameworkReadyForAction()
     if not IsFrameworkBackend then return true end
     local okLoaded, loaded = pcall(function()
@@ -258,6 +276,7 @@ local function frameworkCoinSnapshot()
                 p = pos.Position,
                 n = coin:GetAttribute("Name") or coin.Name,
                 a = area,
+                h = instanceCoinHealth(coin),
                 instance = coin,
             }
         end
@@ -2496,7 +2515,9 @@ end
 
 local function farmCoinHealth(coin)
     if type(coin) ~= "table" then return 0 end
-    return tonumber(coin.h or coin.hp or coin.health or coin.Health or coin.m or coin.maxHealth) or 0
+    local health = tonumber(coin.h or coin.hp or coin.health or coin.Health or coin.m or coin.maxHealth)
+    if health then return health end
+    return instanceCoinHealth(coin.instance)
 end
 
 local function farmCoinName(coin)
@@ -2551,9 +2572,15 @@ local function collectAreaFarmTargets(areaName, method, selected, origin)
         end
     end
     if method == "More Health" then
-        table.sort(targets, function(a, b) return a.health > b.health end)
+        table.sort(targets, function(a, b)
+            if a.health ~= b.health then return a.health > b.health end
+            return a.distance < b.distance
+        end)
     elseif method == "Less Health" then
-        table.sort(targets, function(a, b) return a.health < b.health end)
+        table.sort(targets, function(a, b)
+            if a.health ~= b.health then return a.health < b.health end
+            return a.distance < b.distance
+        end)
     elseif method == "Random" then
         for i = #targets, 2, -1 do
             local j = math.random(1, i)
