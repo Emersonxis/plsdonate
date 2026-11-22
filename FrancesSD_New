@@ -1873,7 +1873,7 @@ Pet_Tab:CreateToggle({
 })
 
 Pet_Tab:CreateToggle({
-    name = "Auto Skip Dark Matter Craft",
+    name = "Auto Skip Dark Matter Craft (Diamonds)",
     value = false,
     flag = "AutoSkipDarkMatter",
     callback = function(Value)
@@ -1883,13 +1883,15 @@ Pet_Tab:CreateToggle({
         task.spawn(function()
             while Auto_Skip_Dark_Matter do
                 refreshData()
-                -- Dump: Prompt Dark Matter Skip usa a KEY do DarkMatterQueue (slot), nao o uid do pet
+                -- O GUI novo usa o slot/key de DarkMatterQueue, nao o uid do pet.
+                -- Prompt Dark Matter Skip abre a compra Robux; o botao nativo usa
+                -- Skip Dark Matter With Diamonds diretamente.
                 local queue = Data and Data.DarkMatterQueue
                 if type(queue) == "table" then
                     for slotId, _ in pairs(queue) do
                         if not Auto_Skip_Dark_Matter then break end
                         pcall(function()
-                            Network.Invoke("Prompt Dark Matter Skip", slotId)
+                            Network.Invoke("Skip Dark Matter With Diamonds", slotId)
                         end)
                         task.wait(0.2)
                     end
@@ -4903,8 +4905,19 @@ Exp_Tab:CreateButton({
 -- Massive Diamonds (pack / stock com Coins)
 AutoBuyMassiveDiamonds = false
 AutoBuyMassiveLoopRunning = false
+AutoBuyDiamondProducts = { "Massive Diamonds" }
+Exp_Tab:CreateDropdown({
+    name = "Pacotes de Diamonds para comprar (multi)",
+    options = { "Tiny Diamonds", "Medium Diamonds", "Large Diamonds", "Massive Diamonds" },
+    value = { "Massive Diamonds" },
+    multiSelect = true,
+    flag = "AutoBuyDiamondProducts",
+    callback = function(Options)
+        AutoBuyDiamondProducts = listDropdown(Options)
+    end,
+})
 Exp_Tab:CreateToggle({
-    name = "Auto Buy Massive Diamonds (loop 0.5s)",
+    name = "Auto Buy Diamond Packs (loop 0.5s)",
     value = false,
     flag = "AutoBuyMassiveDiamonds",
     callback = function(Value)
@@ -4913,11 +4926,16 @@ Exp_Tab:CreateToggle({
         AutoBuyMassiveLoopRunning = true
         task.spawn(function()
             while AutoBuyMassiveDiamonds do
-                -- Fluxo F2P confirmado no dump da loja. Os outros nomes
-                -- genericos podiam prender a coroutine e impedir o segundo ciclo.
-                pcall(function()
-                    Network.Invoke("Purchase Currency", "Massive Diamonds")
-                end)
+                -- Products.txt confirma os quatro nomes e os valores concedidos.
+                -- Mantemos uma chamada por pacote selecionado para respeitar
+                -- o contrato do remote e evitar uma assinatura inventada.
+                for _, productName in ipairs(AutoBuyDiamondProducts or {}) do
+                    if not AutoBuyMassiveDiamonds then break end
+                    pcall(function()
+                        Network.Invoke("Purchase Currency", productName)
+                    end)
+                    task.wait(0.05)
+                end
                 task.wait(0.5)
             end
             AutoBuyMassiveLoopRunning = false
