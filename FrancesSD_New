@@ -4328,7 +4328,7 @@ local function indexCraftOnce()
         if isBlacklisted(pet.uid) or isPetLocked(pet) or isHugePet(pet.id)
             or isPetMarkedForDeletion(pet) then continue end
         local key = tostring(pet.id) .. (isPetShiny(pet) and "|S" or "|N")
-        groups[key] = groups[key] or { id = pet.id, gold = {}, rainbow = {} }
+        groups[key] = groups[key] or { id = pet.id, shiny = isPetShiny(pet), gold = {}, rainbow = {} }
         if pet.dm then
             -- ok
         elseif pet.r then
@@ -4344,15 +4344,33 @@ local function indexCraftOnce()
         if isBlacklistedPet(petId) or not petRarityAllowed(petId) then continue end
         local normalKey = tostring(petId) .. "|N"
         local shinyKey = tostring(petId) .. "|S"
-        if maxV >= 3 and not hasCollection(owned, petId, 3) then
-            while #g.gold >= neededRain do
+        local targetRainbows = maxV >= 4 and neededDM or 1
+        if maxV >= 3 and (maxV < 4 or not hasCollection(owned, petId, 4)) then
+            -- Para Dark Matter, uma entrada no Collection nao significa que
+            -- ja existem seis Rainbow. Cada Rainbow exige o lote completo de
+            -- Golden, portanto a meta e uma quantidade, nao um booleano.
+            while #g.rainbow < targetRainbows and #g.gold >= neededRain do
                 local batch = {}
                 for i = 1, neededRain do table.insert(batch, table.remove(g.gold, 1)) end
                 pcall(function() Network.Invoke("Use Rainbow Machine", batch) end)
                 task.wait(0.35)
                 refreshData()
                 owned = collectionSet()
-                if hasCollection(owned, petId, 3) then break end
+                -- Rele o inventario: o Rainbow recem-criado recebe um UID
+                -- novo e precisa entrar no lote seguinte para Dark Matter.
+                g.gold, g.rainbow = {}, {}
+                for _, fresh in pairs(Data.Pets or {}) do
+                    if fresh and tostring(fresh.id) == tostring(petId)
+                        and isPetShiny(fresh) == g.shiny
+                        and not isBlacklisted(fresh.uid)
+                        and not isPetLocked(fresh) and fresh.uid then
+                        if fresh.r then
+                            table.insert(g.rainbow, fresh.uid)
+                        elseif fresh.g then
+                            table.insert(g.gold, fresh.uid)
+                        end
+                    end
+                end
             end
         end
         if maxV >= 4 and not hasCollection(owned, petId, 4) then
