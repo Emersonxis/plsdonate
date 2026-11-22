@@ -4488,7 +4488,7 @@ local function collectionWorldLoaded(worldKey)
     return loaded and (not worldKey or tostring(current) == tostring(worldKey))
 end
 
-local function collectionTravelToEgg(eggName)
+function collectionTravelToEgg(eggName)
     if not CollectionTeleportToEgg then return true end
     local part = findCollectionEgg(eggName)
     if not part then
