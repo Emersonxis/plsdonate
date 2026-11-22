@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
+local HUB_VERSION = "2026.11.22-Collection"
 
 -- ====================== SERVICES & PLAYER ======================
 local player = Players.LocalPlayer
@@ -1381,8 +1382,8 @@ end
 
 Rayfield = runRemoteSource(game:HttpGet("https://sirius.menu/gen2"))
 window = Rayfield:CreateWindow({
-    name = "PSX Mod Hub",
-    subtitle = "Improved Edition · Gen2",
+    name = "PSX Mod Hub | " .. HUB_VERSION,
+    subtitle = "FrancesSD New · Gen2",
     theme = "cobalt",
     sidebarLayout = true,
     showName = "PSX",
@@ -1437,6 +1438,8 @@ local function notify(title, content, duration)
         })
     end)
 end
+
+notify("FrancesSD New", "Versão atual: " .. HUB_VERSION, 5)
 
 task.wait(0.3)
 
@@ -4422,14 +4425,22 @@ local function indexCleanupEggPets(petIds, maxV)
         else
             keepGold[pid] = 0
             keepRain[pid] = 0
-            if maxV >= 3 and not hasCollection(owned, pid, 3) then
-                keepGold[pid] = neededRain
+            local rainbowOwned = 0
+            for _, pet in pairs(Data.Pets or {}) do
+                if pet and tostring(pet.id) == tostring(pid)
+                    and pet.r and not isBlacklisted(pet.uid)
+                    and not isPetLocked(pet) then
+                    rainbowOwned = rainbowOwned + 1
+                end
             end
             if maxV >= 4 and not hasCollection(owned, pid, 4) then
-                keepRain[pid] = neededDM
-                if not hasCollection(owned, pid, 3) then
-                    keepGold[pid] = math.max(keepGold[pid], neededRain)
-                end
+                -- Dark Matter precisa de N Rainbow, e cada Rainbow precisa
+                -- de M Golden. Reserva a cadeia inteira, nao apenas um lote.
+                local rainbowMissing = math.max(0, neededDM - rainbowOwned)
+                keepRain[pid] = rainbowMissing
+                keepGold[pid] = rainbowMissing * neededRain
+            elseif maxV >= 3 and not hasCollection(owned, pid, 3) then
+                keepGold[pid] = neededRain
             end
         end
     end
