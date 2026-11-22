@@ -4470,12 +4470,23 @@ local function indexCleanupEggPets(petIds, maxV)
     end
 
     for pid, list in pairs(goldBuckets) do
+        -- Enquanto o Dark Matter ainda nao esta concluido, todo Golden deste
+        -- pet continua sendo material de craft. Nao descartar parcialmente a
+        -- cadeia quando a maquina esta cheia ou processando slots.
+        if maxV >= 4 and not hasCollection(owned, pid, 4) then
+            continue
+        end
         local reserve = keepGold[pid] or 0
         for i = reserve + 1, #list do
             table.insert(toDelete, list[i])
         end
     end
     for pid, list in pairs(rainBuckets) do
+        -- O mesmo vale para Rainbow: so podem ser limpos depois que o DM
+        -- correspondente estiver efetivamente concluido.
+        if maxV >= 4 and not hasCollection(owned, pid, 4) then
+            continue
+        end
         local reserve = keepRain[pid] or 0
         for i = reserve + 1, #list do
             table.insert(toDelete, list[i])
