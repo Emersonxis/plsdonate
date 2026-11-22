@@ -16,7 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-local HUB_VERSION = "2026.11.22-Collection"
+HUB_VERSION = "2026.11.22-Collection"
 
 -- ====================== SERVICES & PLAYER ======================
 local player = Players.LocalPlayer
@@ -4555,7 +4555,7 @@ local function collectionTargetText(eggName, maxV, goldenOnly)
     return "Faltando: " .. table.concat(pending, ", ")
 end
 
-local function collectionCraftProgress(pid)
+function collectionCraftProgress(pid)
     local gold, rainbow, darkMatter = 0, 0, 0
     for _, pet in pairs((Data and Data.Pets) or {}) do
         if pet and tostring(pet.id) == tostring(pid)
@@ -4572,7 +4572,7 @@ local function collectionCraftProgress(pid)
     return gold, rainbow, darkMatter
 end
 
-local function collectionPetReadyFromInventory(pid, maxV, goldenOnly)
+function collectionPetReadyFromInventory(pid, maxV, goldenOnly)
     if isBlacklistedPet(pid) or not petRarityAllowed(pid) then return true end
     local owned = collectionSet()
     if maxV <= 1 then return hasCollection(owned, pid, 1) end
