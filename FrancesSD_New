@@ -133,7 +133,13 @@ local function resolveLibrary()
 end
 
 local Library, LibraryPath, LibraryScore = resolveLibrary()
-if LibraryPath ~= "ReplicatedStorage.Framework.Library" then
+-- Em atualizacoes novas, Framework.Library pode ser apenas um wrapper que
+-- retorna ReplicatedStorage.Library. Nesse caso o backend continua sendo o
+-- Framework, mesmo quando o resolvedor escolhe a tabela canonica diretamente.
+local FrameworkFolder = ReplicatedStorage:FindFirstChild("Framework")
+local FrameworkLibraryModule = FrameworkFolder and FrameworkFolder:FindFirstChild("Library")
+local HasFrameworkBackend = FrameworkLibraryModule ~= nil
+if not HasFrameworkBackend or not Library then
     error("[FrancesSD New] Framework.Library nao encontrada. Execute esta Hub somente no novo mod.")
 end
 -- Variantes oficiais podem carregar a tabela depois do require.
@@ -149,7 +155,7 @@ local Network = Library.Network
 -- Framework:  Buy Egg(eggId, tripleOpenBoolean)
 -- A seleção precisa usar o caminho que realmente foi carregado, sem alterar
 -- a prioridade da LibraryOld quando ela está presente.
-local IsFrameworkBackend = LibraryPath == "ReplicatedStorage.Framework.Library"
+local IsFrameworkBackend = HasFrameworkBackend
 WorldCmdsOld = Library.WorldCmds
 if not WorldCmdsOld then
     pcall(function()
@@ -1436,7 +1442,7 @@ end
 task.wait(0.3)
 
 -- ====================== EGG PURCHASE ======================
--- O Framework usa exclusivamente Buy Egg(eggId, tripleOpenBoolean).
+-- A versao nova usa Buy Egg(eggId, isGolden, amount/slots).
 -- O contrato Old nao e utilizado nesta Hub.
 local HatchRequestBusy = false
 local HatchAmountsCache = {}
@@ -1485,11 +1491,25 @@ end
 
 local function buyEggExact(eggName, requested)
     if not eggName or HatchRequestBusy then return false, 0 end
-    local amount = IsFrameworkBackend and ((tonumber(requested) or 1) >= 3 or frameworkHasTripleEgg())
-        or chooseHatchAmount(eggName, requested)
+    local amount
+    if IsFrameworkBackend then
+        amount = math.max(1, math.floor(tonumber(requested) or 1))
+        local slots
+        pcall(function()
+            slots = tonumber(Network.Invoke("Get Egg Slots"))
+        end)
+        if slots and slots >= 1 then
+            amount = math.min(amount, math.floor(slots))
+        end
+    else
+        amount = chooseHatchAmount(eggName, requested)
+    end
     local eggId = IsFrameworkBackend and resolveFrameworkEggId(eggName) or eggName
     HatchRequestBusy = true
     local ok, result, err = pcall(function()
+        if IsFrameworkBackend then
+            return Network.Invoke("Buy Egg", eggId, false, amount)
+        end
         return Network.Invoke("Buy Egg", eggId, amount)
     end)
     HatchRequestBusy = false
