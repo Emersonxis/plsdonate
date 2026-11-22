@@ -1060,10 +1060,15 @@ local function snapshotInventoryToBlacklist()
     local count = 0
     local save = Data or Library.Save.Get()
     if save and type(save.Pets) == "table" then
-        for _, pet in ipairs(save.Pets) do
-            if pet and pet.uid and not isBlacklisted(pet.uid) then
-                PetBlacklist[tostring(pet.uid)] = true
-                count = count + 1
+        -- Alguns mods entregam Save.Pets como dicionario, nao como array.
+        -- pairs cobre os dois formatos e evita deixar pets desprotegidos.
+        for _, pet in pairs(save.Pets) do
+            if type(pet) == "table" then
+                local uid = pet.uid or pet.UID
+                if uid and not isBlacklisted(uid) then
+                    PetBlacklist[tostring(uid)] = true
+                    count = count + 1
+                end
             end
         end
     end
@@ -4053,12 +4058,54 @@ local function requiredVariantNums(targetVariant)
     return t
 end
 
+local function darkMatterQueueReservations()
+    local reserved = {}
+    local occupied = 0
+    local save = Data or Library.Save.Get()
+    local queue = save and save.DarkMatterQueue
+    if type(queue) ~= "table" then return reserved, occupied end
+
+    local petsByUid = {}
+    for _, pet in pairs((save and save.Pets) or {}) do
+        if type(pet) == "table" then
+            local uid = pet.uid or pet.UID
+            if uid then petsByUid[tostring(uid)] = pet end
+        end
+    end
+
+    for _, slot in pairs(queue) do
+        occupied = occupied + 1
+        if type(slot) == "table" then
+            local petId = slot.petId or slot.PetId or slot.id or slot.ID
+            local uid = slot.uid or slot.UID or slot.petUid or slot.PetUID
+            local source = uid and petsByUid[tostring(uid)] or nil
+            petId = petId or (source and (source.id or source.Id))
+            if petId ~= nil then
+                local shiny = slot.shiny == true or slot.Shiny == true
+                    or (source and isPetShiny(source))
+                reserved[tostring(petId) .. (shiny and "|S" or "|N")] = true
+                -- Tambem marca sem o sufixo para saves que nao informam shiny.
+                reserved[tostring(petId)] = true
+            end
+        end
+    end
+    return reserved, occupied
+end
+
 local function collectionSet()
     refreshData()
     local owned = {}
     local col = (Data and Data.Collection) or {}
     for _, key in ipairs(col) do
         owned[tostring(key)] = true
+    end
+    -- Um pet na maquina ja esta reservado para a Collection, mesmo antes
+    -- de aparecer em Data.Collection. Isso evita reabrir o mesmo pet.
+    local reserved = darkMatterQueueReservations()
+    for key, value in pairs(reserved) do
+        if value and not tostring(key):find("|", 1, true) then
+            owned[tostring(key) .. "-4"] = true
+        end
     end
     return owned
 end
@@ -4271,6 +4318,7 @@ end
 local function indexCraftOnce()
     refreshData()
     local owned = collectionSet()
+    local queueReserved = darkMatterQueueReservations()
     local maxV = variantToNum[CollectionVariant] or 1
     local neededRain = math.max(1, RainbowPetsNeeded or 6)
     local neededDM = math.max(1, DarkMatterPetsNeeded or 1)
@@ -4294,6 +4342,8 @@ local function indexCraftOnce()
     for _, g in pairs(groups) do
         local petId = g.id
         if isBlacklistedPet(petId) or not petRarityAllowed(petId) then continue end
+        local normalKey = tostring(petId) .. "|N"
+        local shinyKey = tostring(petId) .. "|S"
         if maxV >= 3 and not hasCollection(owned, petId, 3) then
             while #g.gold >= neededRain do
                 local batch = {}
@@ -4306,6 +4356,13 @@ local function indexCraftOnce()
             end
         end
         if maxV >= 4 and not hasCollection(owned, petId, 4) then
+            -- Nao tenta ocupar novamente uma vaga ja reservada. Se a maquina
+            -- estiver cheia, os rainbow restantes ficam preservados pelo
+            -- cleanup na quantidade definida em Dark Matter - Pets needed.
+            if queueReserved[normalKey] or queueReserved[shinyKey]
+                or queueReserved[tostring(petId)] then
+                continue
+            end
             while #g.rainbow >= neededDM do
                 local batch = {}
                 for i = 1, neededDM do table.insert(batch, table.remove(g.rainbow, 1)) end
