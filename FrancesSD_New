@@ -4356,7 +4356,7 @@ local function indexCraftOnce()
                 local batch = {}
                 for i = 1, neededRain do table.insert(batch, table.remove(g.gold, 1)) end
                 pcall(function() Network.Invoke("Use Rainbow Machine", batch) end)
-                task.wait(0.35)
+                task.wait(0.2)
                 refreshData()
                 owned = collectionSet()
                 -- Rele o inventario: o Rainbow recem-criado recebe um UID
@@ -4388,7 +4388,7 @@ local function indexCraftOnce()
                 local batch = {}
                 for i = 1, neededDM do table.insert(batch, table.remove(g.rainbow, 1)) end
                 pcall(function() Network.Invoke("Convert To Dark Matter", batch) end)
-                task.wait(0.4)
+                task.wait(0.25)
                 pcall(function()
                     local save = Library.Save.Get()
                     if save and type(save.DarkMatterQueue) == "table" then
@@ -4417,15 +4417,11 @@ local function indexCleanupEggPets(petIds, maxV)
 
     local function targetFinished(pid)
         if maxV < 4 then return hasCollection(owned, pid, maxV) end
-        -- Slot pendente nao e um Dark Matter concluido.
+        -- Ao entrar na fila, o pet ja foi enviado para craft. Ele deixa de
+        -- ser buscado nos eggs e os excedentes podem ser limpos; se nao houver
+        -- vaga, ele nao entra aqui e os materiais continuam preservados.
         if queueReserved[tostring(pid)] then
-            for _, pet in pairs(Data.Pets or {}) do
-                if pet and tostring(pet.id) == tostring(pid) and pet.dm
-                    and not isBlacklisted(pet.uid) then
-                    return true
-                end
-            end
-            return false
+            return true
         end
         if hasCollection(owned, pid, 4) then return true end
         for _, pet in pairs(Data.Pets or {}) do
@@ -4529,6 +4525,9 @@ local function eggNeedsWork(eggName, maxV, goldenOnly)
     if firstVariant > maxV then return false, drops end
     for _, pid in ipairs(drops) do
         if isBlacklistedPet(pid) or not petRarityAllowed(pid) then continue end
+        if collectionPetReadyFromInventory(pid, maxV, goldenOnly) then
+            continue
+        end
         for v = firstVariant, maxV do
             if not hasCollection(owned, pid, v) then
                 return true, drops
@@ -4554,6 +4553,46 @@ local function collectionTargetText(eggName, maxV, goldenOnly)
     end
     if #pending == 0 then return "Nenhum pet pendente neste egg" end
     return "Faltando: " .. table.concat(pending, ", ")
+end
+
+local function collectionCraftProgress(pid)
+    local gold, rainbow, darkMatter = 0, 0, 0
+    for _, pet in pairs((Data and Data.Pets) or {}) do
+        if pet and tostring(pet.id) == tostring(pid)
+            and not isBlacklisted(pet.uid) and not isPetLocked(pet) then
+            if pet.dm then
+                darkMatter = darkMatter + 1
+            elseif pet.r then
+                rainbow = rainbow + 1
+            elseif pet.g then
+                gold = gold + 1
+            end
+        end
+    end
+    return gold, rainbow, darkMatter
+end
+
+local function collectionPetReadyFromInventory(pid, maxV, goldenOnly)
+    if isBlacklistedPet(pid) or not petRarityAllowed(pid) then return true end
+    local owned = collectionSet()
+    if maxV <= 1 then return hasCollection(owned, pid, 1) end
+    if not goldenOnly and not hasCollection(owned, pid, 1) then return false end
+    local gold, rainbow, darkMatter = collectionCraftProgress(pid)
+    if maxV >= 4 then
+        if hasCollection(owned, pid, 4) or darkMatter > 0 then return true end
+        local queued = darkMatterQueueReservations()
+        if queued[tostring(pid)] then return true end
+        local neededRain = math.max(1, RainbowPetsNeeded or 6)
+        local neededDM = math.max(1, DarkMatterPetsNeeded or 1)
+        -- Rainbow direto da gamepass e Rainbow craftado contam juntos.
+        return rainbow + math.floor(gold / neededRain) >= neededDM
+    end
+    if maxV >= 3 then
+        if hasCollection(owned, pid, 3) or rainbow > 0 then return true end
+        local neededRain = math.max(1, RainbowPetsNeeded or 6)
+        return math.floor(gold / neededRain) >= 1
+    end
+    return hasCollection(owned, pid, 2) or gold > 0
 end
 
 local function buyIndexEgg(eggName)
