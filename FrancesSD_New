@@ -4301,13 +4301,15 @@ local function indexDeleteUids(uids)
     refreshData()
     local byUid = {}
     for _, pet in pairs(Data.Pets or {}) do
-        if pet.uid then byUid[pet.uid] = pet end
+        local petUid = pet and (pet.uid or pet.UID)
+        if petUid then byUid[tostring(petUid)] = pet end
     end
     for _, uid in ipairs(uids) do
-        local pet = byUid[uid]
-        if pet and not isBlacklisted(pet.uid)
+        local normalizedUid = tostring(uid)
+        local pet = byUid[normalizedUid]
+        if pet and not isBlacklisted(pet.uid or pet.UID)
             and not isPetLocked(pet) and not isHugePet(pet.id) then
-            table.insert(safe, uid)
+            table.insert(safe, normalizedUid)
         end
     end
     if #safe == 0 then return end
@@ -4772,7 +4774,10 @@ Col_Tab:CreateToggle({
                     end
                     local needs, drops = eggNeedsWork(eggName, maxV, goldenEgg)
                     if not needs then
-                        -- egg completo: limpa inventario residual desse egg
+                        -- Pode haver materiais suficientes no inventario mesmo
+                        -- sem o indice ter sido atualizado. Crafta primeiro e
+                        -- so depois limpa o excedente por pet.
+                        indexCraftOnce()
                         if #drops > 0 then
                             indexCleanupEggPets(drops, maxV)
                         end
@@ -4789,6 +4794,7 @@ Col_Tab:CreateToggle({
                     while AutoIndex and runVersion == CollectionConfigVersion do
                         needs, drops = eggNeedsWork(eggName, maxV, goldenEgg)
                         if not needs then
+                            indexCraftOnce()
                             indexCleanupEggPets(drops, maxV)
                             break
                         end
