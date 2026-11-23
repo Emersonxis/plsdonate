@@ -16,7 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-HUB_VERSION = "2026.11.22-Collection"
+HUB_VERSION = "FrancesS v1.6"
 
 -- ====================== SERVICES & PLAYER ======================
 local player = Players.LocalPlayer
@@ -4519,6 +4519,29 @@ local function indexCleanupEggPets(petIds, maxV)
     end
 end
 
+function indexCleanupSelectedWorlds(maxV)
+    local petIds, seen = {}, {}
+    for _, world in ipairs(IndexWorlds or {}) do
+        for _, baseEgg in ipairs(IndexWorldEggMap[world] or {}) do
+            local candidates = {baseEgg, "Golden " .. baseEgg}
+            for _, eggName in ipairs(candidates) do
+                for _, pid in ipairs(getEggDrops(eggName)) do
+                    local key = tostring(pid)
+                    if not seen[key] then
+                        seen[key] = true
+                        table.insert(petIds, pid)
+                    end
+                end
+            end
+        end
+    end
+    if #petIds > 0 then
+        -- Uma unica chamada percorre todos os pets e envia um lote unico de
+        -- UIDs, incluindo Golden/Rainbow/Dark Matter ja concluido.
+        indexCleanupEggPets(petIds, maxV)
+    end
+end
+
 local function eggNeedsWork(eggName, maxV, goldenOnly)
     local drops = getEggDrops(eggName)
     if #drops == 0 then return false, drops end
@@ -4778,9 +4801,7 @@ Col_Tab:CreateToggle({
                         -- sem o indice ter sido atualizado. Crafta primeiro e
                         -- so depois limpa o excedente por pet.
                         indexCraftOnce()
-                        if #drops > 0 then
-                            indexCleanupEggPets(drops, maxV)
-                        end
+                        indexCleanupSelectedWorlds(maxV)
                         continue
                     end
                     progressed = true
@@ -4795,7 +4816,7 @@ Col_Tab:CreateToggle({
                         needs, drops = eggNeedsWork(eggName, maxV, goldenEgg)
                         if not needs then
                             indexCraftOnce()
-                            indexCleanupEggPets(drops, maxV)
+                            indexCleanupSelectedWorlds(maxV)
                             break
                         end
                         setCollectionStatus(collectionTargetText(eggName, maxV, goldenEgg)
@@ -4806,12 +4827,16 @@ Col_Tab:CreateToggle({
                         buyIndexEgg(eggName) -- usa HatchAmount da aba Hatching
                         task.wait(0.35)
                         indexCraftOnce()
-                        indexCleanupEggPets(drops, maxV)
+                        indexCleanupSelectedWorlds(maxV)
                         task.wait(0.2)
                     end
                 end
+                -- Check independente do egg atual: captura excedentes de um
+                -- pet concluido mesmo quando outro pet do mesmo egg continua
+                -- pendente.
+                indexCleanupSelectedWorlds(maxV)
                 if not progressed then
-                    task.wait(6)
+                    task.wait(1.5)
                 else
                     task.wait(1)
                 end
