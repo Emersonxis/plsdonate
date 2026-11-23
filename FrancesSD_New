@@ -5198,7 +5198,7 @@ function refreshDiamondProductOptions()
     return labels, names
 end
 
-local DiamondProductLabels, DiamondProductNames = refreshDiamondProductOptions()
+DiamondProductLabels, DiamondProductNames = refreshDiamondProductOptions()
 if #DiamondProductNames > 0 then AutoBuyDiamondProducts = { DiamondProductNames[#DiamondProductNames] } end
 Exp_Tab:CreateDropdown({
     name = "Pacotes de Diamonds para comprar (multi)",
