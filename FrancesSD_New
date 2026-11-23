@@ -5095,15 +5095,95 @@ Exp_Tab:CreateButton({
 -- Massive Diamonds (pack / stock com Coins)
 AutoBuyMassiveDiamonds = false
 AutoBuyMassiveLoopRunning = false
-AutoBuyDiamondProducts = { "Massive Diamonds" }
+AutoBuyDiamondProducts = {}
+DiamondProductByLabel = {}
+DiamondProductTier = {}
+
+function diamondShortAmount(value)
+    value = tonumber(value)
+    if not value then return nil end
+    if value >= 1000000000 then return (string.format("%.2fB", value / 1000000000)):gsub("%.00B", "B") end
+    if value >= 1000000 then return (string.format("%.2fm", value / 1000000)):gsub("%.00m", "m") end
+    if value >= 1000 then return (string.format("%.1fk", value / 1000)):gsub("%.0k", "k") end
+    return tostring(value)
+end
+
+function diamondProductAmount(productName, productData)
+    local known = {
+        ["Tiny Diamonds"] = 30000,
+        ["Medium Diamonds"] = 125000,
+        ["Large Diamonds"] = 600000,
+        ["Massive Diamonds"] = 2500000,
+    }
+    if type(productData) == "table" then
+        for _, key in ipairs({"amount", "Amount", "quantity", "Quantity", "diamonds", "Diamonds", "value", "Value"}) do
+            local n = tonumber(productData[key])
+            if n and n > 0 then return n end
+        end
+        local callback = productData.Callback
+        if type(callback) == "function" then
+            -- Nao executa callback: ele pode conceder moeda diretamente.
+            -- Usa a tabela conhecida quando o dump nao expoe o valor.
+        end
+    end
+    return known[productName]
+end
+
+function refreshDiamondProductOptions()
+    local names, seen = {}, {}
+    local preferred = {"Tiny Diamonds", "Medium Diamonds", "Large Diamonds", "Massive Diamonds"}
+    local products = Library.Directory and Library.Directory.Products or {}
+    for _, name in ipairs(preferred) do
+        if products[name] then
+            table.insert(names, name)
+            seen[name] = true
+        end
+    end
+    for name, data in pairs(products) do
+        local n = tostring(name)
+        if n:lower():find("diamond", 1, true) and not seen[n] then
+            table.insert(names, n)
+            seen[n] = true
+        end
+    end
+    -- Fallback para mods que nao expoem Directory.Products no primeiro frame.
+    if #names == 0 then names = {"Tiny Diamonds", "Medium Diamonds", "Large Diamonds", "Massive Diamonds"} end
+    table.sort(names, function(a, b)
+        local order = { ["Tiny Diamonds"] = 1, ["Medium Diamonds"] = 2, ["Large Diamonds"] = 3, ["Massive Diamonds"] = 4 }
+        return (order[a] or 99) < (order[b] or 99)
+    end)
+    DiamondProductByLabel = {}
+    DiamondProductTier = {}
+    local labels, bestAmount = {}, 0
+    for tier, productName in ipairs(names) do
+        local amount = diamondProductAmount(productName, products[productName])
+        if amount and amount > bestAmount then bestAmount = amount end
+        DiamondProductTier[productName] = tier
+    end
+    for _, productName in ipairs(names) do
+        local amount = diamondProductAmount(productName, products[productName])
+        local label = amount and (diamondShortAmount(amount) .. " - " .. productName)
+            or productName
+        if amount and amount == bestAmount then label = label .. " - Best método" end
+        DiamondProductByLabel[label] = productName
+        table.insert(labels, label)
+    end
+    return labels, names
+end
+
+local DiamondProductLabels, DiamondProductNames = refreshDiamondProductOptions()
+if #DiamondProductNames > 0 then AutoBuyDiamondProducts = { DiamondProductNames[#DiamondProductNames] } end
 Exp_Tab:CreateDropdown({
     name = "Pacotes de Diamonds para comprar (multi)",
-    options = { "Tiny Diamonds", "Medium Diamonds", "Large Diamonds", "Massive Diamonds" },
-    value = { "Massive Diamonds" },
+    options = DiamondProductLabels,
+    value = { DiamondProductLabels[#DiamondProductLabels] },
     multiSelect = true,
     flag = "AutoBuyDiamondProducts",
     callback = function(Options)
-        AutoBuyDiamondProducts = listDropdown(Options)
+        AutoBuyDiamondProducts = {}
+        for _, label in ipairs(listDropdown(Options)) do
+            table.insert(AutoBuyDiamondProducts, DiamondProductByLabel[label] or label)
+        end
     end,
 })
 Exp_Tab:CreateToggle({
@@ -5116,15 +5196,13 @@ Exp_Tab:CreateToggle({
         AutoBuyMassiveLoopRunning = true
         task.spawn(function()
             while AutoBuyMassiveDiamonds do
-                -- Products.txt confirma os quatro nomes e os valores concedidos.
-                -- Mantemos uma chamada por pacote selecionado para respeitar
-                -- o contrato do remote e evitar uma assinatura inventada.
                 for _, productName in ipairs(AutoBuyDiamondProducts or {}) do
                     if not AutoBuyMassiveDiamonds then break end
                     pcall(function()
-                        Network.Invoke("Purchase Currency", productName)
+                        local tier = DiamondProductTier[productName]
+                        if tier then Network.Invoke("Buy DiamondPack", tier) end
                     end)
-                    task.wait(0.05)
+                    task.wait(0.12)
                 end
                 task.wait(0.5)
             end
