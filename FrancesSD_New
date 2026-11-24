@@ -5110,10 +5110,11 @@ end
 
 function diamondProductAmount(productName, productData)
     local known = {
-        ["Tiny Diamonds"] = 30000,
-        ["Medium Diamonds"] = 125000,
-        ["Large Diamonds"] = 600000,
-        ["Massive Diamonds"] = 2500000,
+        ["Tiny Diamonds"] = 100000,
+        ["Medium Diamonds"] = 450000,
+        ["Large Diamonds"] = 2500000,
+        ["Massive Diamonds"] = 15000000,
+        ["Mega Diamonds"] = 150000000,
     }
     if type(productData) == "table" then
         for _, key in ipairs({"amount", "Amount", "quantity", "Quantity", "diamonds", "Diamonds", "value", "Value"}) do
@@ -5135,21 +5136,22 @@ function diamondProductCost(productName)
         ["Medium Diamonds"] = 2400000,
         ["Large Diamonds"] = 12500000,
         ["Massive Diamonds"] = 70000000,
+        ["Mega Diamonds"] = 775000000,
     }
     return costs[productName]
 end
 
 function diamondTierAmount(tier)
-    return ({30000, 125000, 600000, 2500000})[tier]
+    return ({100000, 450000, 2500000, 15000000, 150000000})[tier]
 end
 
 function diamondTierCost(tier)
-    return ({580000, 2400000, 12500000, 70000000})[tier]
+    return ({580000, 2400000, 12500000, 70000000, 775000000})[tier]
 end
 
 function refreshDiamondProductOptions()
     local names, seen = {}, {}
-    local preferred = {"Tiny Diamonds", "Medium Diamonds", "Large Diamonds", "Massive Diamonds"}
+    local preferred = {"Tiny Diamonds", "Medium Diamonds", "Large Diamonds", "Massive Diamonds", "Mega Diamonds"}
     local products = Library.Directory and Library.Directory.Products or {}
     for _, name in ipairs(preferred) do
         if products[name] then
@@ -5164,10 +5166,10 @@ function refreshDiamondProductOptions()
             seen[n] = true
         end
     end
-    -- O dump atual confirma quatro produtos de Diamonds. Nao inventar um
-    -- quinto tier: o remote recebe o indice do pacote e o tier 5 nao foi
-    -- confirmado neste update.
-    if #names == 0 then names = preferred end
+    -- O mod mostra cinco botoes: dois Best Currency e tres pacotes.
+    -- Mantemos cinco entradas mesmo quando Directory.Products oculta algum
+    -- dos botoes especiais; o remote recebe o tier, nao o nome.
+    names = preferred
     table.sort(names, function(a, b)
         local order = { ["Tiny Diamonds"] = 1, ["Medium Diamonds"] = 2, ["Large Diamonds"] = 3, ["Massive Diamonds"] = 4 }
         return (order[a] or 99) < (order[b] or 99)
