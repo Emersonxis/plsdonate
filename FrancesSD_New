@@ -16,7 +16,22 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-HUB_VERSION = "FrancesS v1.7"
+HUB_VERSION = "FrancesS v1.8"
+
+-- O Auto Hatch nativo do Framework emite um warn por compra. Filtra apenas
+-- essa mensagem conhecida; os demais avisos do jogo continuam normais.
+pcall(function()
+    if type(hookfunction) == "function" and not _G.FrancesSD_HatchWarnFiltered then
+        local originalWarn
+        originalWarn = hookfunction(warn, function(message, ...)
+            if type(message) == "string" and message:find("^%[HatchTimer%] Buy Egg invoke:") then
+                return
+            end
+            return originalWarn(message, ...)
+        end)
+        _G.FrancesSD_HatchWarnFiltered = true
+    end
+end)
 
 -- ====================== SERVICES & PLAYER ======================
 local player = Players.LocalPlayer
@@ -5145,10 +5160,92 @@ function diamondTierCost(tier)
     return ({580000, 2400000, 12500000, 70000000, 775000000})[tier]
 end
 
+function diamondUiNumber(text)
+    local raw = tostring(text or ""):match("[%d][%d%.,]*%s*[kKmMbBtT]?")
+    if not raw then return nil end
+    raw = raw:gsub("%s", "")
+    local suffix = raw:sub(-1):lower()
+    local multiplier = 1
+    if suffix == "k" or suffix == "m" or suffix == "b" or suffix == "t" then
+        raw = raw:sub(1, -2)
+        multiplier = ({k = 1000, m = 1000000, b = 1000000000, t = 1000000000000})[suffix]
+    end
+    if raw:find(",", 1, true) and not raw:find("%.") then
+        raw = raw:gsub(",", ".")
+    else
+        raw = raw:gsub(",", "")
+    end
+    return tonumber(raw) and tonumber(raw) * multiplier or nil
+end
+
+function diamondUiValue(node)
+    if not node then return nil end
+    local direct = diamondUiNumber(node.Text)
+    if direct then return direct end
+    for _, child in ipairs(node:GetDescendants()) do
+        local value = diamondUiNumber(child.Text)
+        if value then return value end
+    end
+    return nil
+end
+
+function diamondShopButtons()
+    local shop = nil
+    pcall(function() shop = Library.GUI and Library.GUI.ExclusiveShop end)
+    if not shop then shop = PlayerGui:FindFirstChild("Exclusive Shop", true) end
+    local diamonds = shop and shop:FindFirstChild("Diamonds", true)
+    if not diamonds then return {} end
+    local buttons, seen = {}, {}
+    local function add(button)
+        if button and button:IsA("TextButton") and not seen[button] then
+            seen[button] = true
+            table.insert(buttons, button)
+        end
+    end
+    add(diamonds:FindFirstChild("BestCurrency"))
+    add(diamonds:FindFirstChild("BestCurrencyV2"))
+    local group = diamonds:FindFirstChild("CurrencyGroup")
+    if group then
+        for _, child in ipairs(group:GetChildren()) do add(child) end
+    end
+    table.sort(buttons, function(a, b)
+        return (tonumber(a:GetAttribute("Tier")) or 999) < (tonumber(b:GetAttribute("Tier")) or 999)
+    end)
+    return buttons
+end
+
 function refreshDiamondProductOptions()
     local names, seen = {}, {}
     local preferred = {"Tiny Diamonds", "Medium Diamonds", "Large Diamonds", "Massive Diamonds", "Mega Diamonds"}
     local products = Library.Directory and Library.Directory.Products or {}
+    local buttons = diamondShopButtons()
+    if #buttons > 0 then
+        local items, bestRatio = {}, 0
+        for index, button in ipairs(buttons) do
+            local tier = tonumber(button:GetAttribute("Tier")) or index
+            local productName = preferred[tier] or ("Diamond Tier " .. tostring(tier))
+            local amount = diamondUiValue(button:FindFirstChild("Amount", true))
+            local cost = diamondUiValue(button:FindFirstChild("Price", true))
+            local ratio = amount and cost and cost > 0 and amount / cost or 0
+            if ratio > bestRatio then bestRatio = ratio end
+            table.insert(items, {name = productName, tier = tier, amount = amount, cost = cost, ratio = ratio})
+        end
+        table.sort(items, function(a, b) return a.tier < b.tier end)
+        DiamondProductByLabel = {}
+        DiamondProductTier = {}
+        local labels, dynamicNames = {}, {}
+        for _, item in ipairs(items) do
+            local label = (item.amount and diamondShortAmount(item.amount) or ("Tier " .. item.tier))
+                .. " - " .. (item.cost and (diamondShortAmount(item.cost) .. " Coins") or "preço indisponível")
+                .. " - " .. item.name
+            if item.ratio > 0 and item.ratio == bestRatio then label = label .. " - Best método" end
+            DiamondProductByLabel[label] = item.name
+            DiamondProductTier[item.name] = item.tier
+            table.insert(labels, label)
+            table.insert(dynamicNames, item.name)
+        end
+        return labels, dynamicNames
+    end
     for _, name in ipairs(preferred) do
         if products[name] then
             table.insert(names, name)
@@ -5162,10 +5259,7 @@ function refreshDiamondProductOptions()
             seen[n] = true
         end
     end
-    -- O mod mostra cinco botoes: dois Best Currency e tres pacotes.
-    -- Mantemos cinco entradas mesmo quando Directory.Products oculta algum
-    -- dos botoes especiais; o remote recebe o tier, nao o nome.
-    names = preferred
+    if #names == 0 then names = preferred end
     table.sort(names, function(a, b)
         local order = { ["Tiny Diamonds"] = 1, ["Medium Diamonds"] = 2, ["Large Diamonds"] = 3, ["Massive Diamonds"] = 4 }
         return (order[a] or 99) < (order[b] or 99)
@@ -5195,11 +5289,11 @@ function refreshDiamondProductOptions()
 end
 
 DiamondProductLabels, DiamondProductNames = refreshDiamondProductOptions()
-if #DiamondProductNames > 0 then AutoBuyDiamondProducts = { DiamondProductNames[#DiamondProductNames] } end
-Exp_Tab:CreateDropdown({
+if #DiamondProductNames > 0 then AutoBuyDiamondProducts = { DiamondProductNames[1] } end
+DiamondDropdown = Exp_Tab:CreateDropdown({
     name = "Pacotes de Diamonds para comprar (multi)",
     options = DiamondProductLabels,
-    value = { DiamondProductLabels[#DiamondProductLabels] },
+    value = { DiamondProductLabels[1] },
     multiSelect = true,
     flag = "AutoBuyDiamondProducts",
     callback = function(Options)
@@ -5209,6 +5303,19 @@ Exp_Tab:CreateDropdown({
         end
     end,
 })
+Exp_Tab:CreateButton({
+    name = "Atualizar preços dos Diamond Packs",
+    callback = function()
+        local labels, names = refreshDiamondProductOptions()
+        pcall(function() DiamondDropdown:Refresh(labels) end)
+        if names and names[1] then AutoBuyDiamondProducts = {names[1]} end
+    end,
+})
+task.spawn(function()
+    task.wait(3)
+    local labels = refreshDiamondProductOptions()
+    pcall(function() DiamondDropdown:Refresh(labels) end)
+end)
 Exp_Tab:CreateToggle({
     name = "Auto Buy Diamond Packs (loop 0.5s)",
     value = false,
