@@ -16,7 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-HUB_VERSION = "FrancesS v1.8"
+HUB_VERSION = "FrancesS v1.9"
 
 -- O Auto Hatch nativo do Framework emite um warn por compra. Filtra apenas
 -- essa mensagem conhecida; os demais avisos do jogo continuam normais.
@@ -5192,6 +5192,7 @@ end
 function diamondShopButtons()
     local shop = nil
     pcall(function() shop = Library.GUI and Library.GUI.ExclusiveShop end)
+    if shop and typeof(shop) ~= "Instance" then shop = nil end
     if not shop then shop = PlayerGui:FindFirstChild("Exclusive Shop", true) end
     local diamonds = shop and shop:FindFirstChild("Diamonds", true)
     if not diamonds then return {} end
