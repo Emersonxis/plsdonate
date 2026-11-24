@@ -357,13 +357,9 @@ pcall(function()
         hookfunction(fireCheck, function(...) return true end)
     end
 end)
--- Hook Fired (necessario pras recompensas / farm forte do original)
-pcall(function()
-    hookfunction(getupvalue(Network.Fired, 1), function()
-        return true
-    end)
-end)
-
+-- Nao hookar Network.Fired no Framework atual. O primeiro upvalue de Fired
+-- e o resolvedor interno de eventos; substitui-lo por true causa o erro
+-- "attempt to index boolean with 'Fire'" dentro do modulo Network.
 local function ensureNetworkBypass() end -- no-op (ja aplicado no load)
 
 -- ====================== STATE VARIABLES ======================
