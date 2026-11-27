@@ -166,15 +166,6 @@ local Network = Library.Network
 -- A seleção precisa usar o caminho que realmente foi carregado, sem alterar
 -- a prioridade da LibraryOld quando ela está presente.
 local IsFrameworkBackend = LibraryPath == "ReplicatedStorage.Framework.Library"
--- O dump de 26/11 confirmou que este PlaceId e o Hardcore real atual.
--- A leitura da Shared continua sendo a fonte principal, com fallback para
--- os dois PlaceIds conhecidos do mod.
-local IsHardcoreMode = false
-pcall(function()
-    IsHardcoreMode = (Library.Shared and Library.Shared.IsHardcore) == true
-        or game.PlaceId == 122317065496865
-        or game.PlaceId == 121363141726418
-end)
 WorldCmdsOld = Library.WorldCmds
 if not WorldCmdsOld then
     pcall(function()
@@ -2641,9 +2632,6 @@ local function assignFarmPets(pets, targets)
     end
     return assigned
 end
--- O cliente oficial só faz Join/Change quando a atribuição mudou. Antes a
--- Hub repetia os três remotes a cada ciclo de 0,15s, inclusive no Hardcore.
--- Este cache torna todas as modalidades de farm idempotentes.
 local FarmAssignmentState = {
     petTarget = {},
     targetPets = {},
@@ -2668,7 +2656,6 @@ local function applyFarmAssignments(assigned)
         end
     end
 
-    -- Desvincula somente pets que deixaram de estar no plano atual.
     local leftByTarget = {}
     for uid, oldTarget in pairs(FarmAssignmentState.petTarget) do
         if not desired[uid] then
@@ -2680,7 +2667,6 @@ local function applyFarmAssignments(assigned)
         pcall(function() Network.Invoke("Leave Coin", target, pets) end)
     end
 
-    -- Um Join por alvo alterado, não um Join por pet nem por ciclo.
     for target, pets in pairs(changedByTarget) do
         pcall(function() Network.Invoke("Join Coin", target, pets) end)
         for _, petUID in ipairs(pets) do
@@ -2836,8 +2822,6 @@ autoFarmTab:CreateToggle({
                     end
                     local byTarget = {}
                     for _, petUID in ipairs(equippedPets) do
-                        -- Mantém o sorteio anterior enquanto o Coin continua
-                        -- vivo; só escolhe outro quando o alvo sumiu.
                         local oldTarget = FarmAssignmentState.petTarget[tostring(petUID)]
                         local target = oldTarget and available[tostring(oldTarget)]
                         if not target then
@@ -3914,14 +3898,10 @@ Enchant_Tab:CreateToggle({
                                 if not AutoEnchant then break end
                                 local okInvoke = false
                                 pcall(function()
-                                    -- O Framework novo aceita somente um UID por chamada.
-                                    local result = Network.Invoke("Enchant Pet", uid)
+                                        local result = Network.Invoke("Enchant Pet", uid)
                                     okInvoke = result ~= false
                                 end)
                                 if not okInvoke then okAll = false end
-                                -- Evita saturar o limite de invokes do Hardcore;
-                                -- a UI oficial usa 1,3s, mas 0,20s é suficiente
-                                -- para serializar a fila sem floodar o remote.
                                 task.wait(0.20)
                             end
                             if last < #pending then task.wait(0.15) end
