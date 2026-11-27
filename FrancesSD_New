@@ -62,7 +62,7 @@ Safe_Part.CFrame = HumanoidRootPart.CFrame - Vector3.new(0, 5, 0)
 
 -- ====================== LIBRARY (auto-detect path) ======================
 -- Seleciona a Library mais completa entre a variante Framework e a legada.
-local function libraryScore(lib)
+function libraryScore(lib)
     if type(lib) ~= "table" then return -1 end
     local score = 0
     local net = lib.Network
@@ -87,13 +87,13 @@ local function libraryScore(lib)
     return score
 end
 
-local function addLibraryCandidate(list, seen, instance, path)
+function addLibraryCandidate(list, seen, instance, path)
     if not instance or not instance:IsA("ModuleScript") or seen[instance] then return end
     seen[instance] = true
     table.insert(list, { instance = instance, path = path })
 end
 
-local function resolveLibrary()
+function resolveLibrary()
     local candidates, seen = {}, {}
     local framework = ReplicatedStorage:FindFirstChild("Framework")
     local legacy = ReplicatedStorage:FindFirstChild("Library")
@@ -179,7 +179,7 @@ local FrameworkWorldCmds = IsFrameworkBackend and Library.WorldCmds or nil
 local FrameworkThings = IsFrameworkBackend and Library.Things or nil
 local FrameworkSave = IsFrameworkBackend and Library.Save or nil
 
-local function instanceCoinHealth(instance)
+function instanceCoinHealth(instance)
     if not instance then return 0 end
     local names = {"Health", "health", "HP", "hp", "MaxHealth", "maxHealth", "CoinHealth"}
     for _, name in ipairs(names) do
@@ -197,7 +197,7 @@ local function instanceCoinHealth(instance)
     return 0
 end
 
-local function frameworkReadyForAction()
+function frameworkReadyForAction()
     if not IsFrameworkBackend then return true end
     local okLoaded, loaded = pcall(function()
         return FrameworkWorldCmds and FrameworkWorldCmds.HasLoaded and FrameworkWorldCmds.HasLoaded()
@@ -209,7 +209,7 @@ local function frameworkReadyForAction()
     return okAction and canAct ~= false
 end
 
-local function resolveFrameworkEggId(selected)
+function resolveFrameworkEggId(selected)
     if not IsFrameworkBackend then return selected end
     local selectedText = tostring(selected or "")
     local eggDirectory = (Library and Library.Directory and Library.Directory.Eggs) or {}
@@ -249,7 +249,7 @@ local function resolveFrameworkEggId(selected)
     return selected
 end
 
-local function frameworkHasTripleEgg()
+function frameworkHasTripleEgg()
     if not IsFrameworkBackend then return false end
     local save
     pcall(function() save = FrameworkSave and FrameworkSave.Get() end)
@@ -264,7 +264,7 @@ local function frameworkHasTripleEgg()
         or passes["Triple Egg"] == true
 end
 
-local function frameworkCoinSnapshot()
+function frameworkCoinSnapshot()
     local result = {}
     local coins = FrameworkThings and FrameworkThings.Coins
     if not coins then return result end
@@ -301,7 +301,7 @@ local function frameworkCoinSnapshot()
 end
 
 
-local function farmCoinCompat(coinId, petUID)
+function farmCoinCompat(coinId, petUID)
     if IsFrameworkBackend then
         task.spawn(function()
             task.wait(0.33)
@@ -314,7 +314,7 @@ local function farmCoinCompat(coinId, petUID)
     end
 end
 
-local function resolvePetCmds()
+function resolvePetCmds()
     if Library.Client and Library.Client.PetCmds then return Library.Client.PetCmds end
     if Library.PetCmds then return Library.PetCmds end
     local roots = {}
@@ -375,7 +375,7 @@ end)
 -- Nao hookar Network.Fired no Framework atual. O primeiro upvalue de Fired
 -- e o resolvedor interno de eventos; substitui-lo por true causa o erro
 -- "attempt to index boolean with 'Fire'" dentro do modulo Network.
-local function ensureNetworkBypass() end -- no-op (ja aplicado no load)
+function ensureNetworkBypass() end -- no-op (ja aplicado no load)
 
 -- ====================== STATE VARIABLES ======================
 local All_Eggs_Available = {}
@@ -798,7 +798,7 @@ local WORLD_ORDER = {
     "Blue Glitched", "Pink Glitched", "Enchanted Forest", "Gingerbread",
 }
 
-local function directoryWorldRank(areaName)
+function directoryWorldRank(areaName)
     local result = nil
     pcall(function()
         local area = Library and Library.Directory and Library.Directory.Areas
@@ -812,7 +812,7 @@ local function directoryWorldRank(areaName)
     return result
 end
 
-local function worldRank(name)
+function worldRank(name)
     name = tostring(name or "")
     local direct = directoryWorldRank(name)
     if direct then return direct end
@@ -827,7 +827,7 @@ local function worldRank(name)
     return 20000
 end
 
-local function sortByWorld(list)
+function sortByWorld(list)
     local t = {}
     for _, v in ipairs(list or {}) do table.insert(t, v) end
     table.sort(t, function(a, b)
@@ -849,7 +849,7 @@ sniperDefaultList = sortByWorld(sniperDefaultList)
 local DynamicBreakables = {}
 local DynamicBreakablesSet = {}
 
-local function isProbablyAreaOrJunk(name)
+function isProbablyAreaOrJunk(name)
     if not name or name == "" then return true end
     local n = tostring(name):lower()
     -- filtra nomes de areas / mundos que vazam no dump
@@ -870,7 +870,7 @@ local function isProbablyAreaOrJunk(name)
     return false
 end
 
-local function addDynamicBreakable(name)
+function addDynamicBreakable(name)
     if not name then return end
     name = tostring(name):gsub("^%s+", ""):gsub("%s+$", "")
     if name == "" or DynamicBreakablesSet[name] then return end
@@ -879,7 +879,7 @@ local function addDynamicBreakable(name)
     table.insert(DynamicBreakables, name)
 end
 
-local function refreshDynamicBreakables()
+function refreshDynamicBreakables()
     DynamicBreakables = {}
     DynamicBreakablesSet = {}
     -- seed com priorityList (eventos / highs)
@@ -906,7 +906,7 @@ local function refreshDynamicBreakables()
     return DynamicBreakables
 end
 
-local function makeUniqueBreakableOptions(list, includeCategories)
+function makeUniqueBreakableOptions(list, includeCategories)
     local out, seen = {}, {}
     if includeCategories then
         for _, name in ipairs(sniperDefaultList) do
@@ -961,7 +961,7 @@ function isWebhookPet(pet)
     return false
 end
 
-local function formatNumber(n)
+function formatNumber(n)
     local absN = math.abs(n or 0)
     if absN >= 1e9 then
         return string.format("%.2fB", n / 1e9)
@@ -974,11 +974,11 @@ local function formatNumber(n)
     end
 end
 
-local function isInRange(vec3)
+function isInRange(vec3)
     return true -- sem limite de distancia
 end
 
-local function isPetLocked(pet)
+function isPetLocked(pet)
     if not pet then return true end
     if pet.l == true or pet.locked == true or pet.Lock == true or pet.Locked == true then
         return true
@@ -987,7 +987,7 @@ local function isPetLocked(pet)
     return false
 end
 
-local function isPetShiny(pet)
+function isPetShiny(pet)
     if not pet then return false end
     return pet.s == true or pet.shiny == true or pet.Shiny == true or pet.sh == true
 end
@@ -1012,7 +1012,7 @@ function getPetCraftVariant(pet)
     return base
 end
 
-local function getEquippedPets()
+function getEquippedPets()
     local list, seen = {}, {}
     local function add(uid)
         if uid == nil then return end
@@ -1054,20 +1054,20 @@ end
 -- continuam usaveis normalmente.
 local PetBlacklist = {} -- [uid] = true
 
-local function refreshData()
+function refreshData()
     Data = Library.Save.Get()
     return Data
 end
 
-local function isBlacklisted(uid)
+function isBlacklisted(uid)
     return uid ~= nil and PetBlacklist[tostring(uid)] == true
 end
 
-local function isProtectedPet(pet)
+function isProtectedPet(pet)
     return type(pet) == "table" and pet.uid and isBlacklisted(pet.uid)
 end
 
-local function snapshotInventoryToBlacklist()
+function snapshotInventoryToBlacklist()
     refreshData()
     local count = 0
     local save = Data or Library.Save.Get()
@@ -1087,11 +1087,11 @@ local function snapshotInventoryToBlacklist()
     return count
 end
 
-local function clearBlacklist()
+function clearBlacklist()
     PetBlacklist = {}
 end
 
-local function countBlacklist()
+function countBlacklist()
     local n = 0
     for _ in pairs(PetBlacklist) do n = n + 1 end
     return n
@@ -1099,7 +1099,7 @@ end
 
 -- ====================== INIT DATA ======================
 -- Giant / special chests dinamicos (inclui Ancient, Super, Vault, etc.)
-local function isSpecialChestName(name)
+function isSpecialChestName(name)
     if not name then return false end
     local n = tostring(name)
     local lower = n:lower()
@@ -1196,7 +1196,7 @@ do
 end
 
 -- ====================== WEBHOOK ======================
-local function SendMessageWithEmbed(url, userId, embed)
+function SendMessageWithEmbed(url, userId, embed)
     if not url or url == "" then return end
     local headers = { ["Content-Type"] = "application/json" }
     local data = {
@@ -1223,7 +1223,7 @@ local function SendMessageWithEmbed(url, userId, embed)
 end
 
 -- ====================== AUTO DELETE ON HATCH ======================
-local function OpenEgg(_, pets)
+function OpenEgg(_, pets)
     if not Library.Variables.AutoDeleteEnabled then return end
     local save = Library.Save.Get()
     if not (save and save.AutoDelete) then return end
@@ -1270,7 +1270,7 @@ pcall(function()
 end)
 
 -- ====================== INSTANT COLLECT ======================
-local function InstantCollect(id, pos, isBoost, boostData)
+function InstantCollect(id, pos, isBoost, boostData)
     if not InstantCollectReady or not InstantCollectEnabled then return end
     Network.Fire("Collect Lootbag", id, pos)
     if isBoost and boostData then
@@ -1311,7 +1311,7 @@ pcall(function()
 end)
 
 -- ====================== COINS LOADER ======================
-local function LoadAllCoinsInternal()
+function LoadAllCoinsInternal()
     if IsFrameworkBackend then
         ServerCoins = frameworkCoinSnapshot()
         return
@@ -1333,7 +1333,7 @@ task.spawn(function()
 end)
 
 -- ====================== REMOVE EGG ANIMATION ======================
-local function applyRemoveEggAnimation(state)
+function applyRemoveEggAnimation(state)
     pcall(function()
         local scriptsFolder = PlayerScripts:FindFirstChild("Scripts")
         if not scriptsFolder then return end
@@ -1379,7 +1379,7 @@ end)
 pcall(function()
     getgenv().RAYFIELD_SECURE = true
 end)
-local function runRemoteSource(source)
+function runRemoteSource(source)
     local compiler = loadstring or load
     if type(compiler) ~= "function" then
         error("[PSX Mod Hub] Este executor nao oferece loadstring nem load.")
@@ -1425,13 +1425,13 @@ Misc_Tab = window:CreateTab({ name = "Misc", icon = "settings" })
 
 
 -- Gen2 dropdown: single = string | multi = {string}
-local function pickDropdown(v)
+function pickDropdown(v)
     if type(v) == "table" then
         return v[1]
     end
     return v
 end
-local function listDropdown(v)
+function listDropdown(v)
     if type(v) == "table" then
         return v
     elseif v == nil or v == "" then
@@ -1440,7 +1440,7 @@ local function listDropdown(v)
     return { v }
 end
 
-local function notify(title, content, duration)
+function notify(title, content, duration)
     pcall(function()
         window:Notify({
             title = tostring(title or "PSX"),
@@ -1461,7 +1461,7 @@ local HatchRequestBusy = false
 local HatchAmountsCache = {}
 local HatchAmountsCacheAt = {}
 
-local function getAllowedHatchAmounts(eggName)
+function getAllowedHatchAmounts(eggName)
     local now = os.clock()
     if HatchAmountsCache[eggName] and now - (HatchAmountsCacheAt[eggName] or 0) < 3 then
         return HatchAmountsCache[eggName]
@@ -1489,7 +1489,7 @@ local function getAllowedHatchAmounts(eggName)
     return amounts
 end
 
-local function chooseHatchAmount(eggName, requested)
+function chooseHatchAmount(eggName, requested)
     requested = math.max(1, math.floor(tonumber(requested) or 1))
     local allowed = getAllowedHatchAmounts(eggName)
     for _, amount in ipairs(allowed) do
@@ -1502,7 +1502,7 @@ local function chooseHatchAmount(eggName, requested)
     return selected
 end
 
-local function buyEggExact(eggName, requested)
+function buyEggExact(eggName, requested)
     if not eggName or HatchRequestBusy then return false, 0 end
     local amount = IsFrameworkBackend and ((tonumber(requested) or 1) >= 3 or frameworkHasTripleEgg())
         or chooseHatchAmount(eggName, requested)
@@ -2056,7 +2056,7 @@ end)
 -- Background: Rank / VIP / Free Gifts (logica oficial dos dumps)
 local AutoFreeGifts = true
 local FreeGiftPollDelay = 0.5
-local function searchArray(arr, value)
+function searchArray(arr, value)
     if type(arr) ~= "table" then return false end
     if Library.Functions and Library.Functions.SearchArray then
         local ok, res = pcall(function()
@@ -2070,7 +2070,7 @@ local function searchArray(arr, value)
     return false
 end
 
-local function claimFreeGiftsOfficial()
+function claimFreeGiftsOfficial()
     local save = Library.Save.Get()
     if not save then return end
     local dir = Library.Directory and Library.Directory.FreeGifts
@@ -2141,7 +2141,7 @@ EnchantDeleteCraftOptions = {
     "Dark Matter", "Dark Matter Shiny",
 }
 
-local function collectExclusivePetNames(node, hint, depth)
+function collectExclusivePetNames(node, hint, depth)
     if type(node) ~= "table" or (depth or 0) > 7 then return end
     local petData = node.PetData or node.petData
     if type(petData) == "table" then
@@ -2165,7 +2165,7 @@ pcall(function()
     collectExclusivePetNames(Library.Directory and Library.Directory.ExclusivePets, nil, 0)
 end)
 
-local function buildDeletePetNameOptions()
+function buildDeletePetNameOptions()
     local names, seen = {}, {}
     local directory = Pets_Directory
     if type(directory) ~= "table" then
@@ -2534,18 +2534,18 @@ function isPetMarkedForDeletion(pet)
     return false
 end
 
-local function farmCoinHealth(coin)
+function farmCoinHealth(coin)
     if type(coin) ~= "table" then return 0 end
     local health = tonumber(coin.h or coin.hp or coin.health or coin.Health or coin.m or coin.maxHealth)
     if health then return health end
     return instanceCoinHealth(coin.instance)
 end
 
-local function farmCoinName(coin)
+function farmCoinName(coin)
     return tostring(coin and (coin.n or coin.name or coin.Name) or "")
 end
 
-local function matchesFarmPriority(name, selected)
+function matchesFarmPriority(name, selected)
     if not selected or #selected == 0 then return true end
     local lowerName = tostring(name or ""):lower()
     for _, wanted in ipairs(selected) do
@@ -2576,7 +2576,7 @@ function collectGlobalPriorityTargets(origin)
     return targets
 end
 
-local function collectAreaFarmTargets(areaName, method, selected, origin)
+function collectAreaFarmTargets(areaName, method, selected, origin)
     local targets = {}
     for id, coin in pairs(ServerCoins or {}) do
         if coin and coin.p and coin.a == areaName then
@@ -2616,7 +2616,7 @@ local function collectAreaFarmTargets(areaName, method, selected, origin)
     return targets
 end
 
-local function assignFarmPets(pets, targets)
+function assignFarmPets(pets, targets)
     local assigned = {}
     if not pets or #pets == 0 or not targets or #targets == 0 then return assigned end
     if PetAssignMode == "OnePerBreakable" then
@@ -2636,11 +2636,11 @@ local FarmAssignmentState = {
     petTarget = {},
     targetPets = {},
 }
-local function clearFarmAssignmentState()
+function clearFarmAssignmentState()
     FarmAssignmentState.petTarget = {}
     FarmAssignmentState.targetPets = {}
 end
-local function applyFarmAssignments(assigned)
+function applyFarmAssignments(assigned)
     assigned = assigned or {}
     local desired = {}
     local changedByTarget = {}
@@ -2681,7 +2681,7 @@ local function applyFarmAssignments(assigned)
     end
     FarmAssignmentState.targetPets = assigned
 end
-local function fireFarmAssignments(assigned)
+function fireFarmAssignments(assigned)
     applyFarmAssignments(assigned)
 end
 
@@ -3097,7 +3097,7 @@ WorldHopOld = WorldHopOld or {
     WorldKeys = {},
 }
 
-local function buildWorldHopOptions()
+function buildWorldHopOptions()
     local result, keys = {}, {}
     local worlds = Library and Library.Directory and Library.Directory.Worlds
     if type(worlds) == "table" then
@@ -3121,7 +3121,7 @@ local function buildWorldHopOptions()
     return result
 end
 
-local function resolveWorldHopKey(display)
+function resolveWorldHopKey(display)
     display = tostring(display or "")
     if WorldHopOld.WorldKeys[display] then return WorldHopOld.WorldKeys[display] end
     local worlds = Library and Library.Directory and Library.Directory.Worlds
@@ -3137,12 +3137,12 @@ local function resolveWorldHopKey(display)
     return fallback == "Spawn" and "Spawn" or fallback
 end
 
-local function worldHopTargetMatches(coin)
+function worldHopTargetMatches(coin)
     if not coin or not coin.p or not coin.n or #SniperTargets == 0 then return false end
     return matchesFarmPriority(coin.n, SniperTargets)
 end
 
-local function worldHopCountTargets()
+function worldHopCountTargets()
     local count = 0
     for _, coin in pairs(ServerCoins or {}) do
         if worldHopTargetMatches(coin) then count = count + 1 end
@@ -3150,7 +3150,7 @@ local function worldHopCountTargets()
     return count
 end
 
-local function worldHopTravel(worldName)
+function worldHopTravel(worldName)
     local worldKey = resolveWorldHopKey(worldName)
     local worldCmds = WorldCmdsOld
     if type(worldCmds) == "table" and type(worldCmds.Load) == "function" then
@@ -3162,7 +3162,7 @@ local function worldHopTravel(worldName)
     return ok, worldKey
 end
 
-local function worldHopWaitForLoad(worldKey)
+function worldHopWaitForLoad(worldKey)
     local started = tick()
     while WorldHopOld.Enabled and tick() - started < (WorldHopOld.LoadTimeout or 12) do
         local loaded = false
@@ -3188,7 +3188,7 @@ local function worldHopWaitForLoad(worldKey)
     return false
 end
 
-local function worldHopFarmSelected()
+function worldHopFarmSelected()
     local pets = getEquippedPets()
     local targets = {}
     for id, coin in pairs(ServerCoins or {}) do
@@ -3206,7 +3206,7 @@ local function worldHopFarmSelected()
     return #targets
 end
 
-local function worldHopConfirmNoRespawn()
+function worldHopConfirmNoRespawn()
     -- Um breakable pode reaparecer alguns segundos depois do último ser
     -- destruído. Confirma três snapshots vazios separados por um intervalo.
     task.wait(math.max(1, tonumber(WorldHopOld.SpawnDelay) or 3))
@@ -3221,7 +3221,7 @@ local function worldHopConfirmNoRespawn()
     return emptyChecks >= 3
 end
 
-local function worldHopRejoinVip()
+function worldHopRejoinVip()
     local text = tostring(WorldHopOld.VipLink or "")
     local code = text:match("[?&]code=([%w%-]+)") or text:match("^([%w%-]+)$")
     if not code then return false end
@@ -3695,7 +3695,7 @@ end
 
 -- popula toggles com todos os GUIs atuais
 local guiToggleBuilt = {}
-local function rebuildGuiToggles()
+function rebuildGuiToggles()
     local names = listAllPlayerGuis()
     for _, n in ipairs(names) do
         if guiToggleBuilt[n] then continue end
@@ -3802,7 +3802,7 @@ Enchant_Tab:CreateInput({
     end,
 })
 
-local function petHasDesiredEnchant(uid)
+function petHasDesiredEnchant(uid)
     if #SelectedEnchantTitles == 0 then return false end
     local pet = nil
     pcall(function() pet = PetCmds.Get(uid) end)
@@ -3833,14 +3833,14 @@ local function petHasDesiredEnchant(uid)
     return false
 end
 
-local function getEnchantPet(uid)
+function getEnchantPet(uid)
     local pet
     pcall(function() pet = PetCmds.Get(uid) end)
     if not pet then pcall(function() pet = Library.PetCmds.Get(uid) end) end
     return pet
 end
 
-local function isEnchantEligiblePet(uid)
+function isEnchantEligiblePet(uid)
     local pet = getEnchantPet(uid)
     if type(pet) ~= "table" then return false end
     local info = Library.Directory.Pets
@@ -3927,7 +3927,7 @@ local missingDropdownHandle = nil
 local CollectionConfigVersion = 0
 local CollectionStatusParagraph = nil
 
-local function setCollectionStatus(text)
+function setCollectionStatus(text)
     pcall(function()
         if CollectionStatusParagraph and CollectionStatusParagraph.Set then
             CollectionStatusParagraph:Set("Collection: " .. tostring(text or "Aguardando..."))
@@ -3935,7 +3935,7 @@ local function setCollectionStatus(text)
     end)
 end
 
-local function buildMissingNames(variantName)
+function buildMissingNames(variantName)
     local vNum = variantToNum[variantName] or 4
     local names = {}
     MissingNameToId = {}
@@ -4059,14 +4059,14 @@ local IndexWorldEggMap = {
 
 local variantToNum = { ["Normal"] = 1, ["Golden"] = 2, ["Rainbow"] = 3, ["Dark Matter"] = 4 }
 
-local function requiredVariantNums(targetVariant)
+function requiredVariantNums(targetVariant)
     local maxV = variantToNum[targetVariant] or 1
     local t = {}
     for i = 1, maxV do t[i] = i end
     return t
 end
 
-local function darkMatterQueueReservations()
+function darkMatterQueueReservations()
     local reserved = {}
     local occupied = 0
     local save = Data or Library.Save.Get()
@@ -4100,7 +4100,7 @@ local function darkMatterQueueReservations()
     return reserved, occupied
 end
 
-local function collectionSet()
+function collectionSet()
     refreshData()
     local owned = {}
     local col = (Data and Data.Collection) or {}
@@ -4118,11 +4118,11 @@ local function collectionSet()
     return owned
 end
 
-local function hasCollection(owned, petId, vNum)
+function hasCollection(owned, petId, vNum)
     return owned[tostring(petId) .. "-" .. tostring(vNum)] == true
 end
 
-local function collectionPetName(petId)
+function collectionPetName(petId)
     local name = tostring(petId)
     pcall(function()
         local info = Library.Directory.Pets[tostring(petId)] or Library.Directory.Pets[petId]
@@ -4131,11 +4131,11 @@ local function collectionPetName(petId)
     return name
 end
 
-local function collectionVariantName(vNum)
+function collectionVariantName(vNum)
     return ({ [1] = "Normal", [2] = "Golden", [3] = "Rainbow", [4] = "Dark Matter" })[vNum] or tostring(vNum)
 end
 
-local function getEggDrops(eggName)
+function getEggDrops(eggName)
     local ids = {}
     local seen = {}
     pcall(function()
@@ -4164,7 +4164,7 @@ local function getEggDrops(eggName)
     return ids
 end
 
-local function isGoldenEgg(eggName)
+function isGoldenEgg(eggName)
     local golden = string.lower(tostring(eggName or "")):find("golden", 1, true) ~= nil
     pcall(function()
         local info = Library.Directory.Eggs[tostring(eggName)] or Library.Directory.Eggs[eggName]
@@ -4173,7 +4173,7 @@ local function isGoldenEgg(eggName)
     return golden
 end
 
-local function getEggCost(eggName)
+function getEggCost(eggName)
     local cost = math.huge
     pcall(function()
         if Library.Economy and Library.Economy.EggCost then
@@ -4190,7 +4190,7 @@ local function getEggCost(eggName)
     return cost
 end
 
-local function petRarityAllowed(petId)
+function petRarityAllowed(petId)
     if #IndexRarities == 0 then return true end
     local ok = false
     pcall(function()
@@ -4207,7 +4207,7 @@ local function petRarityAllowed(petId)
     return ok
 end
 
-local function isBlacklistedPet(petId)
+function isBlacklistedPet(petId)
     local name = tostring(petId)
     pcall(function()
         local dir = Library.Directory.Pets[tostring(petId)]
@@ -4220,7 +4220,7 @@ local function isBlacklistedPet(petId)
     return false
 end
 
-local function eggNormalVariantDone(eggName)
+function eggNormalVariantDone(eggName)
     local drops = getEggDrops(eggName)
     if #drops == 0 then return false end
     local owned = collectionSet()
@@ -4233,7 +4233,7 @@ local function eggNormalVariantDone(eggName)
     return true
 end
 
-local function eggNormalsDone(eggName, maxV)
+function eggNormalsDone(eggName, maxV)
     -- true se TODOS os pets relevantes ja tem normal no index
     -- e ainda falta alguma variante > 1
     if maxV <= 1 then return false end
@@ -4255,7 +4255,7 @@ local function eggNormalsDone(eggName, maxV)
     return anyNeedHigher
 end
 
-local function eggsForSelectedWorlds()
+function eggsForSelectedWorlds()
     local list = {}
     local seen = {}
     local maxV = variantToNum[CollectionVariant] or 1
@@ -4299,7 +4299,7 @@ local function eggsForSelectedWorlds()
     return list
 end
 
-local function indexDeleteUids(uids)
+function indexDeleteUids(uids)
     if not uids or #uids == 0 then return end
     -- safety: nunca manda locked
     local safe = {}
@@ -4325,7 +4325,7 @@ end
 
 -- Craft Index: NAO usa normal→gold (prefere Golden Egg)
 -- so gold→rainbow e rainbow→DM, shiny com shiny
-local function indexCraftOnce()
+function indexCraftOnce()
     refreshData()
     local owned = collectionSet()
     local queueReserved = darkMatterQueueReservations()
@@ -4415,7 +4415,7 @@ end
 
 -- Delete: se ja tem a variante ALVO no index → apaga todas as versoes do pet (menos locked)
 -- se ainda falta alvo: guarda gold/rainbow pra craft (normals nao importam)
-local function indexCleanupEggPets(petIds, maxV)
+function indexCleanupEggPets(petIds, maxV)
     refreshData()
     local owned = collectionSet()
     local queueReserved = darkMatterQueueReservations()
@@ -4547,7 +4547,7 @@ function indexCleanupSelectedWorlds(maxV)
     end
 end
 
-local function eggNeedsWork(eggName, maxV, goldenOnly)
+function eggNeedsWork(eggName, maxV, goldenOnly)
     local drops = getEggDrops(eggName)
     if #drops == 0 then return false, drops end
     local owned = collectionSet()
@@ -4567,7 +4567,7 @@ local function eggNeedsWork(eggName, maxV, goldenOnly)
     return false, drops
 end
 
-local function collectionTargetText(eggName, maxV, goldenOnly)
+function collectionTargetText(eggName, maxV, goldenOnly)
     local drops = getEggDrops(eggName)
     local owned = collectionSet()
     local firstVariant = goldenOnly and 2 or 1
@@ -4625,11 +4625,11 @@ function collectionPetReadyFromInventory(pid, maxV, goldenOnly)
     return hasCollection(owned, pid, 2) or gold > 0
 end
 
-local function buyIndexEgg(eggName)
+function buyIndexEgg(eggName)
     return buyEggExact(eggName, HatchAmount)
 end
 
-local function findCollectionEgg(eggName)
+function findCollectionEgg(eggName)
     local wantedId = tostring(resolveFrameworkEggId(eggName) or eggName)
     local wantedName = string.lower(tostring(eggName or ""))
     local foundPart
@@ -4647,7 +4647,7 @@ local function findCollectionEgg(eggName)
     return foundPart
 end
 
-local function collectionWorldLoaded(worldKey)
+function collectionWorldLoaded(worldKey)
     local loaded, current = false, nil
     pcall(function()
         local cmds = FrameworkWorldCmds or WorldCmdsOld
@@ -4657,7 +4657,7 @@ local function collectionWorldLoaded(worldKey)
     return loaded and (not worldKey or tostring(current) == tostring(worldKey))
 end
 
-local function collectionTravelToEgg(eggName)
+function collectionTravelToEgg(eggName)
     if not CollectionTeleportToEgg then return true end
     local part = findCollectionEgg(eggName)
     if not part then
