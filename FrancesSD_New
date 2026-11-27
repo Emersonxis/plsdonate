@@ -16,7 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-HUB_VERSION = "FrancesS v2.2"
+HUB_VERSION = "FrancesS v2.3"
 
 -- O Auto Hatch nativo do Framework emite um warn por compra. Filtra apenas
 -- essa mensagem conhecida; os demais avisos do jogo continuam normais.
@@ -5167,11 +5167,10 @@ end
 
 function diamondProductAmount(productName, productData)
     local known = {
-        ["Tiny Diamonds"] = 100000,
-        ["Medium Diamonds"] = 450000,
-        ["Large Diamonds"] = 2500000,
-        ["Massive Diamonds"] = 15000000,
-        ["Mega Diamonds"] = 150000000,
+        ["Tiny Diamonds"] = 400000,
+        ["Medium Diamonds"] = 1800000,
+        ["Large Diamonds"] = 7500000,
+        ["Massive Diamonds"] = 50000000,
     }
     if type(productData) == "table" then
         for _, key in ipairs({"amount", "Amount", "quantity", "Quantity", "diamonds", "Diamonds", "value", "Value"}) do
@@ -5188,22 +5187,15 @@ function diamondProductAmount(productName, productData)
 end
 
 function diamondProductCost(productName)
-    local costs = {
-        ["Tiny Diamonds"] = 580000,
-        ["Medium Diamonds"] = 2400000,
-        ["Large Diamonds"] = 12500000,
-        ["Massive Diamonds"] = 70000000,
-        ["Mega Diamonds"] = 775000000,
-    }
-    return costs[productName]
+    -- O preco e dinamico no Framework atual. Nunca usar valores antigos.
+    return nil
 end
 
 function diamondTierAmount(tier)
-    return ({100000, 450000, 2500000, 15000000, 150000000})[tier]
+    return ({400000, 1800000, 7500000, 50000000})[tier]
 end
-
 function diamondTierCost(tier)
-    return ({580000, 2400000, 12500000, 70000000, 775000000})[tier]
+    return nil
 end
 
 function diamondUiNumber(text)
@@ -5240,7 +5232,8 @@ function diamondShopButtons()
     pcall(function() shop = Library.GUI and Library.GUI.ExclusiveShop end)
     if shop and typeof(shop) ~= "Instance" then shop = nil end
     if not shop then shop = PlayerGui:FindFirstChild("Exclusive Shop", true) end
-    local diamonds = shop and shop:FindFirstChild("Diamonds", true)
+    local container = shop and (shop:FindFirstChild("Container", true) or shop)
+    local diamonds = container and container:FindFirstChild("Diamonds", true)
     if not diamonds then return {} end
     local buttons, seen = {}, {}
     local function add(button)
@@ -5263,16 +5256,22 @@ end
 
 function refreshDiamondProductOptions()
     local names, seen = {}, {}
-    local preferred = {"Tiny Diamonds", "Medium Diamonds", "Large Diamonds", "Massive Diamonds", "Mega Diamonds"}
+    local preferred = {"Tiny Diamonds", "Medium Diamonds", "Large Diamonds", "Massive Diamonds"}
     local products = Library.Directory and Library.Directory.Products or {}
     local buttons = diamondShopButtons()
     if #buttons > 0 then
         local items, bestRatio = {}, 0
         for index, button in ipairs(buttons) do
             local tier = tonumber(button:GetAttribute("Tier")) or index
-            local productName = preferred[tier] or ("Diamond Tier " .. tostring(tier))
-            local amount = diamondUiValue(button:FindFirstChild("Amount", true))
-            local cost = diamondUiValue(button:FindFirstChild("Price", true))
+            local productName = tostring(button:GetAttribute("Product") or preferred[tier] or "")
+            local cost, amount
+            pcall(function()
+                local currentCost, currentAmount = Network.Invoke("Get Diamond Prices", productName)
+                cost = tonumber(currentCost) or diamondUiNumber(currentCost)
+                amount = tonumber(currentAmount) or diamondUiNumber(currentAmount)
+            end)
+            amount = amount or diamondUiValue(button:FindFirstChild("Amount", true))
+            cost = cost or diamondUiValue(button:FindFirstChild("Price", true))
             local ratio = amount and cost and cost > 0 and amount / cost or 0
             if ratio > bestRatio then bestRatio = ratio end
             table.insert(items, {name = productName, tier = tier, amount = amount, cost = cost, ratio = ratio})
@@ -5301,7 +5300,7 @@ function refreshDiamondProductOptions()
     end
     for name, data in pairs(products) do
         local n = tostring(name)
-        if n:lower():find("diamond", 1, true) and not seen[n] then
+        if n:lower():find("diamond", 1, true) and not seen[n] and n ~= "Mega Diamonds" then
             table.insert(names, n)
             seen[n] = true
         end
@@ -5363,6 +5362,14 @@ task.spawn(function()
     local labels = refreshDiamondProductOptions()
     pcall(function() DiamondDropdown:Refresh(labels) end)
 end)
+task.spawn(function()
+    while task.wait(10) do
+        local labels = refreshDiamondProductOptions()
+        if #labels > 0 then
+            pcall(function() DiamondDropdown:Refresh(labels) end)
+        end
+    end
+end)
 Exp_Tab:CreateToggle({
     name = "Auto Buy Diamond Packs (loop 0.5s)",
     value = false,
@@ -5376,8 +5383,9 @@ Exp_Tab:CreateToggle({
                 for _, productName in ipairs(AutoBuyDiamondProducts or {}) do
                     if not AutoBuyMassiveDiamonds then break end
                     pcall(function()
-                        local tier = DiamondProductTier[productName]
-                        if tier then Network.Invoke("Buy DiamondPack", tier) end
+                        if productName and productName ~= "" then
+                            Network.Invoke("Purchase Currency", tostring(productName))
+                        end
                     end)
                     task.wait(0.12)
                 end
