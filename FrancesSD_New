@@ -16,7 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-HUB_VERSION = "FrancesS v2.0"
+HUB_VERSION = "FrancesS v2.1"
 
 -- O Auto Hatch nativo do Framework emite um warn por compra. Filtra apenas
 -- essa mensagem conhecida; os demais avisos do jogo continuam normais.
