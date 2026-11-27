@@ -16,7 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-HUB_VERSION = "FrancesS v2.1"
+HUB_VERSION = "FrancesS v2.2"
 
 -- O Auto Hatch nativo do Framework emite um warn por compra. Filtra apenas
 -- essa mensagem conhecida; os demais avisos do jogo continuam normais.
@@ -2635,13 +2635,61 @@ end
 local FarmAssignmentState = {
     petTarget = {},
     targetPets = {},
+    petAssignedAt = {},
+    lastVisualAudit = 0,
 }
 function clearFarmAssignmentState()
     FarmAssignmentState.petTarget = {}
     FarmAssignmentState.targetPets = {}
+    FarmAssignmentState.petAssignedAt = {}
+    FarmAssignmentState.lastVisualAudit = 0
 end
-function applyFarmAssignments(assigned)
+function farmTargetInstance(targetId)
+    local key = tostring(targetId)
+    local coin = (ServerCoins and (ServerCoins[targetId] or ServerCoins[key])) or nil
+    if coin and coin.instance and coin.instance.Parent then
+        return coin.instance
+    end
+    local coinsFolder = workspace:FindFirstChild("__ITEMS")
+        and workspace.__ITEMS:FindFirstChild("Coins")
+    return coinsFolder and coinsFolder:FindFirstChild(key) or nil
+end
+function farmTargetContainsPet(targetId, petUID)
+    local coin = farmTargetInstance(targetId)
+    local petsFolder = coin and coin:FindFirstChild("Pets")
+    if not petsFolder then return nil end
+    local uid = tostring(petUID)
+    if petsFolder:FindFirstChild(uid, true) then return true end
+    for _, item in ipairs(petsFolder:GetDescendants()) do
+        if tostring(item.Name) == uid then return true end
+        for _, attributeName in ipairs({"UID", "uid", "PetUID", "PetId", "id"}) do
+            local value = item:GetAttribute(attributeName)
+            if value ~= nil and tostring(value) == uid then return true end
+        end
+    end
+    return false
+end
+function reconcileFarmVisualAssignments(assigned)
+    local now = tick()
+    if now - (FarmAssignmentState.lastVisualAudit or 0) < 0.75 then return end
+    FarmAssignmentState.lastVisualAudit = now
+    for targetId, pets in pairs(assigned or {}) do
+        for _, petUID in ipairs(pets or {}) do
+            local uid = tostring(petUID)
+            local assignedAt = FarmAssignmentState.petAssignedAt[uid] or 0
+            -- Aguarda a replicacao visual inicial antes de considerar o pet perdido.
+            if now - assignedAt >= 1 then
+                local present = farmTargetContainsPet(targetId, petUID)
+                if present == false then
+                    FarmAssignmentState.petTarget[uid] = nil
+                end
+            end
+        end
+    end
+end
+function applyFarmAssignments(assigned, verifyVisual)
     assigned = assigned or {}
+    if verifyVisual then reconcileFarmVisualAssignments(assigned) end
     local desired = {}
     local changedByTarget = {}
     for targetId, pets in pairs(assigned) do
@@ -2674,10 +2722,14 @@ function applyFarmAssignments(assigned)
             pcall(function() Network.Fire("Change Pet Target", petUID, "Coin", target) end)
             farmCoinCompat(target, petUID)
             FarmAssignmentState.petTarget[uid] = target
+            FarmAssignmentState.petAssignedAt[uid] = tick()
         end
     end
     for uid in pairs(FarmAssignmentState.petTarget) do
-        if not desired[uid] then FarmAssignmentState.petTarget[uid] = nil end
+        if not desired[uid] then
+            FarmAssignmentState.petTarget[uid] = nil
+            FarmAssignmentState.petAssignedAt[uid] = nil
+        end
     end
     FarmAssignmentState.targetPets = assigned
 end
@@ -3030,7 +3082,7 @@ autoFarmTab:CreateToggle({
                 end
 
                 -- O cache evita reenviar a mesma atribuição a cada 0,25s.
-                applyFarmAssignments({ [breakableID] = all_Pets })
+                applyFarmAssignments({ [breakableID] = all_Pets }, true)
 
                 lastChestId = breakableID
                 lastPetCount = #all_Pets
